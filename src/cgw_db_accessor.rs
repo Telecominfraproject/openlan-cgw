@@ -99,7 +99,7 @@ impl CGWDBAccessor {
         let res = self.cl.execute(&q, &[&g.id, &g.reserved_size, &g.actual_size]).await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra group {}: {:?}", g.id, e.to_string());
                 return Err("Insert new infra group failed");
@@ -140,7 +140,7 @@ impl CGWDBAccessor {
                 }
                 return Some(list);
             }
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
@@ -152,7 +152,7 @@ impl CGWDBAccessor {
 
         match row {
             Ok(r) => return Some(CGWDBInfrastructureGroup::from(r)),
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
@@ -174,7 +174,7 @@ impl CGWDBAccessor {
             &[&infra.mac, &infra.infra_group_id]).await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra: {:?}", e.to_string());
                 return Err("Insert new infra failed");

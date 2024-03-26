@@ -262,7 +262,7 @@ impl CGWConnectionServer {
         let _ = self.mbox_internal_tx.send(req);
     }
 
-    pub fn enqueue_mbox_message_from_device_to_nb_api_c(&self, mac: DeviceSerial, req: String) {
+    pub fn enqueue_mbox_message_from_device_to_nb_api_c(&self, _mac: DeviceSerial, req: String) {
         // TODO: device (mac) -> group id matching
         let key = String::from("TBD_INFRA_GROUP");
         let nb_api_client_clone = self.nb_api_client.clone();
@@ -418,7 +418,7 @@ impl CGWConnectionServer {
                     v = rx_mbox.recv_many(&mut buf, buf_capacity - num_of_msg_read) => {
                         v
                     }
-                    v = sleep(Duration::from_millis(10)) => {
+                    _v = sleep(Duration::from_millis(10)) => {
                         0
                     }
                 };
@@ -483,7 +483,7 @@ impl CGWConnectionServer {
                     // assignment as soon as possible to deduce relaying action in
                     // the following message pool that is being handled.
                     // Same for delete.
-                    if let CGWNBApiParsedMsg::InfrastructureGroupCreate(uuid, gid) = parsed_msg {
+                    if let CGWNBApiParsedMsg::InfrastructureGroupCreate(_uuid, gid) = parsed_msg {
                         // DB stuff - create group for remote shards to be aware of change
                         let group = CGWDBInfrastructureGroup {
                             id: gid,
@@ -491,12 +491,12 @@ impl CGWConnectionServer {
                             actual_size: 0i32,
                         };
                         match self.cgw_remote_discovery.create_infra_group(&group).await {
-                            Ok(dst_cgw_id) => {
+                            Ok(_dst_cgw_id) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
                                     format!("Group has been created successfully gid {gid}"));
                             },
-                            Err(e) => {
+                            Err(_e) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
                                     format!("Failed to create new group (duplicate create?), gid {gid}"));
@@ -513,7 +513,7 @@ impl CGWConnectionServer {
                                     gid,
                                     format!("Group has been destroyed successfully gid {gid}, uuid {uuid}"));
                             },
-                            Err(e) => {
+                            Err(_e) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
                                     format!("Failed to destroy group (doesn't exist?), gid {gid}, uuid {uuid}"));
@@ -673,7 +673,7 @@ impl CGWConnectionServer {
                             }
 
                             let proc_mbox_tx = rc.unwrap();
-                            if let Err(e) = proc_mbox_tx.send(CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, msg)) {
+                            if let Err(_e) = proc_mbox_tx.send(CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, msg)) {
                                 error!("Failed to send message to remote device (msg uuid({uuid}))");
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
@@ -715,7 +715,7 @@ impl CGWConnectionServer {
                     v = rx_mbox.recv_many(&mut buf, buf_capacity - num_of_msg_read) => {
                         v
                     }
-                    v = sleep(Duration::from_millis(10)) => {
+                    _v = sleep(Duration::from_millis(10)) => {
                         0
                     }
                 };

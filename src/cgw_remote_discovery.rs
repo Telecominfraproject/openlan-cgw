@@ -167,7 +167,7 @@ impl CGWRemoteDiscovery {
 
         debug!("Found {} remote CGWs:", rc.remote_cgws_map.read().await.len() - 1);
 
-        for (key, val) in rc.remote_cgws_map.read().await.iter() {
+        for (_key, val) in rc.remote_cgws_map.read().await.iter() {
             if val.shard.id == rc.local_shard_id {
                 continue;
             }
@@ -230,7 +230,7 @@ impl CGWRemoteDiscovery {
 
             match lock.insert(gid, shard_id) {
                 None => continue,
-                Some(v) => warn!("Populated gid_to_cgw_map with previous value being alerady set, unexpected")
+                Some(_v) => warn!("Populated gid_to_cgw_map with previous value being alerady set, unexpected")
             }
         }
         debug!("Found total {} groups with their respective owners", lock.len());
@@ -258,7 +258,7 @@ impl CGWRemoteDiscovery {
                 Ok(res) => {
                     let shrd: CGWREDISDBShard = match CGWREDISDBShard::try_from(res) {
                         Ok(v) => v,
-                        Err(e) => {
+                        Err(_e) => {
                             warn!("Failed to parse CGWREDISDBShard, {key}");
                             continue;
                         }
@@ -356,7 +356,7 @@ impl CGWRemoteDiscovery {
         warn!("Every available CGW is exceeding capacity+threshold limit, using least loaded one...");
         if let Some(least_loaded_cgw) = lock.iter()
             .min_by(|a, b| a.1.shard.assigned_groups_num.cmp(&b.1.shard.assigned_groups_num))
-            .map(|(k, _v)| _v) {
+            .map(|(_k, _v)| _v) {
                 warn!("Found least loaded CGW id: {}", least_loaded_cgw.shard.id);
                 return Ok(least_loaded_cgw.shard.id);
             }
@@ -419,7 +419,7 @@ impl CGWRemoteDiscovery {
 
         let shard_id: i32 = match self.assign_infra_group_to_cgw(g.id).await {
             Ok(v) => v,
-            Err(e) => {
+            Err(_e) => {
                 let _ = self.db_accessor.delete_infra_group(g.id).await;
                 return Err("Assign group to CGW shard failed");
             }
@@ -491,7 +491,7 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn destroy_ifras_list(&self, gid: i32, infras: Vec<String>) -> Result<(), Vec<String>> {
+    pub async fn destroy_ifras_list(&self, _gid: i32, infras: Vec<String>) -> Result<(), Vec<String>> {
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
         let mut failed_infras: Vec<String> = Vec::with_capacity(futures.len());

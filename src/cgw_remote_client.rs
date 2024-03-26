@@ -1,6 +1,4 @@
-use crate::{
-    AppArgs,
-};
+
 
 pub mod cgw_remote {
     tonic::include_proto!("cgw.remote");
@@ -67,7 +65,7 @@ impl CGWRemoteClient {
                 error!("Failed to relay req: {:?}", e);
                 Err(())
             }
-            Ok(r) => {
+            Ok(_r) => {
                 Ok(())
             }
         }

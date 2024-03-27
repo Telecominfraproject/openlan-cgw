@@ -2,21 +2,27 @@ use crate::{
     AppArgs,
 };
 
-use crate::cgw_nb_api_listener::{
-    CGWNBApiClient,
-};
+use crate::{
+    cgw_nb_api_listener::{
+        CGWNBApiClient,
+    },
+    cgw_connection_processor::{
+        CGWConnectionProcessor,
+        CGWConnectionProcessorReqMsg,
+    },
 
-use crate::cgw_connection_processor::{
-    CGWConnectionProcessor,
-    CGWConnectionProcessorReqMsg,
-};
+    cgw_db_accessor::{
+        CGWDBInfrastructureGroup,
+    },
 
-use crate::cgw_db_accessor::{
-    CGWDBInfrastructureGroup,
-};
-
-use crate::cgw_remote_discovery::{
-    CGWRemoteDiscovery,
+    cgw_remote_discovery::{
+        CGWRemoteDiscovery,
+    },
+    cgw_metrics::{
+        CGWMetrics,
+        CGWMetricsCounterType,
+        CGWMetricsCounterOpType,
+    },
 };
 
 use tokio::{
@@ -179,6 +185,7 @@ enum CGWNBApiParsedMsg {
     InfrastructureGroupInfraAdd(Uuid, i32, Vec<DeviceSerial>),
     InfrastructureGroupInfraDel(Uuid, i32, Vec<DeviceSerial>),
     InfrastructureGroupInfraMsg(Uuid, i32, DeviceSerial, String),
+    RebalanceGroups(Uuid),
 }
 
 impl CGWConnectionServer {
@@ -375,6 +382,10 @@ impl CGWConnectionServer {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
                 //debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::InfrastructureGroupInfraMsg(json_msg.uuid, group_id, json_msg.mac, serde_json::to_string(&json_msg.msg).unwrap()));
+            },
+            "rebalance_groups" => {
+                let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
+                return Some(CGWNBApiParsedMsg::RebalanceGroups(json_msg.uuid));
             },
             &_ => {
                 debug!("Unknown type {msg_type} received");
@@ -680,6 +691,16 @@ impl CGWConnectionServer {
                                     format!("Failed to send msg, gid {gid}, uuid {uuid}"));
                             }
                         },
+                        CGWNBApiParsedMsg::RebalanceGroups(Uuid) => {
+                            debug!("Received Rebalance Groups request");
+                            match self.cgw_remote_discovery.rebalance_all_groups().await {
+                                Ok(groups_res) => {
+                                    debug!("Rebalancing groups completed successfully, # of rebalanced groups {groups_res}");
+                                },
+                                Err(e) => {
+                                },
+                            }
+                        },
                         _ => {
                             debug!("Received unimplemented/unexpected group create/del msg, ignoring");
                         }
@@ -756,6 +777,9 @@ impl CGWConnectionServer {
                             let msg: CGWConnectionProcessorReqMsg = CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose;
                             c.send(msg).unwrap();
                         });
+                    } else {
+                        CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::ConnectionsNum,
+                                                             CGWMetricsCounterOpType::Inc);
                     }
 
                     // clone a sender handle, as we still have to send ACK back using underlying
@@ -772,6 +796,8 @@ impl CGWConnectionServer {
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(serial) = msg {
                     info!("connmap: removed {} serial from connmap, new num_of_connections:{}", serial, connmap_w_lock.len() - 1);
                     connmap_w_lock.remove(&serial);
+                    CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::ConnectionsNum,
+                                                         CGWMetricsCounterOpType::Dec);
                 }
             }
 

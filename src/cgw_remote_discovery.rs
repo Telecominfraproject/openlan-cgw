@@ -8,6 +8,11 @@ use crate::{
         CGWDBInfrastructureGroup,
         CGWDBInfra,
     },
+    cgw_metrics::{
+        CGWMetrics,
+        CGWMetricsCounterType,
+        CGWMetricsCounterOpType,
+    }
 };
 
 use std::{
@@ -161,11 +166,12 @@ impl CGWRemoteDiscovery {
                 .append(redis_req_data)).await {
                 panic!("Failed to create record about shard in REDIS, e:{e}");
             }
-
-            let _ = rc.sync_remote_cgw_map().await;
         }
 
-        debug!("Found {} remote CGWs:", rc.remote_cgws_map.read().await.len() - 1);
+        let _ = rc.sync_gid_to_cgw_map().await;
+        let _ = rc.sync_remote_cgw_map().await;
+
+        debug!("Found {} remote CGWs", rc.remote_cgws_map.read().await.len() - 1);
 
         for (key, val) in rc.remote_cgws_map.read().await.iter() {
             if val.shard.id == rc.local_shard_id {
@@ -233,7 +239,16 @@ impl CGWRemoteDiscovery {
                 Some(v) => warn!("Populated gid_to_cgw_map with previous value being alerady set, unexpected")
             }
         }
-        debug!("Found total {} groups with their respective owners", lock.len());
+
+        let mut local_cgw_gid_num: i64 = 0;
+        for (key, val) in lock.iter() {
+            if *val == self.local_shard_id {
+                local_cgw_gid_num += 1;
+            }
+        }
+
+        CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
+                                             CGWMetricsCounterOpType::Set(local_cgw_gid_num));
     }
 
     async fn sync_remote_cgw_map(&self) -> Result<(), &'static str> {
@@ -282,6 +297,9 @@ impl CGWRemoteDiscovery {
             }
         }
 
+        CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::ActiveCGWNum,
+                                             CGWMetricsCounterOpType::Set(i64::try_from(lock.len()).unwrap()));
+
         Ok(())
     }
 
@@ -301,36 +319,42 @@ impl CGWRemoteDiscovery {
         None
     }
 
-    async fn increment_cgw_assigned_groups_num(&self, id: i32) -> Result<(), &'static str> {
-        debug!("inc {id}");
-        /*
+    async fn increment_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<(), &'static str> {
+        debug!("Incrementing assigned groups num cgw_id_{cgw_id}");
+
         if let Err(e) = self.redis_client.send::<i32>(
-            */
-        match self.redis_client.send::<i32>(
             resp_array!["HINCRBY",
-                        format!("{}{id}", REDIS_KEY_SHARD_ID_PREFIX),
-                        REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-                        "1"]).await {
-            Ok(v) => {
-                debug!("ret {:?}", v);
-            },
-            Err(e) => {
-            warn!("Failed to increment CGW{id} assigned group num count, e:{e}");
+            format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
+            REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
+            "1"]).await {
+            warn!("Failed to increment CGW{cgw_id} assigned group num count, e:{e}");
             return Err("Failed to increment assigned group num count");
-            }
+        }
+
+        if cgw_id == self.local_shard_id {
+            CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
+                                                 CGWMetricsCounterOpType::Inc);
         }
         Ok(())
     }
 
-    async fn decrement_cgw_assigned_groups_num(&self, id: i32) -> Result<(), &'static str> {
+    async fn decrement_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<(), &'static str> {
+        debug!("Decrementing assigned groups num cgw_id_{cgw_id}");
+
         if let Err(e) = self.redis_client.send::<i32>(
             resp_array!["HINCRBY",
-                        format!("{}{id}", REDIS_KEY_SHARD_ID_PREFIX),
+                        format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
                         REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
                         "-1"]).await {
-            warn!("Failed to decrement CGW{id} assigned group num count, e:{e}");
+            warn!("Failed to decrement CGW{cgw_id} assigned group num count, e:{e}");
             return Err("Failed to decrement assigned group num count");
         }
+
+        if cgw_id == self.local_shard_id {
+            CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
+                                                 CGWMetricsCounterOpType::Dec);
+        }
+
         Ok(())
     }
 
@@ -341,10 +365,6 @@ impl CGWRemoteDiscovery {
         hash_vec.sort_by(|a, b| b.1.shard.assigned_groups_num.cmp(&a.1.shard.assigned_groups_num));
 
         for x in hash_vec {
-            debug!("id_{} capacity {} t {} assigned {}",
-                   x.1.shard.id, x.1.shard.capacity,
-                   x.1.shard.threshold,
-                   x.1.shard.assigned_groups_num);
             let max_capacity: i32 = x.1.shard.capacity + x.1.shard.threshold;
             if x.1.shard.assigned_groups_num + 1 <= max_capacity {
                 debug!("Found CGW shard to assign group to (id {})", x.1.shard.id);
@@ -387,8 +407,7 @@ impl CGWRemoteDiscovery {
             return Err("Hot-cache (REDIS DB) update owner failed");
         }
 
-        let mut lock = self.gid_to_cgw_cache.write().await;
-        lock.insert(gid, dst_cgw_id);
+        self.gid_to_cgw_cache.write().await.insert(gid, dst_cgw_id);
 
         debug!("REDIS: assigned gid{gid} to shard{dst_cgw_id}");
 
@@ -404,8 +423,7 @@ impl CGWRemoteDiscovery {
 
         debug!("REDIS: deassigned gid{gid} from controlled CGW");
 
-        let mut lock = self.gid_to_cgw_cache.write().await;
-        lock.remove(&gid);
+        self.gid_to_cgw_cache.write().await.remove(&gid);
 
         Ok(())
     }
@@ -556,4 +574,46 @@ impl CGWRemoteDiscovery {
             error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");
             return Err(());
         }
+
+    pub async fn rebalance_all_groups(&self) -> Result<u32, &'static str> {
+        warn!("Executing group rebalancing procedure");
+
+        let groups = match self.db_accessor.get_all_infra_groups().await {
+            Some(list) => list,
+            None => {
+                warn!("Tried to execute rebalancing when 0 groups created in DB");
+                return Err("Cannot do rebalancing due to absence of any groups created in DB");
+            }
+        };
+
+        // Clear local cache
+        self.gid_to_cgw_cache.write().await.clear();
+
+        for (cgw_id, val) in self.remote_cgws_map.read().await.iter() {
+            if let Err(e) = self.redis_client.send::<i32>(
+                resp_array!["HSET",
+                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
+                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM, "0"]).await {
+                warn!("Failed to reset CGW{cgw_id} assigned group num count, e:{e}");
+            }
+        }
+
+        for i in groups.iter() {
+            let _ = self.sync_remote_cgw_map().await;
+            let _ = self.sync_gid_to_cgw_map().await;
+            match self.assign_infra_group_to_cgw(i.id).await {
+                Ok(shard_id) => {
+                    debug!("Rebalancing: assigned {} to shard {}", i.id, shard_id);
+                    let _ = self.increment_cgw_assigned_groups_num(shard_id).await;
+                },
+                Err(e) => {
+                }
+            }
+        }
+
+        let _ = self.sync_remote_cgw_map().await;
+        let _ = self.sync_gid_to_cgw_map().await;
+
+        Ok(0u32)
+    }
 }

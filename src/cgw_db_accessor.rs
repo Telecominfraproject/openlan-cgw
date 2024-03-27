@@ -87,7 +87,7 @@ impl CGWDBAccessor {
      * INFRA_GROUP db API uses the following table decl
      * TODO: id = int, not varchar; requires kafka simulator changes
        CREATE TABLE infrastructure_groups (
-         id VARCHAR (50) PRIMARY KEY,
+         id INT PRIMARY KEY,
          reserved_size INT,
          actual_size INT
        );

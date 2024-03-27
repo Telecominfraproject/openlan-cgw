@@ -6,9 +6,13 @@ mod cgw_remote_discovery;
 mod cgw_remote_server;
 mod cgw_remote_client;
 mod cgw_db_accessor;
+mod cgw_metrics;
 
 #[macro_use]
 extern crate log;
+
+#[macro_use]
+extern crate lazy_static;
 
 use tokio::{
     net::{
@@ -47,6 +51,10 @@ use cgw_connection_server::{
 
 use cgw_remote_server::{
     CGWRemoteServer,
+};
+
+use cgw_metrics::{
+    CGWMetrics,
 };
 
 use clap::{
@@ -234,6 +242,8 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
                 Ok(builder) => builder,
                 Err(e) => panic!("Cannot create SSL-acceptor from supplied cert\n{e}")
             });
+
+    CGWMetrics::get_ref().start(&app_core.args).await;
 
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime

@@ -30,6 +30,9 @@ clap = { version = "4.4.8", features = ["derive"] }
 eui48 = "1.1.0"
 uuid = { version = "1.6.1", features = ["serde"] }
 redis-async = "0.16.1"
+warp = "*"
+prometheus = { version = "*", features = ["process"] }
+lazy_static = "*"
 
 [build-dependencies]
 tonic-build = "0.10"

@@ -1,48 +1,41 @@
-use crate::{
-    AppArgs,
-};
+use crate::AppArgs;
 
-use prometheus::{
-    IntCounter,
-    IntGauge,
-    Registry,
-};
+use prometheus::{IntCounter, IntGauge, Registry};
 use std::result::Result;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use warp::{
-    Filter,
-    Rejection,
-    Reply
-
-};
-use std::sync::{
-    Arc,
-    Mutex
-};
+use warp::{Filter, Rejection, Reply};
 
 lazy_static! {
-    pub static ref ACTIVE_CGW_NUM: IntGauge =
-        IntGauge::new("cgw_active_shards_num",
-                      "Number of active CGWs (CGW to CGW conn established)").expect("metric cannot be created");
-    pub static ref GROUPS_ASSIGNED_NUM: IntGauge =
-        IntGauge::new("cgw_groups_assigned_num",
-                      "Number of groups assigned to this particular shard").expect("metric canot be created");
-    pub static ref GROUPS_CAPACITY: IntGauge =
-        IntGauge::new("cgw_groups_capacity",
-                      "Max limit (capacity) of groups this shard can handle").expect("metric can be created");
-    pub static ref GROUPS_THRESHOLD: IntGauge =
-        IntGauge::new("cgw_groups_threshold",
-                      "Max threshold (extra capacity) of groups this shard can handle").expect("metric can be created");
-    pub static ref CONNECTIONS_NUM: IntGauge =
-        IntGauge::new("cgw_connections_num",
-                      "Number of successfully established WSS connections (underlying Infra connections)").expect("metric can be created");
-
+    pub static ref ACTIVE_CGW_NUM: IntGauge = IntGauge::new(
+        "cgw_active_shards_num",
+        "Number of active CGWs (CGW to CGW conn established)"
+    )
+    .expect("metric cannot be created");
+    pub static ref GROUPS_ASSIGNED_NUM: IntGauge = IntGauge::new(
+        "cgw_groups_assigned_num",
+        "Number of groups assigned to this particular shard"
+    )
+    .expect("metric canot be created");
+    pub static ref GROUPS_CAPACITY: IntGauge = IntGauge::new(
+        "cgw_groups_capacity",
+        "Max limit (capacity) of groups this shard can handle"
+    )
+    .expect("metric can be created");
+    pub static ref GROUPS_THRESHOLD: IntGauge = IntGauge::new(
+        "cgw_groups_threshold",
+        "Max threshold (extra capacity) of groups this shard can handle"
+    )
+    .expect("metric can be created");
+    pub static ref CONNECTIONS_NUM: IntGauge = IntGauge::new(
+        "cgw_connections_num",
+        "Number of successfully established WSS connections (underlying Infra connections)"
+    )
+    .expect("metric can be created");
     pub static ref REGISTRY: Registry = Registry::new();
-
-    pub static ref CGW_METRICS: CGWMetrics =
-        CGWMetrics {
-            started: Mutex::new(false),
-        };
+    pub static ref CGW_METRICS: CGWMetrics = CGWMetrics {
+        started: Mutex::new(false),
+    };
 }
 
 pub enum CGWMetricsCounterType {
@@ -89,68 +82,54 @@ impl CGWMetrics {
 
             let metrics_route = warp::path!("metrics").and_then(metrics_handler);
 
-            warp::serve(metrics_route)
-                .run(([0, 0, 0, 0], 8080))
-                .await;
+            warp::serve(metrics_route).run(([0, 0, 0, 0], 8080)).await;
         });
     }
 
-    pub fn change_counter(self: &Self, counter: CGWMetricsCounterType,
-                                op: CGWMetricsCounterOpType) {
+    pub fn change_counter(
+        self: &Self,
+        counter: CGWMetricsCounterType,
+        op: CGWMetricsCounterOpType,
+    ) {
         match counter {
-            CGWMetricsCounterType::ActiveCGWNum => {
-                match op {
-                    CGWMetricsCounterOpType::Set(v) => {
-                        ACTIVE_CGW_NUM.set(v);
-                    },
-                    _ => {
-                    }
+            CGWMetricsCounterType::ActiveCGWNum => match op {
+                CGWMetricsCounterOpType::Set(v) => {
+                    ACTIVE_CGW_NUM.set(v);
                 }
+                _ => {}
             },
-            CGWMetricsCounterType::GroupsAssignedNum => {
-                match op {
-                    CGWMetricsCounterOpType::Inc => {
-                        GROUPS_ASSIGNED_NUM.inc();
-                    },
-                    CGWMetricsCounterOpType::Dec => {
-                        GROUPS_ASSIGNED_NUM.dec();
-                    },
-                    CGWMetricsCounterOpType::Set(v) => {
-                        GROUPS_ASSIGNED_NUM.set(v);
-                    },
-                    _ => {
-                    }
+            CGWMetricsCounterType::GroupsAssignedNum => match op {
+                CGWMetricsCounterOpType::Inc => {
+                    GROUPS_ASSIGNED_NUM.inc();
                 }
+                CGWMetricsCounterOpType::Dec => {
+                    GROUPS_ASSIGNED_NUM.dec();
+                }
+                CGWMetricsCounterOpType::Set(v) => {
+                    GROUPS_ASSIGNED_NUM.set(v);
+                }
+                _ => {}
             },
-            CGWMetricsCounterType::GroupsCapacity => {
-                match op {
-                    CGWMetricsCounterOpType::Set(v) => {
-                        ACTIVE_CGW_NUM.set(v);
-                    },
-                    _ => {
-                    }
+            CGWMetricsCounterType::GroupsCapacity => match op {
+                CGWMetricsCounterOpType::Set(v) => {
+                    ACTIVE_CGW_NUM.set(v);
                 }
+                _ => {}
             },
-            CGWMetricsCounterType::GroupsThreshold => {
-                match op {
-                    CGWMetricsCounterOpType::Set(v) => {
-                        ACTIVE_CGW_NUM.set(v);
-                    },
-                    _ => {
-                    }
+            CGWMetricsCounterType::GroupsThreshold => match op {
+                CGWMetricsCounterOpType::Set(v) => {
+                    ACTIVE_CGW_NUM.set(v);
                 }
+                _ => {}
             },
-            CGWMetricsCounterType::ConnectionsNum => {
-                match op {
-                    CGWMetricsCounterOpType::Inc => {
-                        CONNECTIONS_NUM.inc();
-                    },
-                    CGWMetricsCounterOpType::Dec => {
-                        CONNECTIONS_NUM.dec();
-                    },
-                    _ => {
-                    }
+            CGWMetricsCounterType::ConnectionsNum => match op {
+                CGWMetricsCounterOpType::Inc => {
+                    CONNECTIONS_NUM.inc();
                 }
+                CGWMetricsCounterOpType::Dec => {
+                    CONNECTIONS_NUM.dec();
+                }
+                _ => {}
             },
         }
     }

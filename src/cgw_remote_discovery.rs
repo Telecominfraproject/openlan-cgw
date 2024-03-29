@@ -1,57 +1,31 @@
 use crate::{
+    cgw_db_accessor::{CGWDBAccessor, CGWDBInfra, CGWDBInfrastructureGroup},
+    cgw_metrics::{CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType},
+    cgw_remote_client::CGWRemoteClient,
     AppArgs,
-    cgw_remote_client::{
-        CGWRemoteClient,
-    },
-    cgw_db_accessor::{
-        CGWDBAccessor,
-        CGWDBInfrastructureGroup,
-        CGWDBInfra,
-    },
-    cgw_metrics::{
-        CGWMetrics,
-        CGWMetricsCounterType,
-        CGWMetricsCounterOpType,
-    }
 };
 
 use std::{
-    collections::{
-        HashMap,
-    },
-    net::{
-        Ipv4Addr,
-        IpAddr,
-        SocketAddr,
-    },
-    sync::{
-        Arc,
-    },
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
 };
 
-use redis_async::{
-    resp_array,
-};
+use redis_async::resp_array;
 
-use eui48::{
-    MacAddress,
-};
+use eui48::MacAddress;
 
-use tokio::{
-    sync::{
-        RwLock,
-    }
-};
+use tokio::sync::RwLock;
 
 // Used in remote lookup
-static REDIS_KEY_SHARD_ID_PREFIX:&'static str = "shard_id_";
+static REDIS_KEY_SHARD_ID_PREFIX: &'static str = "shard_id_";
 static REDIS_KEY_SHARD_ID_FIELDS_NUM: usize = 12;
-static REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM:&'static str = "assigned_groups_num";
+static REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM: &'static str = "assigned_groups_num";
 
 // Used in group assign / reassign
-static REDIS_KEY_GID:&'static str = "group_id_";
-static REDIS_KEY_GID_VALUE_GID:&'static str = "gid";
-static REDIS_KEY_GID_VALUE_SHARD_ID:&'static str = "shard_id";
+static REDIS_KEY_GID: &'static str = "group_id_";
+static REDIS_KEY_GID_VALUE_GID: &'static str = "gid";
+static REDIS_KEY_GID_VALUE_SHARD_ID: &'static str = "shard_id";
 
 #[derive(Clone, Debug)]
 pub struct CGWREDISDBShard {
@@ -65,14 +39,31 @@ pub struct CGWREDISDBShard {
 
 impl From<Vec<String>> for CGWREDISDBShard {
     fn from(values: Vec<String>) -> Self {
-        assert!(values.len() >= REDIS_KEY_SHARD_ID_FIELDS_NUM,
-                "Unexpected size of parsed vector: at least {REDIS_KEY_SHARD_ID_FIELDS_NUM} expected");
+        assert!(
+            values.len() >= REDIS_KEY_SHARD_ID_FIELDS_NUM,
+            "Unexpected size of parsed vector: at least {REDIS_KEY_SHARD_ID_FIELDS_NUM} expected"
+        );
         assert!(values[0] == "id", "redis.res[0] != id, unexpected.");
-        assert!(values[2] == "server_ip", "redis.res[2] != server_ip, unexpected.");
-        assert!(values[4] == "server_port", "redis.res[4] != server_port, unexpected.");
-        assert!(values[6] == "assigned_groups_num", "redis.res[6] != assigned_groups_num, unexpected.");
-        assert!(values[8] == "capacity", "redis.res[8] != capacity, unexpected.");
-        assert!(values[10] == "threshold", "redis.res[10] != threshold, unexpected.");
+        assert!(
+            values[2] == "server_ip",
+            "redis.res[2] != server_ip, unexpected."
+        );
+        assert!(
+            values[4] == "server_port",
+            "redis.res[4] != server_port, unexpected."
+        );
+        assert!(
+            values[6] == "assigned_groups_num",
+            "redis.res[6] != assigned_groups_num, unexpected."
+        );
+        assert!(
+            values[8] == "capacity",
+            "redis.res[8] != capacity, unexpected."
+        );
+        assert!(
+            values[10] == "threshold",
+            "redis.res[10] != threshold, unexpected."
+        );
 
         CGWREDISDBShard {
             id: values[1].parse::<i32>().unwrap(),
@@ -87,12 +78,20 @@ impl From<Vec<String>> for CGWREDISDBShard {
 
 impl Into<Vec<String>> for CGWREDISDBShard {
     fn into(self) -> Vec<String> {
-        vec!["id".to_string(), self.id.to_string(),
-        "server_ip".to_string(), self.server_ip.to_string(),
-        "server_port".to_string(), self.server_port.to_string(),
-        "assigned_groups_num".to_string(), self.assigned_groups_num.to_string(),
-        "capacity".to_string(), self.capacity.to_string(),
-        "threshold".to_string(), self.threshold.to_string()]
+        vec![
+            "id".to_string(),
+            self.id.to_string(),
+            "server_ip".to_string(),
+            self.server_ip.to_string(),
+            "server_port".to_string(),
+            self.server_port.to_string(),
+            "assigned_groups_num".to_string(),
+            self.assigned_groups_num.to_string(),
+            "capacity".to_string(),
+            self.capacity.to_string(),
+            "threshold".to_string(),
+            self.threshold.to_string(),
+        ]
     }
 }
 
@@ -126,8 +125,8 @@ pub struct CGWRemoteIface {
 pub struct CGWRemoteDiscovery {
     db_accessor: Arc<CGWDBAccessor>,
     redis_client: redis_async::client::paired::PairedConnection,
-    gid_to_cgw_cache: Arc<RwLock::<HashMap<i32, i32>>>,
-    remote_cgws_map: Arc<RwLock::<HashMap<i32, CGWRemoteIface>>>,
+    gid_to_cgw_cache: Arc<RwLock<HashMap<i32, i32>>>,
+    remote_cgws_map: Arc<RwLock<HashMap<i32, CGWRemoteIface>>>,
     local_shard_id: i32,
 }
 
@@ -137,10 +136,13 @@ impl CGWRemoteDiscovery {
             db_accessor: Arc::new(CGWDBAccessor::new(app_args).await),
             redis_client: redis_async::client::paired::paired_connect(
                 app_args.redis_db_ip.to_string(),
-                app_args.redis_db_port).await.unwrap(),
-                gid_to_cgw_cache: Arc::new(RwLock::new(HashMap::new())),
-                local_shard_id: app_args.cgw_id,
-                remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
+                app_args.redis_db_port,
+            )
+            .await
+            .unwrap(),
+            gid_to_cgw_cache: Arc::new(RwLock::new(HashMap::new())),
+            local_shard_id: app_args.cgw_id,
+            remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
         };
 
         let _ = rc.sync_gid_to_cgw_map().await;
@@ -157,13 +159,25 @@ impl CGWRemoteDiscovery {
             };
             let redis_req_data: Vec<String> = redisdb_shard_info.into();
 
-            let _ = rc.redis_client.send::<i32>(
-                resp_array!["DEL",
-                format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)]).await;
+            let _ = rc
+                .redis_client
+                .send::<i32>(resp_array![
+                    "DEL",
+                    format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)
+                ])
+                .await;
 
-            if let Err(e) = rc.redis_client.send::<String>(
-                resp_array!["HSET", format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)]
-                .append(redis_req_data)).await {
+            if let Err(e) = rc
+                .redis_client
+                .send::<String>(
+                    resp_array![
+                        "HSET",
+                        format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)
+                    ]
+                    .append(redis_req_data),
+                )
+                .await
+            {
                 panic!("Failed to create record about shard in REDIS, e:{e}");
             }
         }
@@ -171,13 +185,19 @@ impl CGWRemoteDiscovery {
         let _ = rc.sync_gid_to_cgw_map().await;
         let _ = rc.sync_remote_cgw_map().await;
 
-        debug!("Found {} remote CGWs", rc.remote_cgws_map.read().await.len() - 1);
+        debug!(
+            "Found {} remote CGWs",
+            rc.remote_cgws_map.read().await.len() - 1
+        );
 
         for (key, val) in rc.remote_cgws_map.read().await.iter() {
             if val.shard.id == rc.local_shard_id {
                 continue;
             }
-            debug!("Shard #{}, IP {}:{}", val.shard.id, val.shard.server_ip, val.shard.server_port);
+            debug!(
+                "Shard #{}, IP {}:{}",
+                val.shard.id, val.shard.server_ip, val.shard.server_port
+            );
         }
 
         rc
@@ -189,18 +209,23 @@ impl CGWRemoteDiscovery {
         // Clear hashmap
         lock.clear();
 
-        let redis_keys: Vec<String> =
-            match self.redis_client.send::<Vec<String>>(
-                resp_array!["KEYS", format!("{}*", REDIS_KEY_GID)]).await {
-                Err(e) => {
-                    panic!("Failed to get KEYS list from REDIS, e:{e}");
-                },
-                Ok(r) => r
-            };
+        let redis_keys: Vec<String> = match self
+            .redis_client
+            .send::<Vec<String>>(resp_array!["KEYS", format!("{}*", REDIS_KEY_GID)])
+            .await
+        {
+            Err(e) => {
+                panic!("Failed to get KEYS list from REDIS, e:{e}");
+            }
+            Ok(r) => r,
+        };
 
         for key in redis_keys {
-            let gid : i32 = match self.redis_client.send::<String>(
-                resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_GID]).await {
+            let gid: i32 = match self
+                .redis_client
+                .send::<String>(resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_GID])
+                .await
+            {
                 Ok(res) => {
                     match res.parse::<i32>() {
                         Ok(res) => res,
@@ -209,21 +234,22 @@ impl CGWRemoteDiscovery {
                             continue;
                         }
                     }
-                },
+                }
                 Err(e) => {
                     warn!("Found proper key '{key}' entry, but failed to fetch GID from it:\n{e}");
                     continue;
                 }
             };
-            let shard_id : i32 = match self.redis_client.send::<String>(
-                resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_SHARD_ID]).await {
-                Ok(res) => {
-                    match res.parse::<i32>() {
-                        Ok(res) => res,
-                        Err(e) => {
-                            warn!("Found proper key '{key}' entry, but failed to parse SHARD_ID from it:\n{e}");
-                            continue;
-                        }
+            let shard_id: i32 = match self
+                .redis_client
+                .send::<String>(resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_SHARD_ID])
+                .await
+            {
+                Ok(res) => match res.parse::<i32>() {
+                    Ok(res) => res,
+                    Err(e) => {
+                        warn!("Found proper key '{key}' entry, but failed to parse SHARD_ID from it:\n{e}");
+                        continue;
                     }
                 },
                 Err(e) => {
@@ -236,7 +262,9 @@ impl CGWRemoteDiscovery {
 
             match lock.insert(gid, shard_id) {
                 None => continue,
-                Some(v) => warn!("Populated gid_to_cgw_map with previous value being alerady set, unexpected")
+                Some(v) => warn!(
+                    "Populated gid_to_cgw_map with previous value being alerady set, unexpected"
+                ),
             }
         }
 
@@ -247,8 +275,10 @@ impl CGWRemoteDiscovery {
             }
         }
 
-        CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
-                                             CGWMetricsCounterOpType::Set(local_cgw_gid_num));
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupsAssignedNum,
+            CGWMetricsCounterOpType::Set(local_cgw_gid_num),
+        );
     }
 
     async fn sync_remote_cgw_map(&self) -> Result<(), &'static str> {
@@ -257,19 +287,27 @@ impl CGWRemoteDiscovery {
         // Clear hashmap
         lock.clear();
 
-        let redis_keys: Vec<String> =
-            match self.redis_client.send::<Vec<String>>(
-                resp_array!["KEYS", format!("{}*", REDIS_KEY_SHARD_ID_PREFIX)]).await {
-                Err(e) => {
-                    warn!("Failed to get cgw shard KEYS list from REDIS, e:{e}");
-                    return Err("Remote CGW Shards list fetch from REDIS failed");
-                },
-                Ok(r) => r
-            };
+        let redis_keys: Vec<String> = match self
+            .redis_client
+            .send::<Vec<String>>(resp_array![
+                "KEYS",
+                format!("{}*", REDIS_KEY_SHARD_ID_PREFIX)
+            ])
+            .await
+        {
+            Err(e) => {
+                warn!("Failed to get cgw shard KEYS list from REDIS, e:{e}");
+                return Err("Remote CGW Shards list fetch from REDIS failed");
+            }
+            Ok(r) => r,
+        };
 
         for key in redis_keys {
-            match self.redis_client.send::<Vec<String>>(
-                resp_array!["HGETALL", &key]).await {
+            match self
+                .redis_client
+                .send::<Vec<String>>(resp_array!["HGETALL", &key])
+                .await
+            {
                 Ok(res) => {
                     let shrd: CGWREDISDBShard = match CGWREDISDBShard::try_from(res) {
                         Ok(v) => v,
@@ -279,17 +317,16 @@ impl CGWRemoteDiscovery {
                         }
                     };
 
-                    let endpoint_str =
-                        String::from("http://") +
-                        &shrd.server_ip.to_string() +
-                        ":" +
-                        &shrd.server_port.to_string();
+                    let endpoint_str = String::from("http://")
+                        + &shrd.server_ip.to_string()
+                        + ":"
+                        + &shrd.server_port.to_string();
                     let cgw_iface = CGWRemoteIface {
                         shard: shrd,
                         client: CGWRemoteClient::new(endpoint_str),
                     };
                     lock.insert(cgw_iface.shard.id, cgw_iface);
-                },
+                }
                 Err(e) => {
                     warn!("Found proper key '{key}' entry, but failed to fetch Shard info from it:\n{e}");
                     continue;
@@ -297,8 +334,10 @@ impl CGWRemoteDiscovery {
             }
         }
 
-        CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::ActiveCGWNum,
-                                             CGWMetricsCounterOpType::Set(i64::try_from(lock.len()).unwrap()));
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::ActiveCGWNum,
+            CGWMetricsCounterOpType::Set(i64::try_from(lock.len()).unwrap()),
+        );
 
         Ok(())
     }
@@ -322,18 +361,25 @@ impl CGWRemoteDiscovery {
     async fn increment_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<(), &'static str> {
         debug!("Incrementing assigned groups num cgw_id_{cgw_id}");
 
-        if let Err(e) = self.redis_client.send::<i32>(
-            resp_array!["HINCRBY",
-            format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-            REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-            "1"]).await {
+        if let Err(e) = self
+            .redis_client
+            .send::<i32>(resp_array![
+                "HINCRBY",
+                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
+                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
+                "1"
+            ])
+            .await
+        {
             warn!("Failed to increment CGW{cgw_id} assigned group num count, e:{e}");
             return Err("Failed to increment assigned group num count");
         }
 
         if cgw_id == self.local_shard_id {
-            CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
-                                                 CGWMetricsCounterOpType::Inc);
+            CGWMetrics::get_ref().change_counter(
+                CGWMetricsCounterType::GroupsAssignedNum,
+                CGWMetricsCounterOpType::Inc,
+            );
         }
         Ok(())
     }
@@ -341,18 +387,25 @@ impl CGWRemoteDiscovery {
     async fn decrement_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<(), &'static str> {
         debug!("Decrementing assigned groups num cgw_id_{cgw_id}");
 
-        if let Err(e) = self.redis_client.send::<i32>(
-            resp_array!["HINCRBY",
-                        format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-                        REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-                        "-1"]).await {
+        if let Err(e) = self
+            .redis_client
+            .send::<i32>(resp_array![
+                "HINCRBY",
+                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
+                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
+                "-1"
+            ])
+            .await
+        {
             warn!("Failed to decrement CGW{cgw_id} assigned group num count, e:{e}");
             return Err("Failed to decrement assigned group num count");
         }
 
         if cgw_id == self.local_shard_id {
-            CGWMetrics::get_ref().change_counter(CGWMetricsCounterType::GroupsAssignedNum,
-                                                 CGWMetricsCounterOpType::Dec);
+            CGWMetrics::get_ref().change_counter(
+                CGWMetricsCounterType::GroupsAssignedNum,
+                CGWMetricsCounterOpType::Dec,
+            );
         }
 
         Ok(())
@@ -362,7 +415,11 @@ impl CGWRemoteDiscovery {
         let lock = self.remote_cgws_map.read().await;
         let mut hash_vec: Vec<(&i32, &CGWRemoteIface)> = lock.iter().collect();
 
-        hash_vec.sort_by(|a, b| b.1.shard.assigned_groups_num.cmp(&a.1.shard.assigned_groups_num));
+        hash_vec.sort_by(|a, b| {
+            b.1.shard
+                .assigned_groups_num
+                .cmp(&a.1.shard.assigned_groups_num)
+        });
 
         for x in hash_vec {
             let max_capacity: i32 = x.1.shard.capacity + x.1.shard.threshold;
@@ -370,16 +427,23 @@ impl CGWRemoteDiscovery {
                 debug!("Found CGW shard to assign group to (id {})", x.1.shard.id);
                 return Ok(x.1.shard.id);
             }
-
         }
 
-        warn!("Every available CGW is exceeding capacity+threshold limit, using least loaded one...");
-        if let Some(least_loaded_cgw) = lock.iter()
-            .min_by(|a, b| a.1.shard.assigned_groups_num.cmp(&b.1.shard.assigned_groups_num))
-            .map(|(k, _v)| _v) {
-                warn!("Found least loaded CGW id: {}", least_loaded_cgw.shard.id);
-                return Ok(least_loaded_cgw.shard.id);
-            }
+        warn!(
+            "Every available CGW is exceeding capacity+threshold limit, using least loaded one..."
+        );
+        if let Some(least_loaded_cgw) = lock
+            .iter()
+            .min_by(|a, b| {
+                a.1.shard
+                    .assigned_groups_num
+                    .cmp(&b.1.shard.assigned_groups_num)
+            })
+            .map(|(k, _v)| _v)
+        {
+            warn!("Found least loaded CGW id: {}", least_loaded_cgw.shard.id);
+            return Ok(least_loaded_cgw.shard.id);
+        }
 
         return Err("Unexpected: Failed to find the least loaded CGW shard");
     }
@@ -396,13 +460,18 @@ impl CGWRemoteDiscovery {
             }
         };
 
-        if let Err(e) = self.redis_client.send::<String>(
-            resp_array!["HSET",
-            format!("{REDIS_KEY_GID}{gid}"),
-            REDIS_KEY_GID_VALUE_GID,
-            gid.to_string(),
-            REDIS_KEY_GID_VALUE_SHARD_ID,
-            dst_cgw_id.to_string()]).await {
+        if let Err(e) = self
+            .redis_client
+            .send::<String>(resp_array![
+                "HSET",
+                format!("{REDIS_KEY_GID}{gid}"),
+                REDIS_KEY_GID_VALUE_GID,
+                gid.to_string(),
+                REDIS_KEY_GID_VALUE_SHARD_ID,
+                dst_cgw_id.to_string()
+            ])
+            .await
+        {
             error!("Failed to update REDIS gid{gid} owner to shard{dst_cgw_id}, e:{e}");
             return Err("Hot-cache (REDIS DB) update owner failed");
         }
@@ -415,8 +484,11 @@ impl CGWRemoteDiscovery {
     }
 
     pub async fn deassign_infra_group_to_cgw(&self, gid: i32) -> Result<(), &'static str> {
-        if let Err(e) = self.redis_client.send::<i64>(
-            resp_array!["DEL", format!("{REDIS_KEY_GID}{gid}")]).await {
+        if let Err(e) = self
+            .redis_client
+            .send::<i64>(resp_array!["DEL", format!("{REDIS_KEY_GID}{gid}")])
+            .await
+        {
             error!("Failed to deassigned REDIS gid{gid} owner, e:{e}");
             return Err("Hot-cache (REDIS DB) deassign owner failed");
         }
@@ -428,7 +500,10 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn create_infra_group(&self, g: &CGWDBInfrastructureGroup) -> Result<i32, &'static str> {
+    pub async fn create_infra_group(
+        &self,
+        g: &CGWDBInfrastructureGroup,
+    ) -> Result<i32, &'static str> {
         //TODO: transaction-based insert/assigned_group_num update (DB)
         let rc = self.db_accessor.insert_new_infra_group(g).await;
         if let Err(e) = rc {
@@ -467,7 +542,11 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn create_ifras_list(&self, gid: i32, infras: Vec<String>) -> Result<(), Vec<String>> {
+    pub async fn create_ifras_list(
+        &self,
+        gid: i32,
+        infras: Vec<String>,
+    ) -> Result<(), Vec<String>> {
         // TODO: assign list to shards; currently - only created bulk, no assignment
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
@@ -478,15 +557,13 @@ impl CGWRemoteDiscovery {
                 mac: MacAddress::parse_str(&x).unwrap(),
                 infra_group_id: gid,
             };
-            futures.push(
-                tokio::spawn(
-                    async move {
-                        if let Err(_) = db_accessor_clone.insert_new_infra(&infra).await {
-                            Err(infra.mac.to_string(eui48::MacAddressFormat::HexString))
-                        } else {
-                            Ok(())
-                        }
-                    }));
+            futures.push(tokio::spawn(async move {
+                if let Err(_) = db_accessor_clone.insert_new_infra(&infra).await {
+                    Err(infra.mac.to_string(eui48::MacAddressFormat::HexString))
+                } else {
+                    Ok(())
+                }
+            }));
         }
 
         for (i, future) in futures.iter_mut().enumerate() {
@@ -495,7 +572,7 @@ impl CGWRemoteDiscovery {
                     if let Err(mac) = res {
                         failed_infras.push(mac);
                     }
-                },
+                }
                 Err(_) => {
                     failed_infras.push(infras[i].clone());
                 }
@@ -509,22 +586,24 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn destroy_ifras_list(&self, gid: i32, infras: Vec<String>) -> Result<(), Vec<String>> {
+    pub async fn destroy_ifras_list(
+        &self,
+        gid: i32,
+        infras: Vec<String>,
+    ) -> Result<(), Vec<String>> {
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
         let mut failed_infras: Vec<String> = Vec::with_capacity(futures.len());
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
             let mac = MacAddress::parse_str(&x).unwrap();
-            futures.push(
-                tokio::spawn(
-                    async move {
-                        if let Err(_) = db_accessor_clone.delete_infra(mac).await {
-                            Err(mac.to_string(eui48::MacAddressFormat::HexString))
-                        } else {
-                            Ok(())
-                        }
-                    }));
+            futures.push(tokio::spawn(async move {
+                if let Err(_) = db_accessor_clone.delete_infra(mac).await {
+                    Err(mac.to_string(eui48::MacAddressFormat::HexString))
+                } else {
+                    Ok(())
+                }
+            }));
         }
 
         for (i, future) in futures.iter_mut().enumerate() {
@@ -533,7 +612,7 @@ impl CGWRemoteDiscovery {
                     if let Err(mac) = res {
                         failed_infras.push(mac);
                     }
-                },
+                }
                 Err(_) => {
                     failed_infras.push(infras[i].clone());
                 }
@@ -550,30 +629,30 @@ impl CGWRemoteDiscovery {
     pub async fn relay_request_stream_to_remote_cgw(
         &self,
         shard_id: i32,
-        stream: Vec<(String, String)>)
-        -> Result<(), ()> {
-            // try to use internal cache first
-            if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-                if let Err(()) = cl.client.relay_request_stream(stream).await {
-                    return Err(())
-                }
-
-                return Ok(());
+        stream: Vec<(String, String)>,
+    ) -> Result<(), ()> {
+        // try to use internal cache first
+        if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
+            if let Err(()) = cl.client.relay_request_stream(stream).await {
+                return Err(());
             }
 
-            // then try to use redis
-            let _ = self.sync_remote_cgw_map().await;
-
-            if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-                if let Err(()) = cl.client.relay_request_stream(stream).await {
-                    return Err(())
-                }
-                return Ok(());
-            }
-
-            error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");
-            return Err(());
+            return Ok(());
         }
+
+        // then try to use redis
+        let _ = self.sync_remote_cgw_map().await;
+
+        if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
+            if let Err(()) = cl.client.relay_request_stream(stream).await {
+                return Err(());
+            }
+            return Ok(());
+        }
+
+        error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");
+        return Err(());
+    }
 
     pub async fn rebalance_all_groups(&self) -> Result<u32, &'static str> {
         warn!("Executing group rebalancing procedure");
@@ -590,10 +669,16 @@ impl CGWRemoteDiscovery {
         self.gid_to_cgw_cache.write().await.clear();
 
         for (cgw_id, val) in self.remote_cgws_map.read().await.iter() {
-            if let Err(e) = self.redis_client.send::<i32>(
-                resp_array!["HSET",
-                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM, "0"]).await {
+            if let Err(e) = self
+                .redis_client
+                .send::<i32>(resp_array![
+                    "HSET",
+                    format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
+                    REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
+                    "0"
+                ])
+                .await
+            {
                 warn!("Failed to reset CGW{cgw_id} assigned group num count, e:{e}");
             }
         }
@@ -605,9 +690,8 @@ impl CGWRemoteDiscovery {
                 Ok(shard_id) => {
                     debug!("Rebalancing: assigned {} to shard {}", i.id, shard_id);
                     let _ = self.increment_cgw_assigned_groups_num(shard_id).await;
-                },
-                Err(e) => {
                 }
+                Err(e) => {}
             }
         }
 

@@ -1,55 +1,20 @@
-use crate::cgw_connection_server::{
-    CGWConnectionServer,
-    CGWConnectionServerReqMsg,
-};
+use crate::cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg};
 
-use tokio::{
-    sync::{
-        mpsc::{
-            UnboundedReceiver,
-            unbounded_channel,
-        },
-    },
-    net::{
-        TcpStream,
-    },
-    time::{
-        sleep,
-        Duration,
-        Instant,
-    },
-};
-use tokio_native_tls::TlsStream;
-use tokio_tungstenite::{
-    WebSocketStream,
-    tungstenite::{
-        protocol::{
-            Message,
-        },
-    },
-};
-use tungstenite::Message::{
-    Close,
-    Text,
-    Ping,
-};
 use futures_util::{
-    StreamExt,
-    SinkExt,
-    FutureExt,
-    stream::{
-        SplitSink,
-        SplitStream
-    },
-};
-use std::{
-    net::SocketAddr,
-    sync::{
-        Arc,
-    },
+    stream::{SplitSink, SplitStream},
+    FutureExt, SinkExt, StreamExt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::{net::SocketAddr, sync::Arc};
+use tokio::{
+    net::TcpStream,
+    sync::mpsc::{unbounded_channel, UnboundedReceiver},
+    time::{sleep, Duration, Instant},
+};
+use tokio_native_tls::TlsStream;
+use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
+use tungstenite::Message::{Close, Ping, Text};
 
 type CGWUcentralJRPCMessage = Map<String, Value>;
 type SStream = SplitStream<WebSocketStream<TlsStream<TcpStream>>>;
@@ -264,7 +229,7 @@ pub struct CGWConnectionProcessor {
 
 impl CGWConnectionProcessor {
     pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
-        let conn_processor : CGWConnectionProcessor = CGWConnectionProcessor {
+        let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server,
             serial: None,
             addr: addr,
@@ -307,7 +272,9 @@ impl CGWConnectionProcessor {
         let message = match msg {
             Ok(m) => m,
             Err(e) => {
-                error!("established connection with device, but failed to receive any messages\n{e}");
+                error!(
+                    "established connection with device, but failed to receive any messages\n{e}"
+                );
                 return;
             }
         };
@@ -315,7 +282,10 @@ impl CGWConnectionProcessor {
         let map = match cgw_process_jrpc_message(message).await {
             Ok(val) => val,
             Err(e) => {
-                error!("failed to recv connect message from {}, closing connection", self.addr);
+                error!(
+                    "failed to recv connect message from {}, closing connection",
+                    self.addr
+                );
                 return;
             }
         };
@@ -330,14 +300,16 @@ impl CGWConnectionProcessor {
         // we can proceed.
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(serial.to_string(), mbox_tx);
-        self.cgw_server.enqueue_mbox_message_to_cgw_server(msg).await;
+        self.cgw_server
+            .enqueue_mbox_message_to_cgw_server(msg)
+            .await;
 
         let ack = mbox_rx.recv().await;
         if let Some(m) = ack {
             match m {
                 CGWConnectionProcessorReqMsg::AddNewConnectionAck => {
                     debug!("websocket connection established: {} {}", self.addr, serial);
-                },
+                }
                 _ => panic!("Unexpected response from server, expected ACK/NOT ACK)"),
             }
         } else {
@@ -349,60 +321,71 @@ impl CGWConnectionProcessor {
         self.process_connection(stream, sink, mbox_rx).await;
     }
 
-    async fn process_wss_rx_msg(&self, msg: Result<Message, tungstenite::error::Error>) -> Result<CGWConnectionState, &'static str> {
+    async fn process_wss_rx_msg(
+        &self,
+        msg: Result<Message, tungstenite::error::Error>,
+    ) -> Result<CGWConnectionState, &'static str> {
         match msg {
-            Ok(msg) => {
-                match msg {
-                    Close(_t) => {
-                        return Ok(CGWConnectionState::ClosedGracefully);
-                    },
-                    Text(payload) => {
-                        self.cgw_server.enqueue_mbox_message_from_device_to_nb_api_c(self.serial.clone().unwrap(), payload);
-                        return Ok(CGWConnectionState::IsActive);
-                    },
-                    Ping(_t) => {
-                        return Ok(CGWConnectionState::IsActive);
-                    },
-                    _ => {
-                    }
+            Ok(msg) => match msg {
+                Close(_t) => {
+                    return Ok(CGWConnectionState::ClosedGracefully);
                 }
-            }
-            Err(e) => {
-                match e {
-                    tungstenite::error::Error::AlreadyClosed => {
-                        return Err("Underlying connection's been closed");
-                    },
-                    _ => {
-                    }
+                Text(payload) => {
+                    self.cgw_server
+                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                            self.serial.clone().unwrap(),
+                            payload,
+                        );
+                    return Ok(CGWConnectionState::IsActive);
                 }
-            }
+                Ping(_t) => {
+                    return Ok(CGWConnectionState::IsActive);
+                }
+                _ => {}
+            },
+            Err(e) => match e {
+                tungstenite::error::Error::AlreadyClosed => {
+                    return Err("Underlying connection's been closed");
+                }
+                _ => {}
+            },
         }
 
         Ok(CGWConnectionState::IsActive)
     }
 
-    async fn process_sink_mbox_rx_msg(&self,sink: &mut SSink, val: Option<CGWConnectionProcessorReqMsg>) -> Result<CGWConnectionState, &str> {
+    async fn process_sink_mbox_rx_msg(
+        &self,
+        sink: &mut SSink,
+        val: Option<CGWConnectionProcessorReqMsg>,
+    ) -> Result<CGWConnectionState, &str> {
         if let Some(msg) = val {
             let processor_mac = self.serial.clone().unwrap();
             match msg {
                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose => {
                     debug!("MBOX_IN: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
                     return Ok(CGWConnectionState::IsForcedToClose);
-                },
+                }
                 CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, pload) => {
                     debug!("MBOX_IN: SinkRequestToDevice, processor (mac:{processor_mac}) req for (mac:{mac}) payload:{pload}");
                     sink.send(Message::text(pload)).await.ok();
-                },
+                }
                 _ => panic!("Unexpected message received {:?}", msg),
             }
         }
         Ok(CGWConnectionState::IsActive)
     }
 
-    async fn process_stale_connection_msg(&self, last_contact: Instant) -> Result<CGWConnectionState, &str> {
+    async fn process_stale_connection_msg(
+        &self,
+        last_contact: Instant,
+    ) -> Result<CGWConnectionState, &str> {
         // TODO: configurable duration (upon server creation)
         if Instant::now().duration_since(last_contact) > Duration::from_secs(70) {
-            warn!("Closing connection {} (idle for too long, stale)", self.addr);
+            warn!(
+                "Closing connection {} (idle for too long, stale)",
+                self.addr
+            );
             Ok(CGWConnectionState::IsStale)
         } else {
             Ok(CGWConnectionState::IsActive)
@@ -413,8 +396,8 @@ impl CGWConnectionProcessor {
         self,
         mut stream: SStream,
         mut sink: SSink,
-        mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>) {
-
+        mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,
+    ) {
         #[derive(Debug)]
         enum WakeupReason {
             Unspecified,
@@ -452,7 +435,9 @@ impl CGWConnectionProcessor {
                             wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
                         }
                     } else if let None = val {
-                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(tungstenite::error::Error::AlreadyClosed));
+                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
+                            tungstenite::error::Error::AlreadyClosed,
+                        ));
                     }
                 } else if let Some(val) = mbox_rx.recv().now_or_never() {
                     wakeup_reason = WakeupReason::MboxRx(val)
@@ -470,7 +455,9 @@ impl CGWConnectionProcessor {
                             wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
                         }
                     } else if let None = val {
-                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(tungstenite::error::Error::AlreadyClosed));
+                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
+                            tungstenite::error::Error::AlreadyClosed,
+                        ));
                     }
                 }
                 poll_wss_first = !poll_wss_first;
@@ -487,23 +474,24 @@ impl CGWConnectionProcessor {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
                     self.process_wss_rx_msg(res).await
-                },
+                }
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await
-                },
+                }
                 WakeupReason::Stale => {
-                    self.process_stale_connection_msg(last_contact.clone()).await
-                },
+                    self.process_stale_connection_msg(last_contact.clone())
+                        .await
+                }
                 _ => {
                     panic!("Failed to get wakeup reason for {} conn", self.addr);
-                },
+                }
             };
 
             match rc {
                 Err(e) => {
                     warn!("{}", e);
                     break;
-                },
+                }
                 Ok(state) => {
                     if let CGWConnectionState::IsActive = state {
                         continue;
@@ -513,19 +501,27 @@ impl CGWConnectionProcessor {
                         // already knows we're closed.
                         return;
                     } else if let CGWConnectionState::ClosedGracefully = state {
-                        warn!("Remote client {} closed connection gracefully", self.serial.clone().unwrap());
+                        warn!(
+                            "Remote client {} closed connection gracefully",
+                            self.serial.clone().unwrap()
+                        );
                         break;
                     } else if let CGWConnectionState::IsStale = state {
-                        warn!("Remote client {} closed due to inactivity", self.serial.clone().unwrap());
+                        warn!(
+                            "Remote client {} closed due to inactivity",
+                            self.serial.clone().unwrap()
+                        );
                         break;
                     }
-                },
+                }
             }
         }
 
         let mac = self.serial.clone().unwrap();
         let msg = CGWConnectionServerReqMsg::ConnectionClosed(self.serial.unwrap());
-        self.cgw_server.enqueue_mbox_message_to_cgw_server(msg).await;
+        self.cgw_server
+            .enqueue_mbox_message_to_cgw_server(msg)
+            .await;
         debug!("MBOX_OUT: ConnectionClosed, processor (mac:{})", mac);
     }
 }

@@ -96,7 +96,7 @@ impl CGWDBAccessor {
             .await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
                 error!(
                     "Failed to insert a new infra group {}: {:?}",
@@ -148,7 +148,7 @@ impl CGWDBAccessor {
                 }
                 return Some(list);
             }
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
@@ -164,7 +164,7 @@ impl CGWDBAccessor {
 
         match row {
             Ok(r) => return Some(CGWDBInfrastructureGroup::from(r)),
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
@@ -191,7 +191,7 @@ impl CGWDBAccessor {
             .await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra: {:?}", e.to_string());
                 return Err("Insert new infra failed");

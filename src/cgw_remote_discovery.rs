@@ -190,7 +190,7 @@ impl CGWRemoteDiscovery {
             rc.remote_cgws_map.read().await.len() - 1
         );
 
-        for (key, val) in rc.remote_cgws_map.read().await.iter() {
+        for (_key, val) in rc.remote_cgws_map.read().await.iter() {
             if val.shard.id == rc.local_shard_id {
                 continue;
             }
@@ -262,14 +262,14 @@ impl CGWRemoteDiscovery {
 
             match lock.insert(gid, shard_id) {
                 None => continue,
-                Some(v) => warn!(
+                Some(_v) => warn!(
                     "Populated gid_to_cgw_map with previous value being alerady set, unexpected"
                 ),
             }
         }
 
         let mut local_cgw_gid_num: i64 = 0;
-        for (key, val) in lock.iter() {
+        for (_key, val) in lock.iter() {
             if *val == self.local_shard_id {
                 local_cgw_gid_num += 1;
             }
@@ -311,7 +311,7 @@ impl CGWRemoteDiscovery {
                 Ok(res) => {
                     let shrd: CGWREDISDBShard = match CGWREDISDBShard::try_from(res) {
                         Ok(v) => v,
-                        Err(e) => {
+                        Err(_e) => {
                             warn!("Failed to parse CGWREDISDBShard, {key}");
                             continue;
                         }
@@ -439,7 +439,7 @@ impl CGWRemoteDiscovery {
                     .assigned_groups_num
                     .cmp(&b.1.shard.assigned_groups_num)
             })
-            .map(|(k, _v)| _v)
+            .map(|(_k, _v)| _v)
         {
             warn!("Found least loaded CGW id: {}", least_loaded_cgw.shard.id);
             return Ok(least_loaded_cgw.shard.id);
@@ -512,7 +512,7 @@ impl CGWRemoteDiscovery {
 
         let shard_id: i32 = match self.assign_infra_group_to_cgw(g.id).await {
             Ok(v) => v,
-            Err(e) => {
+            Err(_e) => {
                 let _ = self.db_accessor.delete_infra_group(g.id).await;
                 return Err("Assign group to CGW shard failed");
             }
@@ -588,7 +588,7 @@ impl CGWRemoteDiscovery {
 
     pub async fn destroy_ifras_list(
         &self,
-        gid: i32,
+        _gid: i32,
         infras: Vec<String>,
     ) -> Result<(), Vec<String>> {
         let mut futures = Vec::with_capacity(infras.len());
@@ -668,7 +668,7 @@ impl CGWRemoteDiscovery {
         // Clear local cache
         self.gid_to_cgw_cache.write().await.clear();
 
-        for (cgw_id, val) in self.remote_cgws_map.read().await.iter() {
+        for (cgw_id, _val) in self.remote_cgws_map.read().await.iter() {
             if let Err(e) = self
                 .redis_client
                 .send::<i32>(resp_array![
@@ -691,7 +691,7 @@ impl CGWRemoteDiscovery {
                     debug!("Rebalancing: assigned {} to shard {}", i.id, shard_id);
                     let _ = self.increment_cgw_assigned_groups_num(shard_id).await;
                 }
-                Err(e) => {}
+                Err(_e) => {}
             }
         }
 

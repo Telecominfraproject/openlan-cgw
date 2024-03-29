@@ -66,7 +66,7 @@ impl ConsumerContext for CustomContext {
         }
     }
 
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+    fn commit_callback(&self, _result: KafkaResult<()>, _offsets: &TopicPartitionList) {
         let mut part_list = String::new();
         for x in _offsets.elements() {
             part_list += &(x.partition().to_string() + " ");

@@ -109,7 +109,7 @@ fn cgw_parse_jrpc_event(map: &Map<String, Value>, method: String) -> CGWEvent {
 
 async fn cgw_process_jrpc_event(event: &CGWEvent) -> Result<(), String> {
     // TODO
-    if let CGWEvent::Connect(c) = event {
+    if let CGWEvent::Connect(_c) = event {
         /*
         info!(
             "Requesting {} to reboot (immediate request)",
@@ -281,7 +281,7 @@ impl CGWConnectionProcessor {
 
         let map = match cgw_process_jrpc_message(message).await {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 error!(
                     "failed to recv connect message from {}, closing connection",
                     self.addr

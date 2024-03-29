@@ -1,9 +1,9 @@
 use crate::AppArgs;
 
-use prometheus::{IntCounter, IntGauge, Registry};
+use prometheus::{IntGauge, Registry};
 use std::result::Result;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Mutex;
+
 use warp::{Filter, Rejection, Reply};
 
 lazy_static! {
@@ -63,7 +63,7 @@ impl CGWMetrics {
         &CGW_METRICS
     }
 
-    pub async fn start(self: &Self, app_args: &AppArgs) {
+    pub async fn start(self: &Self, _app_args: &AppArgs) {
         let mut started = self.started.lock().unwrap();
 
         if *started == true {

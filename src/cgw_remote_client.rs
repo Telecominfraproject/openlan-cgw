@@ -1,32 +1,12 @@
-use crate::{
-    AppArgs,
-};
-
 pub mod cgw_remote {
     tonic::include_proto!("cgw.remote");
 }
 
-use tonic::{
-    transport::{
-        Uri,
-        channel::{
-            Channel,
-        },
-    },
-};
+use tonic::transport::{channel::Channel, Uri};
 
-use cgw_remote::{
-    EnqueueRequest,
-    remote_client::{
-        RemoteClient,
-    },
-};
+use cgw_remote::{remote_client::RemoteClient, EnqueueRequest};
 
-use tokio::{
-    time::{
-        Duration,
-    },
-};
+use tokio::time::Duration;
 
 #[derive(Clone)]
 pub struct CGWRemoteClient {
@@ -55,10 +35,7 @@ impl CGWRemoteClient {
         let mut it = stream.into_iter();
 
         while let Some(x) = it.next() {
-            messages.push(EnqueueRequest {
-                key: x.0,
-                req: x.1,
-            });
+            messages.push(EnqueueRequest { key: x.0, req: x.1 });
         }
 
         let rq = tonic::Request::new(tokio_stream::iter(messages.clone()));
@@ -67,9 +44,7 @@ impl CGWRemoteClient {
                 error!("Failed to relay req: {:?}", e);
                 Err(())
             }
-            Ok(r) => {
-                Ok(())
-            }
+            Ok(_r) => Ok(()),
         }
     }
 }

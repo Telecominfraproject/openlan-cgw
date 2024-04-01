@@ -1,51 +1,23 @@
-use crate::{
-    AppArgs,
-};
+use crate::AppArgs;
 
-use crate::cgw_connection_server::{
-    CGWConnectionNBAPIReqMsg,
-    CGWConnectionNBAPIReqMsgOrigin,
-};
+use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 
-use std::{
-    sync::{
-        Arc,
-    },
-};
-use tokio::{
-    sync::{
-        mpsc::{
-            UnboundedSender,
-        },
-    },
-    time::{
-        Duration,
-    },
-    runtime::{
-        Builder,
-        Runtime,
-    },
-};
-use futures::stream::{TryStreamExt};
+use futures::stream::TryStreamExt;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
-use rdkafka::{
-    consumer::{
-        Consumer,
-        ConsumerContext,
-        Rebalance,
-        stream_consumer::{
-            StreamConsumer,
-        },
-    },
-    producer::{
-        FutureProducer,
-        FutureRecord,
-    },
-};
 use rdkafka::error::KafkaResult;
-use rdkafka::message::{Message};
+use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
+use rdkafka::{
+    consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
+    producer::{FutureProducer, FutureRecord},
+};
+use std::sync::Arc;
+use tokio::{
+    runtime::{Builder, Runtime},
+    sync::mpsc::UnboundedSender,
+    time::Duration,
+};
 
 type CGWConnectionServerMboxTx = UnboundedSender<CGWConnectionNBAPIReqMsg>;
 type CGWCNCConsumerType = StreamConsumer<CustomContext>;
@@ -94,7 +66,7 @@ impl ConsumerContext for CustomContext {
         }
     }
 
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+    fn commit_callback(&self, _result: KafkaResult<()>, _offsets: &TopicPartitionList) {
         let mut part_list = String::new();
         for x in _offsets.elements() {
             part_list += &(x.partition().to_string() + " ");
@@ -119,31 +91,37 @@ struct CGWCNCConsumer {
 impl CGWCNCConsumer {
     pub fn new(app_args: &AppArgs) -> Self {
         let consum: CGWCNCConsumerType = Self::create_consumer(app_args);
-        CGWCNCConsumer {
-            c: consum,
-        }
+        CGWCNCConsumer { c: consum }
     }
 
     fn create_consumer(app_args: &AppArgs) -> CGWCNCConsumerType {
         let context = CustomContext;
 
-        debug!("Trying to connect to kafka broker ({}:{})...",
-               app_args.kafka_ip.to_string(),
-               app_args.kafka_port.to_string());
+        debug!(
+            "Trying to connect to kafka broker ({}:{})...",
+            app_args.kafka_ip.to_string(),
+            app_args.kafka_port.to_string()
+        );
 
         let consumer: CGWCNCConsumerType = ClientConfig::new()
-        .set("group.id", GROUP_ID)
-        .set("client.id", GROUP_ID.to_string() + &app_args.cgw_id.to_string())
-        .set("group.instance.id", app_args.cgw_id.to_string())
-        .set("bootstrap.servers", app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string())
-        .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "true")
-        //.set("statistics.interval.ms", "30000")
-        //.set("auto.offset.reset", "smallest")
-        .set_log_level(RDKafkaLogLevel::Debug)
-        .create_with_context(context)
-        .expect("Consumer creation failed");
+            .set("group.id", GROUP_ID)
+            .set(
+                "client.id",
+                GROUP_ID.to_string() + &app_args.cgw_id.to_string(),
+            )
+            .set("group.instance.id", app_args.cgw_id.to_string())
+            .set(
+                "bootstrap.servers",
+                app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
+            )
+            .set("enable.partition.eof", "false")
+            .set("session.timeout.ms", "6000")
+            .set("enable.auto.commit", "true")
+            //.set("statistics.interval.ms", "30000")
+            //.set("auto.offset.reset", "smallest")
+            .set_log_level(RDKafkaLogLevel::Debug)
+            .create_with_context(context)
+            .expect("Consumer creation failed");
 
         consumer
             .subscribe(&CONSUMER_TOPICS)
@@ -158,17 +136,15 @@ impl CGWCNCConsumer {
 impl CGWCNCProducer {
     pub fn new() -> Self {
         let prod: CGWCNCProducerType = Self::create_producer();
-        CGWCNCProducer {
-            p: prod,
-        }
+        CGWCNCProducer { p: prod }
     }
 
     fn create_producer() -> CGWCNCProducerType {
         let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", "172.20.10.136:9092")
-        .set("message.timeout.ms", "5000")
-        .create()
-        .expect("Producer creation error");
+            .set("bootstrap.servers", "172.20.10.136:9092")
+            .set("message.timeout.ms", "5000")
+            .create()
+            .expect("Producer creation error");
 
         producer
     }
@@ -228,7 +204,12 @@ impl CGWNBApiClient {
                                 ""
                             }
                         };
-                        cl_clone.enqueue_mbox_message_to_cgw_server(key.to_string(), payload.to_string()).await;
+                        cl_clone
+                            .enqueue_mbox_message_to_cgw_server(
+                                key.to_string(),
+                                payload.to_string(),
+                            )
+                            .await;
                         Ok(())
                     }
                 });
@@ -242,10 +223,10 @@ impl CGWNBApiClient {
     pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {
         let produce_future = self.prod.p.send(
             FutureRecord::to(&PRODUCER_TOPICS)
-            .key(&key)
-            .payload(&payload),
+                .key(&key)
+                .payload(&payload),
             Duration::from_secs(0),
-            );
+        );
         match produce_future.await {
             Err((e, _)) => println!("Error: {:?}", e),
             _ => {}
@@ -254,7 +235,11 @@ impl CGWNBApiClient {
 
     async fn enqueue_mbox_message_to_cgw_server(&self, key: String, payload: String) {
         debug!("MBOX_OUT: EnqueueNewMessageFromNBAPIListener, k:{key}");
-        let msg = CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(key, payload, CGWConnectionNBAPIReqMsgOrigin::FromNBAPI);
+        let msg = CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
+            key,
+            payload,
+            CGWConnectionNBAPIReqMsgOrigin::FromNBAPI,
+        );
         let _ = self.cgw_server_tx_mbox.send(msg);
     }
 }

@@ -1,18 +1,8 @@
-use crate::{
-    AppArgs,
-};
+use crate::AppArgs;
 
-use eui48::{
-    MacAddress,
-};
+use eui48::MacAddress;
 
-use tokio_postgres::{
-    Client,
-    NoTls,
-    row::{
-        Row,
-    },
-};
+use tokio_postgres::{row::Row, Client, NoTls};
 
 #[derive(Clone)]
 pub struct CGWDBInfra {
@@ -57,18 +47,21 @@ pub struct CGWDBAccessor {
 
 impl CGWDBAccessor {
     pub async fn new(app_args: &AppArgs) -> Self {
-        let conn_str = format!("host={host} port={port} user={user} dbname={db} password={pass}",
-                            host = app_args.db_ip,
-                            port = app_args.db_port,
-                            user = app_args.db_username,
-                            db = app_args.db_name,
-                            pass = app_args.db_password);
-        debug!("Trying to connect to remote db ({}:{})...",
-              app_args.db_ip.to_string(),
-              app_args.db_port.to_string());
+        let conn_str = format!(
+            "host={host} port={port} user={user} dbname={db} password={pass}",
+            host = app_args.db_ip,
+            port = app_args.db_port,
+            user = app_args.db_username,
+            db = app_args.db_name,
+            pass = app_args.db_password
+        );
+        debug!(
+            "Trying to connect to remote db ({}:{})...",
+            app_args.db_ip.to_string(),
+            app_args.db_port.to_string()
+        );
         debug!("Conn args {conn_str}");
-        let (client, connection) =
-            tokio_postgres::connect(&conn_str, NoTls).await.unwrap();
+        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await.unwrap();
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -78,30 +71,38 @@ impl CGWDBAccessor {
 
         info!("Connected to remote DB");
 
-        CGWDBAccessor {
-            cl: client,
-        }
+        CGWDBAccessor { cl: client }
     }
 
     /*
-     * INFRA_GROUP db API uses the following table decl
-     * TODO: id = int, not varchar; requires kafka simulator changes
-       CREATE TABLE infrastructure_groups (
-         id INT PRIMARY KEY,
-         reserved_size INT,
-         actual_size INT
-       );
-     *
-     */
+    * INFRA_GROUP db API uses the following table decl
+    * TODO: id = int, not varchar; requires kafka simulator changes
+      CREATE TABLE infrastructure_groups (
+        id INT PRIMARY KEY,
+        reserved_size INT,
+        actual_size INT
+      );
+    *
+    */
 
-    pub async fn insert_new_infra_group(&self, g: &CGWDBInfrastructureGroup) -> Result<(), &'static str> {
+    pub async fn insert_new_infra_group(
+        &self,
+        g: &CGWDBInfrastructureGroup,
+    ) -> Result<(), &'static str> {
         let q = self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await.unwrap();
-        let res = self.cl.execute(&q, &[&g.id, &g.reserved_size, &g.actual_size]).await;
+        let res = self
+            .cl
+            .execute(&q, &[&g.id, &g.reserved_size, &g.actual_size])
+            .await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
-                error!("Failed to insert a new infra group {}: {:?}", g.id, e.to_string());
+                error!(
+                    "Failed to insert a new infra group {}: {:?}",
+                    g.id,
+                    e.to_string()
+                );
                 return Err("Insert new infra group failed");
             }
         }
@@ -109,7 +110,11 @@ impl CGWDBAccessor {
 
     pub async fn delete_infra_group(&self, gid: i32) -> Result<(), &'static str> {
         // TODO: query-base approach instead of static string
-        let req = self.cl.prepare("DELETE FROM infrastructure_groups WHERE id = $1").await.unwrap();
+        let req = self
+            .cl
+            .prepare("DELETE FROM infrastructure_groups WHERE id = $1")
+            .await
+            .unwrap();
         let res = self.cl.execute(&req, &[&gid]).await;
 
         match res {
@@ -119,7 +124,7 @@ impl CGWDBAccessor {
                 } else {
                     return Err("Failed to delete group from DB: gid does not exist");
                 }
-            },
+            }
             Err(e) => {
                 error!("Failed to delete an infra group {gid}: {:?}", e.to_string());
                 return Err("Delete infra group failed");
@@ -130,7 +135,10 @@ impl CGWDBAccessor {
     pub async fn get_all_infra_groups(&self) -> Option<Vec<CGWDBInfrastructureGroup>> {
         let mut list: Vec<CGWDBInfrastructureGroup> = Vec::with_capacity(1000);
 
-        let res = self.cl.query("SELECT * from infrastructure_groups", &[]).await;
+        let res = self
+            .cl
+            .query("SELECT * from infrastructure_groups", &[])
+            .await;
 
         match res {
             Ok(r) => {
@@ -140,41 +148,50 @@ impl CGWDBAccessor {
                 }
                 return Some(list);
             }
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
     }
 
     pub async fn get_infra_group(&self, gid: i32) -> Option<CGWDBInfrastructureGroup> {
-        let q = self.cl.prepare("SELECT * from infrastructure_groups WHERE id = $1").await.unwrap();
+        let q = self
+            .cl
+            .prepare("SELECT * from infrastructure_groups WHERE id = $1")
+            .await
+            .unwrap();
         let row = self.cl.query_one(&q, &[&gid]).await;
 
         match row {
             Ok(r) => return Some(CGWDBInfrastructureGroup::from(r)),
-            Err(e) => {
+            Err(_e) => {
                 return None;
             }
         }
     }
 
     /*
-     * INFRA db API uses the following table decl
-       CREATE TABLE infras (
-         mac MACADDR PRIMARY KEY,
-         infra_group_id INT,
-         FOREIGN KEY(infra_group_id) REFERENCES infrastructure_groups(id) ON DELETE CASCADE
-       );
-     */
+    * INFRA db API uses the following table decl
+      CREATE TABLE infras (
+        mac MACADDR PRIMARY KEY,
+        infra_group_id INT,
+        FOREIGN KEY(infra_group_id) REFERENCES infrastructure_groups(id) ON DELETE CASCADE
+      );
+    */
 
     pub async fn insert_new_infra(&self, infra: &CGWDBInfra) -> Result<(), &'static str> {
-        let q = self.cl.prepare("INSERT INTO infras (mac, infra_group_id) VALUES ($1, $2)").await.unwrap();
-        let res = self.cl.execute(
-            &q,
-            &[&infra.mac, &infra.infra_group_id]).await;
+        let q = self
+            .cl
+            .prepare("INSERT INTO infras (mac, infra_group_id) VALUES ($1, $2)")
+            .await
+            .unwrap();
+        let res = self
+            .cl
+            .execute(&q, &[&infra.mac, &infra.infra_group_id])
+            .await;
 
         match res {
-            Ok(n) => return Ok(()),
+            Ok(_n) => return Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra: {:?}", e.to_string());
                 return Err("Insert new infra failed");
@@ -183,10 +200,12 @@ impl CGWDBAccessor {
     }
 
     pub async fn delete_infra(&self, serial: MacAddress) -> Result<(), &'static str> {
-        let q = self.cl.prepare("DELETE FROM infras WHERE mac = $1").await.unwrap();
-        let res = self.cl.execute(
-            &q,
-            &[&serial]).await;
+        let q = self
+            .cl
+            .prepare("DELETE FROM infras WHERE mac = $1")
+            .await
+            .unwrap();
+        let res = self.cl.execute(&q, &[&serial]).await;
 
         match res {
             Ok(n) => {
@@ -195,7 +214,7 @@ impl CGWDBAccessor {
                 } else {
                     return Err("Failed to delete infra from DB: MAC does not exist");
                 }
-            },
+            }
             Err(e) => {
                 error!("Failed to delete infra: {:?}", e.to_string());
                 return Err("Delete infra failed");

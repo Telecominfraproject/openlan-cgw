@@ -1,8 +1,10 @@
+use crate::cgw_device::{CGWDevice, CGWDeviceState};
 use crate::AppArgs;
 
 use crate::{
     cgw_connection_processor::{CGWConnectionProcessor, CGWConnectionProcessorReqMsg},
     cgw_db_accessor::CGWDBInfrastructureGroup,
+    cgw_devices_cache::CGWDevicesCache,
     cgw_metrics::{CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType},
     cgw_nb_api_listener::CGWNBApiClient,
     cgw_remote_discovery::CGWRemoteDiscovery,
@@ -113,6 +115,10 @@ pub struct CGWConnectionServer {
     // Handler that helps this object to wrap relayed NB-API messages
     // dedicated for this particular local CGW instance
     mbox_relayed_messages_handle: CGWConnectionServerNBAPIMboxTx,
+
+    // Internal CGW Devices cache
+    // Key: device MAC, Value: Device
+    devices_cache: Arc<RwLock<CGWDevicesCache>>,
 }
 
 /*
@@ -213,6 +219,7 @@ impl CGWConnectionServer {
             cgw_remote_discovery: Arc::new(CGWRemoteDiscovery::new(app_args).await),
             mbox_relayed_messages_handle: nb_api_tx,
             mbox_relay_msg_runtime_handle: relay_msg_mbox_runtime_handle,
+            devices_cache: Arc::new(RwLock::new(CGWDevicesCache::new())),
         });
 
         let server_clone = server.clone();
@@ -226,6 +233,13 @@ impl CGWConnectionServer {
             server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
         });
 
+        // Sync RAM cache with PostgressDB.
+        server
+            .cgw_remote_discovery
+            .sync_device_to_gid_cache(server.devices_cache.clone())
+            .await;
+        server.devices_cache.write().await.dump_devices_cache();
+
         server
     }
 
@@ -233,9 +247,15 @@ impl CGWConnectionServer {
         let _ = self.mbox_internal_tx.send(req);
     }
 
-    pub fn enqueue_mbox_message_from_device_to_nb_api_c(&self, _mac: DeviceSerial, req: String) {
-        // TODO: device (mac) -> group id matching
-        let key = String::from("TBD_INFRA_GROUP");
+    pub fn enqueue_mbox_message_from_device_to_nb_api_c(&self, mac: DeviceSerial, req: String) {
+        let device_id = self
+            .devices_cache
+            .try_read()
+            .unwrap()
+            .get_device_from_cache_device_id(&mac.to_string())
+            .unwrap();
+
+        let key = device_id.to_string();
         let nb_api_client_clone = self.nb_api_client.clone();
         tokio::spawn(async move {
             let _ = nb_api_client_clone
@@ -525,7 +545,12 @@ impl CGWConnectionServer {
                     } else if let CGWNBApiParsedMsg::InfrastructureGroupDelete(uuid, gid) =
                         parsed_msg
                     {
-                        match self.cgw_remote_discovery.destroy_infra_group(gid).await {
+                        let lock = self.devices_cache.clone();
+                        match self
+                            .cgw_remote_discovery
+                            .destroy_infra_group(gid, lock)
+                            .await
+                        {
                             Ok(()) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
@@ -656,9 +681,10 @@ impl CGWConnectionServer {
                                     format!("Failed to insert MACs from infra list, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
+                            let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_ifras_list(gid, mac_list)
+                                .create_ifras_list(gid, mac_list, lock)
                                 .await
                             {
                                 Ok(()) => {
@@ -688,9 +714,10 @@ impl CGWConnectionServer {
                                     format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
+                            let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .destroy_ifras_list(gid, mac_list)
+                                .destroy_ifras_list(gid, mac_list, lock)
                                 .await
                             {
                                 Ok(()) => {
@@ -850,6 +877,24 @@ impl CGWConnectionServer {
                         serial,
                         connmap_w_lock.len() + 1
                     );
+
+                    // Received new connection - check if infra exist in cache
+                    // If exists - it already should have assigned group
+                    // If not - simply add to cache - set gid == 0, devices should't remain in SQL DB
+                    let mut devices_cache = self.devices_cache.write().await;
+                    if devices_cache.check_device_exists_in_cache(&serial) {
+                        devices_cache.update_device_from_cache_device_state(
+                            &serial,
+                            CGWDeviceState::CGWDeviceConnected,
+                        );
+                    } else {
+                        devices_cache.add_device_to_cache(
+                            &serial,
+                            &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false),
+                        );
+                    }
+                    devices_cache.dump_devices_cache();
+
                     connmap_w_lock.insert(serial, conn_processor_mbox_tx);
 
                     tokio::spawn(async move {
@@ -864,6 +909,23 @@ impl CGWConnectionServer {
                         connmap_w_lock.len() - 1
                     );
                     connmap_w_lock.remove(&serial);
+
+                    let mut devices_cache = self.devices_cache.write().await;
+                    if devices_cache.check_device_exists_in_cache(&serial) {
+                        let remains_in_db = devices_cache
+                            .get_device_from_cache_device_remains_in_sql_db(&serial)
+                            .unwrap();
+                        if remains_in_db {
+                            devices_cache.update_device_from_cache_device_state(
+                                &serial,
+                                CGWDeviceState::CGWDeviceDisconnected,
+                            );
+                        } else {
+                            devices_cache.del_device_from_cache(&serial);
+                        }
+                        devices_cache.dump_devices_cache();
+                    }
+
                     CGWMetrics::get_ref().change_counter(
                         CGWMetricsCounterType::ConnectionsNum,
                         CGWMetricsCounterOpType::Dec,

@@ -221,4 +221,26 @@ impl CGWDBAccessor {
             }
         }
     }
+
+    pub async fn get_all_infras(&self) -> Option<Vec<CGWDBInfra>> {
+        let mut list: Vec<CGWDBInfra> = Vec::new();
+
+        let res = self
+            .cl
+            .query("SELECT * from infras", &[])
+            .await;
+
+        match res {
+            Ok(r) => {
+                for x in r {
+                    let infra = CGWDBInfra::from(x);
+                    list.push(infra);
+                }
+                return Some(list);
+            }
+            Err(_e) => {
+                return None;
+            }
+        }
+    }
 }

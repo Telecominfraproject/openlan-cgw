@@ -366,7 +366,7 @@ impl CGWConnectionServer {
             }
             "infrastructure_group_device_message" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
-                //debug!("{:?}", json_msg);
+                debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::InfrastructureGroupInfraMsg(
                     json_msg.uuid,
                     group_id,

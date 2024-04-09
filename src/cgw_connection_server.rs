@@ -1,4 +1,5 @@
-use crate::cgw_device::{CGWDevice, CGWDeviceState};
+use crate::cgw_device::{cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew};
+use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
 use crate::AppArgs;
 
 use crate::{
@@ -58,7 +59,7 @@ type CGWConnectionServerNBAPIMboxRx = UnboundedReceiver<CGWConnectionNBAPIReqMsg
 #[derive(Debug)]
 pub enum CGWConnectionServerReqMsg {
     // Connection-related messages
-    AddNewConnection(DeviceSerial, UnboundedSender<CGWConnectionProcessorReqMsg>),
+    AddNewConnection(DeviceSerial, CGWDeviceCapabilities, UnboundedSender<CGWConnectionProcessorReqMsg>),
     ConnectionClosed(DeviceSerial),
 }
 
@@ -280,6 +281,31 @@ impl CGWConnectionServer {
             CGWConnectionNBAPIReqMsgOrigin::FromRemoteCGW,
         );
         let _ = self.mbox_relayed_messages_handle.send(msg);
+    }
+
+    // TODO: rename to something like: cgw_construct_device_caps_change_msg
+    fn cgw_create_device_update_msg_to_nb(&self, mac: &String, group_id: i32, diff: &HashMap<String, OldNew>) -> String {
+        let mut vec_changes: Vec<CGWDeviceChange> = Vec::new();
+
+        for (name, values) in diff.iter() {
+            vec_changes.push(CGWDeviceChange {
+                    changed: name.clone(),
+                    old: values.old_value.clone(),
+                    new:values.new_value.clone()
+                }
+            );
+        }
+
+        let msg_str = CGWDeviceChangedData {
+            msg_type: CGWToNBMessageType::InfrastructureDeviceCapabilitiesChanged,
+            infra_group_id: group_id.to_string(),
+            infra_group_infra_device: mac.clone(),
+            changes: vec_changes,
+        };
+
+        let msg_str = serde_json::to_string(&msg_str).unwrap();
+
+        msg_str
     }
 
     fn parse_nbapi_msg(&self, pload: &String) -> Option<CGWNBApiParsedMsg> {
@@ -843,7 +869,7 @@ impl CGWConnectionServer {
             while !buf.is_empty() {
                 let msg = buf.remove(0);
 
-                if let CGWConnectionServerReqMsg::AddNewConnection(serial, conn_processor_mbox_tx) =
+                if let CGWConnectionServerReqMsg::AddNewConnection(serial, caps, conn_processor_mbox_tx) =
                     msg
                 {
                     // if connection is unique: simply insert new conn
@@ -887,12 +913,45 @@ impl CGWConnectionServer {
                             &serial,
                             CGWDeviceState::CGWDeviceConnected,
                         );
+
+                        let device = devices_cache.get_device_from_cache(&serial).unwrap();
+                        let changes = cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
+                        match changes {
+                            Some(diff) => {
+                                let new_msg = self.cgw_create_device_update_msg_to_nb(&serial, device.get_device_group_id(), &diff);
+                                debug!("CGW to NB msg: {}", new_msg.clone());
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(device.get_device_group_id(), new_msg);
+                                debug!("CGW to NB msg: Done!");
+                            }
+                            None => {
+                                debug!("Capabilities for device: {} was not changed!", serial.clone())
+                            }
+                        }
+
+                        devices_cache.update_device_from_cache_device_capabilities(&serial, &caps);
                     } else {
+                        let default_caps: CGWDeviceCapabilities = Default::default();
+                        let changes = cgw_detect_device_chages(&default_caps, &caps);
+                        match changes {
+                            Some(diff) => {
+                                let new_msg = self.cgw_create_device_update_msg_to_nb(&serial, 0, &diff);
+                                debug!("CGW to NB msg: {}", new_msg.clone());
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(0, new_msg);
+                                debug!("CGW to NB msg: Done!");
+                            }
+                            None => {
+                                debug!("Capabilities for device: {} was not changed!", serial.clone())
+                            }
+                        }
+
                         devices_cache.add_device_to_cache(
                             &serial,
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false),
                         );
+
+                        devices_cache.update_device_from_cache_device_capabilities(&serial, &caps);
                     }
+                    debug!("[DBG] test dumping...");
                     devices_cache.dump_devices_cache();
 
                     connmap_w_lock.insert(serial, conn_processor_mbox_tx);
@@ -960,7 +1019,9 @@ impl CGWConnectionServer {
                     return;
                 }
             };
-            let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
+
+            let conn_processor =
+                CGWConnectionProcessor::new(server_clone, conn_idx, addr);
             conn_processor.start(tls_stream).await;
         });
     }
@@ -968,6 +1029,8 @@ impl CGWConnectionServer {
 
 #[cfg(test)]
 mod tests {
+    use crate::{cgw_connection_processor::cgw_parse_jrpc_event, cgw_ucentral_parser::{CGWEvent, CGWEventType}};
+
     use super::*;
 
     fn get_connect_json_msg() -> &'static str {
@@ -1009,10 +1072,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method.to_string());
+        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
 
-        match event {
-            CGWEvent::Connect(_) => {
+        match event.evt_type {
+            CGWEventType::Connect(_) => {
                 assert!(true);
             }
             _ => {
@@ -1028,10 +1091,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method.to_string());
+        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
 
-        match event {
-            CGWEvent::Log(_) => {
+        match event.evt_type {
+            CGWEventType::Log(_) => {
                 assert!(true);
             }
             _ => {

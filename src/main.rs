@@ -2,7 +2,6 @@
 mod cgw_connection_processor;
 mod cgw_connection_server;
 mod cgw_db_accessor;
-mod cgw_devices_cache;
 mod cgw_metrics;
 mod cgw_nb_api_listener;
 mod cgw_remote_client;

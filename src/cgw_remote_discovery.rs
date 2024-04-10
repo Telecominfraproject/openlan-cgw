@@ -1,5 +1,6 @@
 use crate::{
     cgw_db_accessor::{CGWDBAccessor, CGWDBInfra, CGWDBInfrastructureGroup},
+    cgw_devices_cache::{CGWDevice, CGWDevicesCache},
     cgw_metrics::{CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType},
     cgw_remote_client::CGWRemoteClient,
     AppArgs,
@@ -281,6 +282,15 @@ impl CGWRemoteDiscovery {
         );
     }
 
+    pub async fn sync_device_to_gid_cache(&self, cache: Arc<RwLock<CGWDevicesCache>>) {
+        if let Some(groups_infra) = self.db_accessor.get_all_infras().await {
+            let mut devices_cache = cache.write().await;
+            for item in groups_infra.iter() {
+                devices_cache.add_device_to_cache(&item.mac.to_string(eui48::MacAddressFormat::HexString), &CGWDevice::new(item.infra_group_id));
+            }
+        }
+    }
+
     async fn sync_remote_cgw_map(&self) -> Result<(), &'static str> {
         let mut lock = self.remote_cgws_map.write().await;
 
@@ -546,6 +556,7 @@ impl CGWRemoteDiscovery {
         &self,
         gid: i32,
         infras: Vec<String>,
+        cache: Arc<RwLock<CGWDevicesCache>>,
     ) -> Result<(), Vec<String>> {
         // TODO: assign list to shards; currently - only created bulk, no assignment
         let mut futures = Vec::with_capacity(infras.len());
@@ -557,6 +568,7 @@ impl CGWRemoteDiscovery {
                 mac: MacAddress::parse_str(&x).unwrap(),
                 infra_group_id: gid,
             };
+
             futures.push(tokio::spawn(async move {
                 if let Err(_) = db_accessor_clone.insert_new_infra(&infra).await {
                     Err(infra.mac.to_string(eui48::MacAddressFormat::HexString))
@@ -571,6 +583,16 @@ impl CGWRemoteDiscovery {
                 Ok(res) => {
                     if let Err(mac) = res {
                         failed_infras.push(mac);
+                    } else {
+                        // Update cache:
+                        let mut devices_cache = cache.write().await;
+                        let device_mac = infras[i].clone();
+                        if devices_cache.check_device_exists_in_cache(&device_mac) {
+                            devices_cache.update_device_from_cache_device_id(&device_mac, gid);
+                        } else {
+                            devices_cache.add_device_to_cache(&device_mac, &CGWDevice::new(gid));
+                        }
+                        devices_cache.dump_devices_cache();
                     }
                 }
                 Err(_) => {
@@ -590,6 +612,7 @@ impl CGWRemoteDiscovery {
         &self,
         _gid: i32,
         infras: Vec<String>,
+        cache: Arc<RwLock<CGWDevicesCache>>,
     ) -> Result<(), Vec<String>> {
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
@@ -597,6 +620,7 @@ impl CGWRemoteDiscovery {
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
             let mac = MacAddress::parse_str(&x).unwrap();
+
             futures.push(tokio::spawn(async move {
                 if let Err(_) = db_accessor_clone.delete_infra(mac).await {
                     Err(mac.to_string(eui48::MacAddressFormat::HexString))
@@ -611,6 +635,13 @@ impl CGWRemoteDiscovery {
                 Ok(res) => {
                     if let Err(mac) = res {
                         failed_infras.push(mac);
+                    } else {
+                        let mut devices_cache = cache.write().await;
+                        let device_mac = infras[i].clone();
+                        if devices_cache.check_device_exists_in_cache(&device_mac) {
+                            devices_cache.update_device_from_cache_device_id(&device_mac, 0);
+                            devices_cache.dump_devices_cache();
+                        }
                     }
                 }
                 Err(_) => {

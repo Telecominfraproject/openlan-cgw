@@ -27,6 +27,8 @@ KAFKA_IP="${CGW_KAFKA_IP:-$DEFAULT_KAFKA_IP}"
 KAFKA_PORT="${CGW_KAFKA_PORT:-$DEFAULT_KAFKA_PORT}"
 DB_IP="${CGW_DB_IP:-$DEFAULT_DB_IP}"
 DB_PORT="${CGW_DB_PORT:-$DEFAULT_DB_PORT}"
+DB_USR="${CGW_DB_USER:-cgw}"
+DB_PASS="${CGW_DB_PASS:-123}"
 REDIS_DB_IP="${CGW_REDIS_DB_IP:-$DEFAULT_REDIS_DB_IP}"
 REDIS_DB_PORT="${CGW_REDIS_DB_PORT:-$DEFAULT_REDIS_DB_PORT}"
 LOG_LEVEL="${CGW_LOG_LEVEL:-info}"
@@ -40,12 +42,12 @@ echo "KAFKA: $KAFKA_IP:$KAFKA_PORT"
 echo "DB: $DB_IP:$DB_PORT"
 echo "REDIS_DB: $REDIS_DB_IP:$REDIS_DB_PORT"
 
-# TBD: docker-based run
-# TBD 2: add num of thread cfg (start argument)
-output/bin/ucentral-cgw -w 4 -c $ID \
+# TBD: add num of thread cfg (start argument)
+docker run -d -t --network=host --name $2 $1 ucentral-cgw \
 	--grpc-ip $GRPC_IP --grpc-port $GRPC_PORT \
 	--wss-ip $WSS_LOCAL_IP --wss-port $WSS_LOCAL_PORT \
 	--kafka-ip $KAFKA_IP --kafka-port $KAFKA_PORT \
 	--db-ip $DB_IP --db-port $DB_PORT \
+	--db-username $DB_USR --db-password $DB_PASS \
 	--redis-db-ip $REDIS_DB_IP --redis-db-port $REDIS_DB_PORT \
 	$LOG_LEVEL

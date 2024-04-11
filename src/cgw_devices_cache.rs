@@ -1,4 +1,6 @@
-use crate::cgw_device::{CGWDevice, CGWDeviceState};
+// TODO: fix cache functions naming - use short names
+
+use crate::cgw_device::{CGWDevice, CGWDeviceCapabilities, CGWDeviceState};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map;
 use std::fs::File;
@@ -144,6 +146,27 @@ impl CGWDevicesCache {
         status
     }
 
+    pub fn update_device_from_cache_device_capabilities(
+        &mut self,
+        key: &String,
+        capabilities: &CGWDeviceCapabilities,
+    ) -> bool {
+        let status: bool;
+
+        if let Some(value) = self.cache.get_mut(key) {
+            (*value).update_device_capabilities(capabilities);
+            status = true;
+        } else {
+            debug!(
+                "Failed to update device {} id. Requested item does not exist.",
+                key
+            );
+            status = false;
+        }
+
+        status
+    }
+
     pub fn get_device_from_cache_device_state(&self, key: &String) -> Option<CGWDeviceState> {
         if let Some(value) = self.cache.get(key) {
             Some(value.get_device_state())
@@ -167,6 +190,14 @@ impl CGWDevicesCache {
         }
 
         status
+    }
+
+    pub fn get_device_from_cache(&self, key: &String) -> Option<CGWDevice> {
+        if let Some(value) = self.cache.get(key) {
+            Some(value.clone())
+        } else {
+            None
+        }
     }
 
     pub fn get_device_from_cache_device_remains_in_sql_db(&self, key: &String) -> Option<bool> {

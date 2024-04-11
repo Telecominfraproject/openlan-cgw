@@ -9,6 +9,7 @@ mod cgw_nb_api_listener;
 mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
+mod cgw_ucentral_parser;
 
 #[macro_use]
 extern crate log;

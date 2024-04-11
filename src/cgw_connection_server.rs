@@ -1,4 +1,6 @@
-use crate::cgw_device::{cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew};
+use crate::cgw_device::{
+    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
+};
 use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
 use crate::AppArgs;
 
@@ -59,7 +61,11 @@ type CGWConnectionServerNBAPIMboxRx = UnboundedReceiver<CGWConnectionNBAPIReqMsg
 #[derive(Debug)]
 pub enum CGWConnectionServerReqMsg {
     // Connection-related messages
-    AddNewConnection(DeviceSerial, CGWDeviceCapabilities, UnboundedSender<CGWConnectionProcessorReqMsg>),
+    AddNewConnection(
+        DeviceSerial,
+        CGWDeviceCapabilities,
+        UnboundedSender<CGWConnectionProcessorReqMsg>,
+    ),
     ConnectionClosed(DeviceSerial),
 }
 
@@ -284,16 +290,20 @@ impl CGWConnectionServer {
     }
 
     // TODO: rename to something like: cgw_construct_device_caps_change_msg
-    fn cgw_create_device_update_msg_to_nb(&self, mac: &String, group_id: i32, diff: &HashMap<String, OldNew>) -> String {
+    fn cgw_create_device_update_msg_to_nb(
+        &self,
+        mac: &String,
+        group_id: i32,
+        diff: &HashMap<String, OldNew>,
+    ) -> String {
         let mut vec_changes: Vec<CGWDeviceChange> = Vec::new();
 
         for (name, values) in diff.iter() {
             vec_changes.push(CGWDeviceChange {
-                    changed: name.clone(),
-                    old: values.old_value.clone(),
-                    new:values.new_value.clone()
-                }
-            );
+                changed: name.clone(),
+                old: values.old_value.clone(),
+                new: values.new_value.clone(),
+            });
         }
 
         let msg_str = CGWDeviceChangedData {
@@ -869,8 +879,11 @@ impl CGWConnectionServer {
             while !buf.is_empty() {
                 let msg = buf.remove(0);
 
-                if let CGWConnectionServerReqMsg::AddNewConnection(serial, caps, conn_processor_mbox_tx) =
-                    msg
+                if let CGWConnectionServerReqMsg::AddNewConnection(
+                    serial,
+                    caps,
+                    conn_processor_mbox_tx,
+                ) = msg
                 {
                     // if connection is unique: simply insert new conn
                     //
@@ -915,16 +928,27 @@ impl CGWConnectionServer {
                         );
 
                         let device = devices_cache.get_device_from_cache(&serial).unwrap();
-                        let changes = cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
+                        let changes =
+                            cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                         match changes {
                             Some(diff) => {
-                                let new_msg = self.cgw_create_device_update_msg_to_nb(&serial, device.get_device_group_id(), &diff);
+                                let new_msg = self.cgw_create_device_update_msg_to_nb(
+                                    &serial,
+                                    device.get_device_group_id(),
+                                    &diff,
+                                );
                                 debug!("CGW to NB msg: {}", new_msg.clone());
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(device.get_device_group_id(), new_msg);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    device.get_device_group_id(),
+                                    new_msg,
+                                );
                                 debug!("CGW to NB msg: Done!");
                             }
                             None => {
-                                debug!("Capabilities for device: {} was not changed!", serial.clone())
+                                debug!(
+                                    "Capabilities for device: {} was not changed!",
+                                    serial.clone()
+                                )
                             }
                         }
 
@@ -934,13 +958,17 @@ impl CGWConnectionServer {
                         let changes = cgw_detect_device_chages(&default_caps, &caps);
                         match changes {
                             Some(diff) => {
-                                let new_msg = self.cgw_create_device_update_msg_to_nb(&serial, 0, &diff);
+                                let new_msg =
+                                    self.cgw_create_device_update_msg_to_nb(&serial, 0, &diff);
                                 debug!("CGW to NB msg: {}", new_msg.clone());
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(0, new_msg);
                                 debug!("CGW to NB msg: Done!");
                             }
                             None => {
-                                debug!("Capabilities for device: {} was not changed!", serial.clone())
+                                debug!(
+                                    "Capabilities for device: {} was not changed!",
+                                    serial.clone()
+                                )
                             }
                         }
 
@@ -1020,8 +1048,7 @@ impl CGWConnectionServer {
                 }
             };
 
-            let conn_processor =
-                CGWConnectionProcessor::new(server_clone, conn_idx, addr);
+            let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
             conn_processor.start(tls_stream).await;
         });
     }
@@ -1029,7 +1056,10 @@ impl CGWConnectionServer {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cgw_connection_processor::cgw_parse_jrpc_event, cgw_ucentral_parser::{CGWEvent, CGWEventType}};
+    use crate::{
+        cgw_connection_processor::cgw_parse_jrpc_event,
+        cgw_ucentral_parser::{CGWEvent, CGWEventType},
+    };
 
     use super::*;
 

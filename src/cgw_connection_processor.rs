@@ -145,11 +145,7 @@ pub struct CGWConnectionProcessor {
 }
 
 impl CGWConnectionProcessor {
-    pub fn new(
-        server: Arc<CGWConnectionServer>,
-        conn_idx: i64,
-        addr: SocketAddr,
-    ) -> Self {
+    pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server,
             serial: None,

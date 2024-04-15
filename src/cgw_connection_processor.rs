@@ -4,14 +4,11 @@ use crate::{
     cgw_ucentral_parser::*,
 };
 
-use eui48::MacAddress;
-
 use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
-use serde_json::{Map, Value};
-use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::mpsc::{unbounded_channel, UnboundedReceiver},
@@ -21,7 +18,6 @@ use tokio_native_tls::TlsStream;
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 use tungstenite::Message::{Close, Ping, Text};
 
-type CGWUcentralJRPCMessage = Map<String, Value>;
 type SStream = SplitStream<WebSocketStream<TlsStream<TcpStream>>>;
 type SSink = SplitSink<WebSocketStream<TlsStream<TcpStream>>, Message>;
 
@@ -40,101 +36,6 @@ enum CGWConnectionState {
     IsDead,
     IsStale,
     ClosedGracefully,
-}
-
-pub fn cgw_parse_jrpc_event(map: &Map<String, Value>, method: &str) -> CGWEvent {
-    if method == "log" {
-        let params = map.get("params").expect("Params are missing");
-        let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-        return CGWEvent {
-            serial: mac_serial.to_hex_string().to_uppercase(),
-            evt_type: CGWEventType::Log(CGWEventLog {
-                serial: mac_serial.to_hex_string().to_uppercase(),
-                log: params["log"].to_string(),
-                severity: serde_json::from_value(params["severity"].clone()).unwrap(),
-            }),
-        };
-    } else if method == "connect" {
-        let params = map.get("params").expect("Params are missing");
-        let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-        let label = MacAddress::from_str(params["capabilities"]["label_macaddr"].as_str().unwrap())
-            .unwrap();
-        return CGWEvent {
-            serial: mac_serial.to_hex_string().to_uppercase(),
-            evt_type: CGWEventType::Connect(CGWEventConnect {
-                serial: mac_serial.to_hex_string().to_uppercase(),
-                firmware: params["firmware"].to_string(),
-                uuid: 1,
-                capabilities: CGWEventConnectParamsCaps {
-                    compatible: params["capabilities"]["compatible"].to_string(),
-                    model: params["capabilities"]["model"].to_string(),
-                    platform: params["capabilities"]["platform"].to_string(),
-                    label_macaddr: label.to_hex_string().to_uppercase(),
-                },
-            }),
-        };
-    }
-
-    CGWEvent {
-        serial: String::from(""),
-        evt_type: CGWEventType::Empty,
-    }
-}
-
-async fn cgw_parse_jrpc_message(message: Message) -> Result<CGWEvent, &'static str> {
-    let msg = if let Ok(s) = message.into_text() {
-        s
-    } else {
-        return Err("Message to string cast failed");
-    };
-
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(&msg) {
-        Ok(m) => m,
-        Err(e) => {
-            error!("Failed to parse input json {e}");
-            return Err("Failed to parse input json");
-        }
-    };
-
-    if !map.contains_key("jsonrpc") {
-        warn!("Received malformed JSONRPC msg");
-        return Err("JSONRPC field is missing in message");
-    }
-
-    if map.contains_key("method") {
-        if !map.contains_key("params") {
-            warn!("Received JRPC <method> without params.");
-            return Err("Received JRPC <method> without params");
-        }
-
-        let method = map["method"].as_str().unwrap();
-
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
-
-        match &event.evt_type {
-            CGWEventType::Log(l) => {
-                debug!("Received LOG evt from device {}: {}", l.serial, l.log);
-            }
-            CGWEventType::Connect(c) => {
-                debug!(
-                    "Received connect evt from device {}: type {}, fw {}",
-                    c.serial, c.capabilities.platform, c.firmware
-                );
-            }
-            _ => {
-                warn!("received not yet implemented method {}", method);
-                return Err("received not yet implemented method");
-            }
-        };
-
-        return Ok(event);
-    } else if map.contains_key("result") {
-        info!("Processing <result> JSONRPC msg");
-        info!("{:?}", map);
-        return Err("Result handling is not yet implemented");
-    }
-
-    Err("Failed to parse event/method")
 }
 
 pub struct CGWConnectionProcessor {
@@ -196,7 +97,7 @@ impl CGWConnectionProcessor {
             }
         };
 
-        let evt = match cgw_parse_jrpc_message(message).await {
+        let evt = match cgw_parse_ucentral_message(message).await {
             Ok(e) => e,
             Err(_e) => {
                 error!(
@@ -209,7 +110,7 @@ impl CGWConnectionProcessor {
 
         let mut caps: CGWDeviceCapabilities = Default::default();
         match evt.evt_type {
-            CGWEventType::Connect(c) => {
+            CGWUCentralEventType::Connect(c) => {
                 caps.firmware = c.firmware;
                 caps.uuid = c.uuid;
                 caps.compatible = c.capabilities.compatible;

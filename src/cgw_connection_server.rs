@@ -259,7 +259,7 @@ impl CGWConnectionServer {
             .devices_cache
             .try_read()
             .unwrap()
-            .get_device_from_cache_device_id(&mac.to_string())
+            .get_device_id(&mac.to_string())
             .unwrap();
 
         let key = device_id.to_string();
@@ -919,15 +919,12 @@ impl CGWConnectionServer {
 
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group
-                    // If not - simply add to cache - set gid == 0, devices should't remain in SQL DB
+                    // If not - simply add to cache - set gid == 0, devices should't remain in DB
                     let mut devices_cache = self.devices_cache.write().await;
-                    if devices_cache.check_device_exists_in_cache(&serial) {
-                        devices_cache.update_device_from_cache_device_state(
-                            &serial,
-                            CGWDeviceState::CGWDeviceConnected,
-                        );
+                    if devices_cache.check_device_exists(&serial) {
+                        let device = devices_cache.get_device(&serial).unwrap();
+                        device.set_device_state(CGWDeviceState::CGWDeviceConnected);
 
-                        let device = devices_cache.get_device_from_cache(&serial).unwrap();
                         let changes =
                             cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                         match changes {
@@ -951,8 +948,7 @@ impl CGWConnectionServer {
                                 )
                             }
                         }
-
-                        devices_cache.update_device_from_cache_device_capabilities(&serial, &caps);
+                        device.update_device_capabilities(&caps);
                     } else {
                         let default_caps: CGWDeviceCapabilities = Default::default();
                         let changes = cgw_detect_device_chages(&default_caps, &caps);
@@ -972,14 +968,11 @@ impl CGWConnectionServer {
                             }
                         }
 
-                        devices_cache.add_device_to_cache(
+                        devices_cache.add_device(
                             &serial,
-                            &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false),
+                            &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
                         );
-
-                        devices_cache.update_device_from_cache_device_capabilities(&serial, &caps);
                     }
-                    debug!("[DBG] test dumping...");
                     devices_cache.dump_devices_cache();
 
                     connmap_w_lock.insert(serial, conn_processor_mbox_tx);
@@ -998,17 +991,12 @@ impl CGWConnectionServer {
                     connmap_w_lock.remove(&serial);
 
                     let mut devices_cache = self.devices_cache.write().await;
-                    if devices_cache.check_device_exists_in_cache(&serial) {
-                        let remains_in_db = devices_cache
-                            .get_device_from_cache_device_remains_in_sql_db(&serial)
-                            .unwrap();
-                        if remains_in_db {
-                            devices_cache.update_device_from_cache_device_state(
-                                &serial,
-                                CGWDeviceState::CGWDeviceDisconnected,
-                            );
+                    if devices_cache.check_device_exists(&serial) {
+                        let device = devices_cache.get_device(&serial).unwrap();
+                        if device.get_device_remains_in_db() {
+                            device.set_device_state(CGWDeviceState::CGWDeviceDisconnected);
                         } else {
-                            devices_cache.del_device_from_cache(&serial);
+                            devices_cache.del_device(&serial);
                         }
                         devices_cache.dump_devices_cache();
                     }
@@ -1057,8 +1045,8 @@ impl CGWConnectionServer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        cgw_connection_processor::cgw_parse_jrpc_event,
-        cgw_ucentral_parser::{CGWEvent, CGWEventType},
+        cgw_ucentral_parser::cgw_parse_ucentral_event,
+        cgw_ucentral_parser::{CGWUCentralEvent, CGWUCentralEventType},
     };
 
     use super::*;
@@ -1102,10 +1090,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
+        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
 
         match event.evt_type {
-            CGWEventType::Connect(_) => {
+            CGWUCentralEventType::Connect(_) => {
                 assert!(true);
             }
             _ => {
@@ -1121,10 +1109,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
+        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
 
         match event.evt_type {
-            CGWEventType::Log(_) => {
+            CGWUCentralEventType::Log(_) => {
                 assert!(true);
             }
             _ => {

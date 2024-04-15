@@ -1,5 +1,3 @@
-// TODO: fix cache functions naming - use short names
-
 use crate::cgw_device::{CGWDevice, CGWDeviceCapabilities, CGWDeviceState};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map;
@@ -43,10 +41,10 @@ impl CGWDevicesCache {
         CGWDevicesCache { cache }
     }
 
-    pub fn add_device_to_cache(&mut self, key: &String, value: &CGWDevice) -> bool {
+    pub fn add_device(&mut self, key: &String, value: &CGWDevice) -> bool {
         let status: bool;
 
-        if self.check_device_exists_in_cache(key) {
+        if self.check_device_exists(key) {
             debug!(
                 "Failed to add device {}. Requested item already exist.",
                 key
@@ -60,10 +58,10 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn del_device_from_cache(&mut self, key: &String) -> bool {
+    pub fn del_device(&mut self, key: &String) -> bool {
         let status: bool;
 
-        if self.check_device_exists_in_cache(key) {
+        if self.check_device_exists(key) {
             self.cache.remove(key);
             status = true;
         } else {
@@ -77,7 +75,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn check_device_exists_in_cache(&self, key: &String) -> bool {
+    pub fn check_device_exists(&self, key: &String) -> bool {
         let status: bool;
         match self.cache.get(key) {
             Some(_) => status = true,
@@ -87,11 +85,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn update_device_from_cache_device_state(
-        &mut self,
-        key: &String,
-        new_state: CGWDeviceState,
-    ) -> bool {
+    pub fn update_device_state(&mut self, key: &String, new_state: CGWDeviceState) -> bool {
         let status: bool;
 
         if let Some(value) = self.cache.get_mut(key) {
@@ -108,7 +102,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn update_device_from_cache_device_id(&mut self, key: &String, group_id: i32) -> bool {
+    pub fn update_device_id(&mut self, key: &String, group_id: i32) -> bool {
         let status: bool;
 
         if let Some(value) = self.cache.get_mut(key) {
@@ -125,15 +119,11 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn update_device_from_cache_device_remains_in_sql_db(
-        &mut self,
-        key: &String,
-        should_remains: bool,
-    ) -> bool {
+    pub fn update_device_remains_in_db(&mut self, key: &String, should_remains: bool) -> bool {
         let status: bool;
 
         if let Some(value) = self.cache.get_mut(key) {
-            (*value).set_device_remains_in_sql_db(should_remains);
+            (*value).set_device_remains_in_db(should_remains);
             status = true;
         } else {
             debug!(
@@ -146,7 +136,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn update_device_from_cache_device_capabilities(
+    pub fn update_device_capabilities(
         &mut self,
         key: &String,
         capabilities: &CGWDeviceCapabilities,
@@ -167,7 +157,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn get_device_from_cache_device_state(&self, key: &String) -> Option<CGWDeviceState> {
+    pub fn get_device_state(&self, key: &String) -> Option<CGWDeviceState> {
         if let Some(value) = self.cache.get(key) {
             Some(value.get_device_state())
         } else {
@@ -175,7 +165,7 @@ impl CGWDevicesCache {
         }
     }
 
-    pub fn update_device_from_cache(&mut self, key: &String, device: &CGWDevice) -> bool {
+    pub fn update_device(&mut self, key: &String, device: &CGWDevice) -> bool {
         let status: bool;
 
         if let Some(value) = self.cache.get_mut(key) {
@@ -192,7 +182,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn get_device_from_cache(&self, key: &String) -> Option<CGWDevice> {
+    pub fn get_device(&self, key: &String) -> Option<CGWDevice> {
         if let Some(value) = self.cache.get(key) {
             Some(value.clone())
         } else {
@@ -200,15 +190,15 @@ impl CGWDevicesCache {
         }
     }
 
-    pub fn get_device_from_cache_device_remains_in_sql_db(&self, key: &String) -> Option<bool> {
+    pub fn get_device_remains_in_db(&self, key: &String) -> Option<bool> {
         if let Some(value) = self.cache.get(key) {
-            Some(value.get_device_remains_in_sql_db())
+            Some(value.get_device_remains_in_db())
         } else {
             None
         }
     }
 
-    pub fn get_device_from_cache_device_id(&self, key: &String) -> Option<i32> {
+    pub fn get_device_id(&self, key: &String) -> Option<i32> {
         if let Some(value) = self.cache.get(key) {
             Some(value.get_device_group_id())
         } else {

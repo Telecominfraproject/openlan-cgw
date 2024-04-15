@@ -44,16 +44,16 @@ impl CGWDeviceCapabilities {
 pub struct CGWDevice {
     state: CGWDeviceState,
     group_id: i32,
-    remains_in_sql_db: bool,
+    remains_in_db: bool,
     capabilities: CGWDeviceCapabilities,
 }
 
 impl CGWDevice {
-    pub fn new(state: CGWDeviceState, group_id: i32, remains_in_sql_db: bool) -> CGWDevice {
+    pub fn new(state: CGWDeviceState, group_id: i32, remains_in_db: bool) -> CGWDevice {
         CGWDevice {
             state,
             group_id,
-            remains_in_sql_db,
+            remains_in_db,
             capabilities: Default::default(),
         }
     }
@@ -74,12 +74,12 @@ impl CGWDevice {
         self.group_id
     }
 
-    pub fn set_device_remains_in_sql_db(&mut self, should_remains: bool) {
-        self.remains_in_sql_db = should_remains;
+    pub fn set_device_remains_in_db(&mut self, should_remains: bool) {
+        self.remains_in_db = should_remains;
     }
 
-    pub fn get_device_remains_in_sql_db(&self) -> bool {
-        self.remains_in_sql_db
+    pub fn get_device_remains_in_db(&self) -> bool {
+        self.remains_in_db
     }
 
     pub fn get_device_capabilities(&self) -> CGWDeviceCapabilities {

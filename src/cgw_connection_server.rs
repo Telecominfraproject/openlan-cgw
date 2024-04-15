@@ -1054,8 +1054,8 @@ impl CGWConnectionServer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        cgw_connection_processor::cgw_parse_jrpc_event,
-        cgw_ucentral_parser::{CGWEvent, CGWEventType},
+        cgw_ucentral_parser::cgw_parse_ucentral_event,
+        cgw_ucentral_parser::{CGWUCentralEvent, CGWUCentralEventType},
     };
 
     use super::*;
@@ -1099,10 +1099,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
+        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
 
         match event.evt_type {
-            CGWEventType::Connect(_) => {
+            CGWUCentralEventType::Connect(_) => {
                 assert!(true);
             }
             _ => {
@@ -1118,10 +1118,10 @@ mod tests {
         let map: Map<String, Value> =
             serde_json::from_str(msg).expect("Failed to parse input json");
         let method = map["method"].as_str().unwrap();
-        let event: CGWEvent = cgw_parse_jrpc_event(&map, method);
+        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
 
         match event.evt_type {
-            CGWEventType::Log(_) => {
+            CGWUCentralEventType::Log(_) => {
                 assert!(true);
             }
             _ => {

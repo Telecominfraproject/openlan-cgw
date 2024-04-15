@@ -293,6 +293,7 @@ impl CGWRemoteDiscovery {
                         CGWDeviceState::CGWDeviceDisconnected,
                         item.infra_group_id,
                         true,
+                        Default::default(),
                     ),
                 );
             }
@@ -617,13 +618,20 @@ impl CGWRemoteDiscovery {
                     } else {
                         let mut devices_cache = cache.write().await;
                         let device_mac = infras[i].clone();
+
                         if devices_cache.check_device_exists(&device_mac) {
-                            devices_cache.update_device_id(&device_mac, gid);
-                            devices_cache.update_device_remains_in_db(&device_mac, true);
+                            let device = devices_cache.get_device(&device_mac).unwrap();
+                            device.set_device_group_id(gid);
+                            device.set_device_remains_in_db(true);
                         } else {
                             devices_cache.add_device(
                                 &device_mac,
-                                &CGWDevice::new(CGWDeviceState::CGWDeviceDisconnected, gid, true),
+                                &CGWDevice::new(
+                                    CGWDeviceState::CGWDeviceDisconnected,
+                                    gid,
+                                    true,
+                                    Default::default(),
+                                ),
                             );
                         }
                         devices_cache.dump_devices_cache();
@@ -673,11 +681,11 @@ impl CGWRemoteDiscovery {
                         let mut devices_cache = cache.write().await;
                         let device_mac = infras[i].clone();
                         if devices_cache.check_device_exists(&device_mac) {
-                            if devices_cache.get_device_state(&device_mac).unwrap()
-                                == CGWDeviceState::CGWDeviceConnected
-                            {
-                                devices_cache.update_device_remains_in_db(&device_mac, false);
-                                devices_cache.update_device_id(&device_mac, 0);
+                            let device = devices_cache.get_device(&device_mac).unwrap();
+
+                            if device.get_device_state() == CGWDeviceState::CGWDeviceConnected {
+                                device.set_device_remains_in_db(false);
+                                device.set_device_group_id(0);
                             } else {
                                 devices_cache.del_device(&device_mac);
                             }

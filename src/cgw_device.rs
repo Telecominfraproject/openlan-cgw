@@ -49,12 +49,17 @@ pub struct CGWDevice {
 }
 
 impl CGWDevice {
-    pub fn new(state: CGWDeviceState, group_id: i32, remains_in_db: bool) -> CGWDevice {
+    pub fn new(
+        state: CGWDeviceState,
+        group_id: i32,
+        remains_in_db: bool,
+        capabilities: CGWDeviceCapabilities,
+    ) -> CGWDevice {
         CGWDevice {
             state,
             group_id,
             remains_in_db,
-            capabilities: Default::default(),
+            capabilities,
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::cgw_device::{CGWDevice, CGWDeviceCapabilities, CGWDeviceState};
+use crate::cgw_device::CGWDevice;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map;
 use std::fs::File;

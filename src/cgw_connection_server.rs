@@ -128,31 +128,29 @@ pub struct CGWConnectionServer {
     devices_cache: Arc<RwLock<CGWDevicesCache>>,
 }
 
-/*
- * TODO: split into base struct + enum type field
- * this requires alot of refactoring in places where msg is used
- * this is needed to always have uuid of malformed / discarded msg.
- * e.g.
- * struct CGWNBApiParsedMsg {
- *     uuid: Uuid,
- *     gid: i32,
- *     type: enum CGWNBApiParsedMsgType,
- * }
- *
- * enum CGWNBApiParsedMsgType {
- *     InfrastructureGroupCreate,
- *     ...
- *     InfrastructureGroupInfraMsg(DeviceSerial, String),
- * }
- */
-enum CGWNBApiParsedMsg {
-    // TODO: fix kafka_simulator to provide reserved_size
-    InfrastructureGroupCreate(Uuid, i32),
-    InfrastructureGroupDelete(Uuid, i32),
-    InfrastructureGroupInfraAdd(Uuid, i32, Vec<DeviceSerial>),
-    InfrastructureGroupInfraDel(Uuid, i32, Vec<DeviceSerial>),
-    InfrastructureGroupInfraMsg(Uuid, i32, DeviceSerial, String),
-    RebalanceGroups(Uuid),
+enum CGWNBApiParsedMsgType {
+    InfrastructureGroupCreate,
+    InfrastructureGroupDelete,
+    InfrastructureGroupInfraAdd(Vec<DeviceSerial>),
+    InfrastructureGroupInfraDel(Vec<DeviceSerial>),
+    InfrastructureGroupInfraMsg(DeviceSerial, String),
+    RebalanceGroups,
+}
+
+struct CGWNBApiParsedMsg {
+    uuid: Uuid,
+    gid: i32,
+    msg_type: CGWNBApiParsedMsgType,
+}
+
+impl CGWNBApiParsedMsg {
+    fn new(uuid: Uuid, gid: i32, msg_type: CGWNBApiParsedMsgType) -> CGWNBApiParsedMsg {
+        CGWNBApiParsedMsg {
+            uuid,
+            gid,
+            msg_type,
+        }
+    }
 }
 
 impl CGWConnectionServer {
@@ -380,59 +378,66 @@ impl CGWConnectionServer {
             error!("No infra_group_id found in\n{pload}");
             return None;
         }
+
         let rc = rc.unwrap();
         let group_id: i32 = rc.as_str().unwrap().parse().unwrap();
-
-        //debug!("Got msg {msg_type}, infra {group_id}");
 
         match msg_type {
             "infrastructure_group_create" => {
                 let json_msg: InfraGroupCreate = serde_json::from_str(&pload).unwrap();
-                //debug!("{:?}", json_msg);
-                return Some(CGWNBApiParsedMsg::InfrastructureGroupCreate(
+                return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreate,
                 ));
             }
             "infrastructure_group_delete" => {
                 let json_msg: InfraGroupDelete = serde_json::from_str(&pload).unwrap();
-                //debug!("{:?}", json_msg);
-                return Some(CGWNBApiParsedMsg::InfrastructureGroupDelete(
+                return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupDelete,
                 ));
             }
             "infrastructure_group_device_add" => {
                 let json_msg: InfraGroupInfraAdd = serde_json::from_str(&pload).unwrap();
-                //debug!("{:?}", json_msg);
-                return Some(CGWNBApiParsedMsg::InfrastructureGroupInfraAdd(
+                return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    json_msg.infra_group_infra_devices,
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfraAdd(
+                        json_msg.infra_group_infra_devices,
+                    ),
                 ));
             }
             "infrastructure_group_device_del" => {
                 let json_msg: InfraGroupInfraDel = serde_json::from_str(&pload).unwrap();
-                //debug!("{:?}", json_msg);
-                return Some(CGWNBApiParsedMsg::InfrastructureGroupInfraDel(
+                return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    json_msg.infra_group_infra_devices,
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(
+                        json_msg.infra_group_infra_devices,
+                    ),
                 ));
             }
             "infrastructure_group_device_message" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
                 debug!("{:?}", json_msg);
-                return Some(CGWNBApiParsedMsg::InfrastructureGroupInfraMsg(
+                return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    json_msg.mac,
-                    serde_json::to_string(&json_msg.msg).unwrap(),
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
+                        json_msg.mac,
+                        serde_json::to_string(&json_msg.msg).unwrap(),
+                    ),
                 ));
             }
             "rebalance_groups" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
-                return Some(CGWNBApiParsedMsg::RebalanceGroups(json_msg.uuid));
+                return Some(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::RebalanceGroups,
+                ));
             }
             &_ => {
                 debug!("Unknown type {msg_type} received");
@@ -551,7 +556,12 @@ impl CGWConnectionServer {
                     // assignment as soon as possible to deduce relaying action in
                     // the following message pool that is being handled.
                     // Same for delete.
-                    if let CGWNBApiParsedMsg::InfrastructureGroupCreate(_uuid, gid) = parsed_msg {
+                    if let CGWNBApiParsedMsg {
+                        uuid,
+                        gid,
+                        msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreate,
+                    } = parsed_msg
+                    {
                         // DB stuff - create group for remote shards to be aware of change
                         let group = CGWDBInfrastructureGroup {
                             id: gid,
@@ -562,24 +572,27 @@ impl CGWConnectionServer {
                             Ok(_dst_cgw_id) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
-                                    format!("Group has been created successfully gid {gid}"),
+                                    format!("Group has been created successfully gid {gid}, uuid {uuid}"),
                                 );
                             }
                             Err(_e) => {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
                                     format!(
-                                        "Failed to create new group (duplicate create?), gid {gid}"
+                                        "Failed to create new group (duplicate create?), gid {gid}, uuid {uuid}"
                                     ),
                                 );
-                                warn!("Create group gid {gid} received, but it already exists");
+                                warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
                             }
                         }
                         // This type of msg is handled in place, not added to buf
                         // for later processing.
                         continue;
-                    } else if let CGWNBApiParsedMsg::InfrastructureGroupDelete(uuid, gid) =
-                        parsed_msg
+                    } else if let CGWNBApiParsedMsg {
+                        uuid,
+                        gid,
+                        msg_type: CGWNBApiParsedMsgType::InfrastructureGroupDelete,
+                    } = parsed_msg
                     {
                         let lock = self.devices_cache.clone();
                         match self
@@ -705,13 +718,17 @@ impl CGWConnectionServer {
                     }
 
                     match msg.unwrap() {
-                        CGWNBApiParsedMsg::InfrastructureGroupInfraAdd(uuid, gid, mac_list) => {
+                        CGWNBApiParsedMsg {
+                            uuid,
+                            gid,
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraAdd(mac_list),
+                        } => {
                             if let None = self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
                                 .await
                             {
-                                warn!("Unexpected: tried to add infra list to nonexisting group (gid {gid}, uuid {uuid}");
+                                warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}");
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     gid,
                                     format!("Failed to insert MACs from infra list, gid {gid}, uuid {uuid}: group does not exist."));
@@ -738,7 +755,11 @@ impl CGWConnectionServer {
                                 }
                             }
                         }
-                        CGWNBApiParsedMsg::InfrastructureGroupInfraDel(uuid, gid, mac_list) => {
+                        CGWNBApiParsedMsg {
+                            uuid,
+                            gid,
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(mac_list),
+                        } => {
                             if let None = self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
@@ -771,7 +792,11 @@ impl CGWConnectionServer {
                                 }
                             }
                         }
-                        CGWNBApiParsedMsg::InfrastructureGroupInfraMsg(uuid, gid, mac, msg) => {
+                        CGWNBApiParsedMsg {
+                            uuid,
+                            gid,
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(mac, msg),
+                        } => {
                             if let None = self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
@@ -807,8 +832,15 @@ impl CGWConnectionServer {
                                 );
                             }
                         }
-                        CGWNBApiParsedMsg::RebalanceGroups(_Uuid) => {
-                            debug!("Received Rebalance Groups request");
+                        CGWNBApiParsedMsg {
+                            uuid,
+                            gid,
+                            msg_type: CGWNBApiParsedMsgType::RebalanceGroups,
+                        } => {
+                            debug!(
+                                "Received Rebalance Groups request, gid {}, uuid {}",
+                                uuid, gid
+                            );
                             match self.cgw_remote_discovery.rebalance_all_groups().await {
                                 Ok(groups_res) => {
                                     debug!("Rebalancing groups completed successfully, # of rebalanced groups {groups_res}");

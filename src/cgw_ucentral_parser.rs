@@ -1,17 +1,17 @@
-// TODO:
-// 1) Renaming: use proper enums/structs and functions name
-// 2) Move ucentral messages parser from connection server
-
 use std::str::FromStr;
 
-use serde_json::{Map, Value};
-
 use eui48::MacAddress;
-use serde::{Deserialize, Serialize};
 
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-type CGWUcentralJRPCMessage = Map<String, Value>;
+use crate::{
+    cgw_device::CGWDeviceType, cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
+    cgw_ucentral_switch_parser::cgw_ucentral_switch_parse_message,
+};
+
+pub type CGWUcentralJRPCMessage = Map<String, Value>;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct CGWUCentralEventLog {
@@ -43,6 +43,12 @@ pub enum CGWUCentralEventType {
     Empty,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CGWUCentralEvent {
+    pub serial: String,
+    pub evt_type: CGWUCentralEventType,
+}
+
 #[derive(Deserialize, Debug, Serialize)]
 pub struct CGWDeviceChange {
     pub changed: String,
@@ -64,52 +70,34 @@ pub struct CGWDeviceChangedData {
     pub changes: Vec<CGWDeviceChange>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CGWUCentralEvent {
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralCommandConfigure {
     pub serial: String,
-    pub evt_type: CGWUCentralEventType,
+    pub uuid: u64,
+    pub when: String,
 }
 
-pub fn cgw_parse_ucentral_event(map: &Map<String, Value>, method: &str) -> CGWUCentralEvent {
-    if method == "log" {
-        let params = map.get("params").expect("Params are missing");
-        let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-        return CGWUCentralEvent {
-            serial: mac_serial.to_hex_string().to_uppercase(),
-            evt_type: CGWUCentralEventType::Log(CGWUCentralEventLog {
-                serial: mac_serial.to_hex_string().to_uppercase(),
-                log: params["log"].to_string(),
-                severity: serde_json::from_value(params["severity"].clone()).unwrap(),
-            }),
-        };
-    } else if method == "connect" {
-        let params = map.get("params").expect("Params are missing");
-        let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-        let label = MacAddress::from_str(params["capabilities"]["label_macaddr"].as_str().unwrap())
-            .unwrap();
-        return CGWUCentralEvent {
-            serial: mac_serial.to_hex_string().to_uppercase(),
-            evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
-                serial: mac_serial.to_hex_string().to_uppercase(),
-                firmware: params["firmware"].to_string(),
-                uuid: 1,
-                capabilities: CGWUCentralEventConnectParamsCaps {
-                    compatible: params["capabilities"]["compatible"].to_string(),
-                    model: params["capabilities"]["model"].to_string(),
-                    platform: params["capabilities"]["platform"].to_string(),
-                    label_macaddr: label.to_hex_string().to_uppercase(),
-                },
-            }),
-        };
-    }
-
-    CGWUCentralEvent {
-        serial: String::from(""),
-        evt_type: CGWUCentralEventType::Empty,
-    }
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralCommandReboot {
+    pub serial: String,
+    pub when: String,
 }
 
-pub async fn cgw_parse_ucentral_message(
+#[derive(Debug, Deserialize, Serialize)]
+pub enum CGWUCentralCommandType {
+    Configure(CGWUCentralCommandConfigure),
+    Reboot(CGWUCentralCommandReboot),
+    Empty,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CGWUCentralCommand {
+    pub serial: String,
+    pub cmd_type: CGWUCentralCommandType,
+    pub id: u64,
+}
+
+pub fn cgw_ucentral_parse_connect_event(
     message: Message,
 ) -> Result<CGWUCentralEvent, &'static str> {
     let msg = if let Ok(s) = message.into_text() {
@@ -131,38 +119,122 @@ pub async fn cgw_parse_ucentral_message(
         return Err("JSONRPC field is missing in message");
     }
 
-    if map.contains_key("method") {
-        if !map.contains_key("params") {
-            warn!("Received JRPC <method> without params.");
-            return Err("Received JRPC <method> without params");
-        }
-
-        let method = map["method"].as_str().unwrap();
-
-        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
-
-        match &event.evt_type {
-            CGWUCentralEventType::Log(l) => {
-                debug!("Received LOG evt from device {}: {}", l.serial, l.log);
-            }
-            CGWUCentralEventType::Connect(c) => {
-                debug!(
-                    "Received connect evt from device {}: type {}, fw {}",
-                    c.serial, c.capabilities.platform, c.firmware
-                );
-            }
-            _ => {
-                warn!("received not yet implemented method {}", method);
-                return Err("received not yet implemented method");
-            }
-        };
-
-        return Ok(event);
-    } else if map.contains_key("result") {
-        info!("Processing <result> JSONRPC msg");
-        info!("{:?}", map);
-        return Err("Result handling is not yet implemented");
+    if !map.contains_key("method") {
+        warn!("Received malformed JSONRPC msg");
+        return Err("method field is missing in message");
     }
 
-    Err("Failed to parse event/method")
+    if !map.contains_key("params") {
+        warn!("Received JRPC <method> without params.");
+        return Err("Received JRPC <method> without params");
+    }
+
+    let method = map["method"].as_str().unwrap();
+    if method != "connect" {
+        return Err("Device is not abiding the protocol: first message - CONNECT - expected");
+    }
+
+    let params = map.get("params").expect("Params are missing");
+    let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
+        .unwrap()
+        .to_hex_string()
+        .to_uppercase();
+    let firmware = params["firmware"].as_str().unwrap().to_string();
+    let caps: CGWUCentralEventConnectParamsCaps =
+        serde_json::from_value(params["capabilities"].clone()).unwrap();
+
+    let event: CGWUCentralEvent = CGWUCentralEvent {
+        serial: serial.clone(),
+        evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
+            serial,
+            firmware,
+            uuid: 1,
+            capabilities: caps,
+        }),
+    };
+
+    return Ok(event);
+}
+
+pub fn cgw_ucentral_parse_command_message(
+    message: Message,
+) -> Result<CGWUCentralCommand, &'static str> {
+    let msg = if let Ok(s) = message.into_text() {
+        s
+    } else {
+        return Err("Message to string cast failed");
+    };
+
+    let map: CGWUcentralJRPCMessage = match serde_json::from_str(&msg) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("Failed to parse input json {e}");
+            return Err("Failed to parse input json");
+        }
+    };
+
+    if !map.contains_key("jsonrpc") {
+        warn!("Received malformed JSONRPC msg");
+        return Err("JSONRPC field is missing in message");
+    }
+
+    let method = map["method"].as_str().unwrap();
+    if method != "connect" {
+        return Err("Device is not abiding the protocol: first message - CONNECT - expected");
+    }
+
+    if method == "configure" {
+        let params = map.get("params").expect("Params are missing");
+        let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
+            .unwrap()
+            .to_hex_string()
+            .to_uppercase();
+        let uuid = params["uuid"].as_u64().unwrap();
+        let when = params["when"].to_string();
+        let id = map
+            .get("params")
+            .expect("Params are missing")
+            .as_u64()
+            .unwrap();
+
+        let config_command = CGWUCentralCommand {
+            serial: serial.clone(),
+            cmd_type: CGWUCentralCommandType::Configure(CGWUCentralCommandConfigure {
+                serial,
+                uuid,
+                when,
+            }),
+            id,
+        };
+
+        return Ok(config_command);
+    } else if method == "reboot" {
+        let params = map.get("params").expect("Params are missing");
+        let id = map.get("id").expect("Params are missing").as_u64().unwrap();
+        let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
+            .unwrap()
+            .to_hex_string()
+            .to_uppercase();
+        let when = params["when"].to_string();
+
+        let reboot_command = CGWUCentralCommand {
+            serial: serial.clone(),
+            cmd_type: CGWUCentralCommandType::Reboot(CGWUCentralCommandReboot { serial, when }),
+            id,
+        };
+
+        return Ok(reboot_command);
+    }
+
+    Err("Failed to parse command/method")
+}
+
+pub fn cgw_ucentral_event_parser(
+    device_type: &CGWDeviceType,
+    message: Message,
+) -> Result<CGWUCentralEvent, &'static str> {
+    match device_type {
+        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(message),
+        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(message),
+    }
 }

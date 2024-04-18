@@ -1,6 +1,25 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy)]
+pub enum CGWDeviceType {
+    CGWDeviceAP,
+    CGWDeviceSwitch,
+}
+
+impl FromStr for CGWDeviceType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ap" => Ok(CGWDeviceType::CGWDeviceAP),
+            "switch" => Ok(CGWDeviceType::CGWDeviceSwitch),
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq)]
 pub enum CGWDeviceState {

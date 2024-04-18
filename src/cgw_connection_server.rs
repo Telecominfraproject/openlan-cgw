@@ -1076,12 +1076,12 @@ impl CGWConnectionServer {
 
 #[cfg(test)]
 mod tests {
+
     use crate::{
-        cgw_ucentral_parser::cgw_parse_ucentral_event,
+        cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
         cgw_ucentral_parser::{CGWUCentralEvent, CGWUCentralEventType},
     };
-
-    use super::*;
+    use tokio_tungstenite::tungstenite::protocol::Message;
 
     fn get_connect_json_msg() -> &'static str {
         r#"
@@ -1118,11 +1118,7 @@ mod tests {
     #[test]
     fn can_parse_connect_event() {
         let msg = get_connect_json_msg();
-
-        let map: Map<String, Value> =
-            serde_json::from_str(msg).expect("Failed to parse input json");
-        let method = map["method"].as_str().unwrap();
-        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(Message::from(msg)).unwrap();
 
         match event.evt_type {
             CGWUCentralEventType::Connect(_) => {
@@ -1137,11 +1133,7 @@ mod tests {
     #[test]
     fn can_parse_log_event() {
         let msg = get_log_json_msg();
-
-        let map: Map<String, Value> =
-            serde_json::from_str(msg).expect("Failed to parse input json");
-        let method = map["method"].as_str().unwrap();
-        let event: CGWUCentralEvent = cgw_parse_ucentral_event(&map, method);
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(Message::from(msg)).unwrap();
 
         match event.evt_type {
             CGWUCentralEventType::Log(_) => {

@@ -12,6 +12,7 @@ mod cgw_remote_server;
 mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
+mod cgw_ucentral_topology_map;
 
 #[macro_use]
 extern crate log;

@@ -1,23 +1,58 @@
 use std::str::FromStr;
 
 use eui48::MacAddress;
-use tokio_tungstenite::tungstenite::protocol::Message;
+use serde_json::Value;
 
 use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
-    CGWUCentralEventLog, CGWUCentralEventType, CGWUcentralJRPCMessage,
+    CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateLLDPData,
+    CGWUCentralEventStateLLDPDataLinks, CGWUCentralEventType, CGWUcentralJRPCMessage,
 };
 
-pub fn cgw_ucentral_switch_parse_message(
-    message: Message,
-) -> Result<CGWUCentralEvent, &'static str> {
-    let msg = if let Ok(s) = message.into_text() {
-        s
-    } else {
-        return Err("Message to string cast failed");
-    };
+fn parse_lldp_data(
+    data: &Value,
+    upstream_port: Option<String>,
+) -> Vec<CGWUCentralEventStateLLDPDataLinks> {
+    let mut links: Vec<CGWUCentralEventStateLLDPDataLinks> = Vec::new();
 
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(&msg) {
+    if let Value::Object(map) = data {
+        let directions = [
+            map["upstream"].as_object().unwrap(),
+            map["downstream"].as_object().unwrap(),
+        ];
+
+        for d in directions {
+            for (key, value) in d {
+                let data = value.as_array().unwrap()[0].as_object().unwrap();
+
+                let local_port = key.to_string();
+                let remote_mac = MacAddress::from_str(data["mac"].as_str().unwrap()).unwrap();
+                let remote_port = data["port"].as_str().unwrap().to_string();
+                let is_downstream: bool = {
+                    if let Some(ref port) = upstream_port {
+                        *port != local_port
+                    } else {
+                        true
+                    }
+                };
+
+                links.push(CGWUCentralEventStateLLDPDataLinks {
+                    local_port,
+                    remote_mac,
+                    remote_port,
+                    is_downstream,
+                });
+            }
+        }
+    }
+
+    links
+}
+
+pub fn cgw_ucentral_switch_parse_message(
+    message: &String,
+) -> Result<CGWUCentralEvent, &'static str> {
+    let map: CGWUcentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");
@@ -51,27 +86,32 @@ pub fn cgw_ucentral_switch_parse_message(
             };
 
             return Ok(log_event);
-        } else if method == "connect" {
+        } else if method == "state" {
             let params = map.get("params").expect("Params are missing");
-            let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-                .unwrap()
-                .to_hex_string()
-                .to_uppercase();
-            let firmware = params["firmware"].as_str().unwrap().to_string();
-            let caps: CGWUCentralEventConnectParamsCaps =
-                serde_json::from_value(params["capabilities"].clone()).unwrap();
 
-            let connect_event = CGWUCentralEvent {
-                serial: serial.clone(),
-                evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
-                    serial,
-                    firmware,
-                    uuid: 1,
-                    capabilities: caps,
-                }),
-            };
+            if let Value::Object(state_map) = &params["state"] {
+                let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
+                let mut upstream_port: Option<String> = None;
+                if let Value::Array(default_gw) = &state_map["default-gateway"] {
+                    if let Some(gw) = default_gw.get(0) {
+                        if let Value::String(port) = &gw["out-port"] {
+                            upstream_port = Some(port.as_str().to_string());
+                        }
+                    }
+                }
 
-            return Ok(connect_event);
+                let state_event = CGWUCentralEvent {
+                    serial: serial.to_hex_string().to_uppercase(),
+                    evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
+                        lldp_data: CGWUCentralEventStateLLDPData {
+                            local_mac: serial,
+                            links: parse_lldp_data(&state_map["lldp-peers"], upstream_port),
+                        },
+                    }),
+                };
+
+                return Ok(state_event);
+            }
         }
     } else if map.contains_key("result") {
         info!("Processing <result> JSONRPC msg");

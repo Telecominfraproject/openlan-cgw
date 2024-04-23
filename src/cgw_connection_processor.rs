@@ -1,7 +1,9 @@
 use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
+    cgw_ucentral_parser::cgw_ucentral_event_parse,
     cgw_ucentral_parser::{cgw_ucentral_parse_connect_event, CGWUCentralEventType},
+    cgw_ucentral_topology_map::CGWUcentralTopologyMap,
 };
 
 use futures_util::{
@@ -168,6 +170,7 @@ impl CGWConnectionProcessor {
     async fn process_wss_rx_msg(
         &self,
         msg: Result<Message, tungstenite::error::Error>,
+        device_type: CGWDeviceType,
     ) -> Result<CGWConnectionState, &'static str> {
         match msg {
             Ok(msg) => match msg {
@@ -175,6 +178,13 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
+                    if let Ok(evt) = cgw_ucentral_event_parse(&device_type, &payload) {
+                        if let CGWUCentralEventType::State(_) = evt.evt_type {
+                            let topo_map = CGWUcentralTopologyMap::get_ref();
+                            topo_map.process_state_message(&device_type, evt).await;
+                            topo_map.debug_dump_map().await;
+                        }
+                    }
                     self.cgw_server
                         .enqueue_mbox_message_from_device_to_nb_api_c(
                             self.serial.clone().unwrap(),
@@ -321,7 +331,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res).await
+                    self.process_wss_rx_msg(res, device_type).await
                 }
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await

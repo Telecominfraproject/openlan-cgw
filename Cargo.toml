@@ -33,6 +33,9 @@ redis-async = "0.16.1"
 warp = "*"
 prometheus = { version = "*", features = ["process"] }
 lazy_static = "*"
+petgraph = { version = "0.6.4", features = ["stable_graph"] }
+flate2 = "1.0.28"
+base64 = "0.22.0"
 
 [build-dependencies]
 tonic-build = "0.10"

@@ -2,6 +2,7 @@ use crate::cgw_device::{
     cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
 };
 use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
+use crate::cgw_ucentral_topology_map::CGWUcentralTopologyMap;
 use crate::AppArgs;
 
 use crate::{
@@ -31,6 +32,8 @@ use serde_json::{Map, Value};
 use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
+
+use eui48::MacAddress;
 
 type DeviceSerial = String;
 type CGWConnmapType = Arc<RwLock<HashMap<String, UnboundedSender<CGWConnectionProcessorReqMsg>>>>;
@@ -930,7 +933,7 @@ impl CGWConnectionServer {
                             warn!("Duplicate connection (mac:{}) detected, closing OLD connection in favor of NEW", serial_clone);
                             let msg: CGWConnectionProcessorReqMsg =
                                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose;
-                            c.send(msg).unwrap();
+                            let _ = c.send(msg);
                         });
                     } else {
                         CGWMetrics::get_ref().change_counter(
@@ -1005,6 +1008,13 @@ impl CGWConnectionServer {
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
                         );
                     }
+
+                    let topo_map = CGWUcentralTopologyMap::get_ref();
+                    topo_map
+                        .insert_device(&MacAddress::parse_str(&serial).unwrap())
+                        .await;
+                    topo_map.debug_dump_map().await;
+
                     devices_cache.dump_devices_cache();
 
                     connmap_w_lock.insert(serial, conn_processor_mbox_tx);
@@ -1032,6 +1042,12 @@ impl CGWConnectionServer {
                         }
                         devices_cache.dump_devices_cache();
                     }
+
+                    let topo_map = CGWUcentralTopologyMap::get_ref();
+                    topo_map
+                        .remove_device(&MacAddress::parse_str(&serial).unwrap())
+                        .await;
+                    topo_map.debug_dump_map().await;
 
                     CGWMetrics::get_ref().change_counter(
                         CGWMetricsCounterType::ConnectionsNum,
@@ -1118,7 +1134,7 @@ mod tests {
     #[test]
     fn can_parse_connect_event() {
         let msg = get_connect_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(Message::from(msg)).unwrap();
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(&msg.to_string()).unwrap();
 
         match event.evt_type {
             CGWUCentralEventType::Connect(_) => {
@@ -1133,7 +1149,7 @@ mod tests {
     #[test]
     fn can_parse_log_event() {
         let msg = get_log_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(Message::from(msg)).unwrap();
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(&msg.to_string()).unwrap();
 
         match event.evt_type {
             CGWUCentralEventType::Log(_) => {

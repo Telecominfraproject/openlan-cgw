@@ -168,7 +168,6 @@ impl CGWConnectionProcessor {
     async fn process_wss_rx_msg(
         &self,
         msg: Result<Message, tungstenite::error::Error>,
-        device_type: CGWDeviceType,
     ) -> Result<CGWConnectionState, &'static str> {
         match msg {
             Ok(msg) => match msg {
@@ -176,7 +175,6 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
-                    // let _ = cgw_ucentral_event_parser(parser, Message::from(payload.clone()));
                     self.cgw_server
                         .enqueue_mbox_message_from_device_to_nb_api_c(
                             self.serial.clone().unwrap(),
@@ -323,7 +321,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, device_type).await
+                    self.process_wss_rx_msg(res).await
                 }
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await

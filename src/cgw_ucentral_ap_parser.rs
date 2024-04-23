@@ -5,7 +5,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
-    CGWUCentralEventLog, CGWUCentralEventType, CGWUcentralJRPCMessage,
+    CGWUCentralEventLog, CGWUCentralEventReply, CGWUCentralEventType, CGWUcentralJRPCMessage,
 };
 
 pub fn cgw_ucentral_ap_parse_message(message: Message) -> Result<CGWUCentralEvent, &'static str> {
@@ -72,9 +72,18 @@ pub fn cgw_ucentral_ap_parse_message(message: Message) -> Result<CGWUCentralEven
             return Ok(connect_event);
         }
     } else if map.contains_key("result") {
-        info!("Processing <result> JSONRPC msg");
-        info!("{:?}", map);
-        return Err("Result handling is not yet implemented");
+        if !map.contains_key("id") {
+            warn!("Received JRPC <result> without id.");
+            return Err("Received JRPC <result> without id");
+        }
+
+        let id = map.get("id").unwrap().as_u64().unwrap();
+        let reply_event = CGWUCentralEvent {
+            serial: Default::default(),
+            evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+        };
+
+        return Ok(reply_event);
     }
 
     Err("Failed to parse event/method")

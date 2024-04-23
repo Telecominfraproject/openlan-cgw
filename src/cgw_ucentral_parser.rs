@@ -36,11 +36,28 @@ pub struct CGWUCentralEventConnect {
     pub capabilities: CGWUCentralEventConnectParamsCaps,
 }
 
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralEventReply {
+    pub id: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CGWUCentralEventType {
     Connect(CGWUCentralEventConnect),
+    State,
+    Healthcheck,
     Log(CGWUCentralEventLog),
-    Empty,
+    Event,
+    Alarm,
+    WifiScan,
+    CrashLog,
+    RebootLog,
+    CfgPending,
+    DeviceUpdate,
+    Ping,
+    Recovery,
+    VenueBroadcast,
+    Reply(CGWUCentralEventReply),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -70,24 +87,52 @@ pub struct CGWDeviceChangedData {
     pub changes: Vec<CGWDeviceChange>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct CGWUCentralCommandConfigure {
-    pub serial: String,
-    pub uuid: u64,
-    pub when: String,
-}
-
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct CGWUCentralCommandReboot {
-    pub serial: String,
-    pub when: String,
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CGWUCentralCommandType {
-    Configure(CGWUCentralCommandConfigure),
-    Reboot(CGWUCentralCommandReboot),
-    Empty,
+    Configure,
+    Reboot,
+    Powercycle,
+    Upgrade,
+    Factory,
+    Prm,
+    Leds,
+    Trace,
+    Wifiscan,
+    Request,
+    Event,
+    Telemetry,
+    RemoteAccess,
+    Ping,
+    Script,
+    CertUpdate,
+    Transfer,
+}
+
+impl FromStr for CGWUCentralCommandType {
+    type Err = ();
+
+    fn from_str(command: &str) -> Result<Self, Self::Err> {
+        match command {
+            "configure" => Ok(CGWUCentralCommandType::Configure),
+            "reboot" => Ok(CGWUCentralCommandType::Reboot),
+            "powercycle" => Ok(CGWUCentralCommandType::Powercycle),
+            "upgrade" => Ok(CGWUCentralCommandType::Upgrade),
+            "factory" => Ok(CGWUCentralCommandType::Factory),
+            "rrm" => Ok(CGWUCentralCommandType::Prm),
+            "leds" => Ok(CGWUCentralCommandType::Leds),
+            "trace" => Ok(CGWUCentralCommandType::Trace),
+            "wifiscan" => Ok(CGWUCentralCommandType::Wifiscan),
+            "request" => Ok(CGWUCentralCommandType::Request),
+            "event" => Ok(CGWUCentralCommandType::Event),
+            "telemetry" => Ok(CGWUCentralCommandType::Telemetry),
+            "remote_access" => Ok(CGWUCentralCommandType::RemoteAccess),
+            "ping" => Ok(CGWUCentralCommandType::Ping),
+            "script" => Ok(CGWUCentralCommandType::Script),
+            "certupdate" => Ok(CGWUCentralCommandType::CertUpdate),
+            "transfer" => Ok(CGWUCentralCommandType::Transfer),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -134,7 +179,7 @@ pub fn cgw_ucentral_parse_connect_event(
         return Err("Device is not abiding the protocol: first message - CONNECT - expected");
     }
 
-    let params = map.get("params").expect("Params are missing");
+    let params = map.get("params").unwrap();
     let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
         .unwrap()
         .to_hex_string()
@@ -178,58 +223,46 @@ pub fn cgw_ucentral_parse_command_message(
         return Err("JSONRPC field is missing in message");
     }
 
+    if !map.contains_key("method") {
+        warn!("Received malformed JSONRPC msg");
+        return Err("method field is missing in message");
+    }
+
+    if !map.contains_key("params") {
+        warn!("Received malformed JSONRPC msg");
+        return Err("params field is missing in message");
+    }
+
+    if !map.contains_key("id") {
+        warn!("Received malformed JSONRPC msg");
+        return Err("id field is missing in message");
+    }
+
     let method = map["method"].as_str().unwrap();
-    if method != "connect" {
-        return Err("Device is not abiding the protocol: first message - CONNECT - expected");
-    }
-
-    if method == "configure" {
-        let params = map.get("params").expect("Params are missing");
-        let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-            .unwrap()
-            .to_hex_string()
-            .to_uppercase();
-        let uuid = params["uuid"].as_u64().unwrap();
-        let when = params["when"].to_string();
-        let id = map
-            .get("params")
-            .expect("Params are missing")
-            .as_u64()
-            .unwrap();
-
-        let config_command = CGWUCentralCommand {
-            serial: serial.clone(),
-            cmd_type: CGWUCentralCommandType::Configure(CGWUCentralCommandConfigure {
+    let command_type = CGWUCentralCommandType::from_str(method);
+    match command_type {
+        Ok(cmd_type) => {
+            let params = map.get("params").unwrap();
+            let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
+                .unwrap()
+                .to_hex_string()
+                .to_uppercase();
+            let id = map.get("id").unwrap().as_u64().unwrap();
+            let command = CGWUCentralCommand {
+                cmd_type,
                 serial,
-                uuid,
-                when,
-            }),
-            id,
-        };
+                id,
+            };
 
-        return Ok(config_command);
-    } else if method == "reboot" {
-        let params = map.get("params").expect("Params are missing");
-        let id = map.get("id").expect("Params are missing").as_u64().unwrap();
-        let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-            .unwrap()
-            .to_hex_string()
-            .to_uppercase();
-        let when = params["when"].to_string();
-
-        let reboot_command = CGWUCentralCommand {
-            serial: serial.clone(),
-            cmd_type: CGWUCentralCommandType::Reboot(CGWUCentralCommandReboot { serial, when }),
-            id,
-        };
-
-        return Ok(reboot_command);
+            Ok(command)
+        }
+        Err(_) => {
+            return Err("Failed to parse command/method");
+        }
     }
-
-    Err("Failed to parse command/method")
 }
 
-pub fn cgw_ucentral_event_parser(
+pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
     message: Message,
 ) -> Result<CGWUCentralEvent, &'static str> {

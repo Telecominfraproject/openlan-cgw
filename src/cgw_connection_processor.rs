@@ -1,14 +1,14 @@
 use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
-    cgw_device::CGWDeviceCapabilities,
-    cgw_ucentral_parser::*,
+    cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
+    cgw_ucentral_parser::{cgw_ucentral_parse_connect_event, CGWUCentralEventType},
 };
 
 use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::mpsc::{unbounded_channel, UnboundedReceiver},
@@ -97,8 +97,12 @@ impl CGWConnectionProcessor {
             }
         };
 
-        let evt = match cgw_parse_ucentral_message(message).await {
-            Ok(e) => e,
+        debug!("Parse Connect Event");
+        let evt = match cgw_ucentral_parse_connect_event(message) {
+            Ok(e) => {
+                debug!("Some: {:?}", e);
+                e
+            }
             Err(_e) => {
                 error!(
                     "failed to recv connect message from {}, closing connection",
@@ -107,6 +111,8 @@ impl CGWConnectionProcessor {
                 return;
             }
         };
+
+        debug!("Done Parse Connect Event");
 
         let mut caps: CGWDeviceCapabilities = Default::default();
         match evt.evt_type {
@@ -125,6 +131,7 @@ impl CGWConnectionProcessor {
         }
 
         self.serial = Some(evt.serial.clone());
+        let device_type = CGWDeviceType::from_str(caps.platform.as_str()).unwrap();
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
@@ -154,7 +161,8 @@ impl CGWConnectionProcessor {
             return;
         }
 
-        self.process_connection(stream, sink, mbox_rx).await;
+        self.process_connection(stream, sink, mbox_rx, device_type)
+            .await;
     }
 
     async fn process_wss_rx_msg(
@@ -236,6 +244,7 @@ impl CGWConnectionProcessor {
         mut stream: SStream,
         mut sink: SSink,
         mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,
+        device_type: CGWDeviceType,
     ) {
         #[derive(Debug)]
         enum WakeupReason {

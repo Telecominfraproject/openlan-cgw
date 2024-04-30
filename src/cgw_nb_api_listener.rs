@@ -98,7 +98,7 @@ impl CGWCNCConsumer {
         let context = CustomContext;
 
         debug!(
-            "Trying to connect to kafka broker ({}:{})...",
+            "(consumer) Trying to connect to kafka broker ({}:{})...",
             app_args.kafka_ip.to_string(),
             app_args.kafka_port.to_string()
         );
@@ -134,18 +134,23 @@ impl CGWCNCConsumer {
 }
 
 impl CGWCNCProducer {
-    pub fn new() -> Self {
-        let prod: CGWCNCProducerType = Self::create_producer();
+    pub fn new(app_args: &AppArgs) -> Self {
+        let prod: CGWCNCProducerType = Self::create_producer(&app_args);
         CGWCNCProducer { p: prod }
     }
 
-    fn create_producer() -> CGWCNCProducerType {
+    fn create_producer(app_args: &AppArgs) -> CGWCNCProducerType {
         let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", "172.20.10.136:9092")
+            .set("bootstrap.servers", app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string())
             .set("message.timeout.ms", "5000")
             .create()
             .expect("Producer creation error");
 
+        debug!(
+            "(producer) Trying to connect to kafka broker ({}:{})...",
+            app_args.kafka_ip.to_string(),
+            app_args.kafka_port.to_string()
+        );
         producer
     }
 }
@@ -170,7 +175,7 @@ impl CGWNBApiClient {
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(),
+            prod: CGWCNCProducer::new(&app_args),
         });
 
         let cl_clone = cl.clone();
@@ -213,7 +218,7 @@ impl CGWNBApiClient {
                         Ok(())
                     }
                 });
-                stream_processor.await.expect("stream processing failed");
+                let _ = stream_processor.await;
             }
         });
 

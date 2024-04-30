@@ -42,8 +42,8 @@ echo "KAFKA: $KAFKA_IP:$KAFKA_PORT"
 echo "DB: $DB_IP:$DB_PORT"
 echo "REDIS_DB: $REDIS_DB_IP:$REDIS_DB_PORT"
 
-# TBD: add num of thread cfg (start argument)
 docker run -d -t --network=host --name $2 $1 ucentral-cgw \
+	--cgw-id $ID \
 	--grpc-ip $GRPC_IP --grpc-port $GRPC_PORT \
 	--wss-ip $WSS_LOCAL_IP --wss-port $WSS_LOCAL_PORT \
 	--kafka-ip $KAFKA_IP --kafka-port $KAFKA_PORT \

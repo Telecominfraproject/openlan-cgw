@@ -113,7 +113,7 @@ pub struct CGWDeviceChangedData {
     pub changes: Vec<CGWDeviceChange>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub enum CGWUCentralCommandType {
     Configure,
     Reboot,
@@ -132,6 +132,8 @@ pub enum CGWUCentralCommandType {
     Script,
     CertUpdate,
     Transfer,
+    #[default]
+    None,
 }
 
 impl FromStr for CGWUCentralCommandType {
@@ -156,12 +158,13 @@ impl FromStr for CGWUCentralCommandType {
             "script" => Ok(CGWUCentralCommandType::Script),
             "certupdate" => Ok(CGWUCentralCommandType::CertUpdate),
             "transfer" => Ok(CGWUCentralCommandType::Transfer),
+            "None" => Ok(CGWUCentralCommandType::None),
             _ => Err(()),
         }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CGWUCentralCommand {
     pub serial: String,
     pub cmd_type: CGWUCentralCommandType,
@@ -228,15 +231,9 @@ pub fn cgw_ucentral_parse_connect_event(
 }
 
 pub fn cgw_ucentral_parse_command_message(
-    message: Message,
+    message: &String,
 ) -> Result<CGWUCentralCommand, &'static str> {
-    let msg = if let Ok(s) = message.into_text() {
-        s
-    } else {
-        return Err("Message to string cast failed");
-    };
-
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(&msg) {
+    let map: CGWUcentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");

@@ -13,6 +13,7 @@ mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
 mod cgw_ucentral_topology_map;
+mod cgw_ucentral_messages_queue_manager;
 
 #[macro_use]
 extern crate log;

@@ -1,10 +1,9 @@
-use std::str::FromStr;
-
 use base64::prelude::*;
 use eui48::MacAddress;
 use flate2::read::ZlibDecoder;
 use serde_json::Value;
 use std::io::prelude::*;
+use std::str::FromStr;
 
 use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,

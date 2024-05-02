@@ -1,6 +1,10 @@
 use crate::cgw_device::{
     cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
 };
+use crate::cgw_ucentral_messages_queue_manager::{
+    CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
+};
+use crate::cgw_ucentral_parser::{cgw_ucentral_parse_command_message, CGWUCentralCommand};
 use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
 use crate::cgw_ucentral_topology_map::CGWUcentralTopologyMap;
 use crate::AppArgs;
@@ -700,7 +704,6 @@ impl CGWConnectionServer {
             // TODO: try to parallelize at least parsing of msg:
             // iterate each msg, get index, spawn task that would
             // write indexed parsed msg into output parsed msg buf.
-            let connmap_clone = self.connmap.map.clone();
             while !local_cgw_msg_buf.is_empty() {
                 let msg = local_cgw_msg_buf.remove(0);
                 if let CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
@@ -811,29 +814,15 @@ impl CGWConnectionServer {
                                     format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
-                            debug!("Sending msg to device {mac}");
-                            let rd_lock = connmap_clone.read().await;
-                            let rc = rd_lock.get(&mac);
-                            if let None = rc {
-                                error!("Cannot find suitable connection for {mac}");
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!("Failed to send msg (device not connected?), gid {gid}, uuid {uuid}"));
-                                continue;
-                            }
+                            // 1. Parse message from NB
+                            let parsed_cmd: CGWUCentralCommand =
+                                cgw_ucentral_parse_command_message(&msg.clone()).unwrap();
+                            let queue_msg: CGWUCentralMessagesQueueItem =
+                                CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
 
-                            let proc_mbox_tx = rc.unwrap();
-                            if let Err(_e) = proc_mbox_tx
-                                .send(CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, msg))
-                            {
-                                error!(
-                                    "Failed to send message to remote device (msg uuid({uuid}))"
-                                );
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!("Failed to send msg, gid {gid}, uuid {uuid}"),
-                                );
-                            }
+                            // 2. Add message to queue
+                            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                            queue_lock.push_device_message(&mac, &queue_msg).await;
                         }
                         CGWNBApiParsedMsg {
                             uuid,
@@ -862,7 +851,7 @@ impl CGWConnectionServer {
 
             // Do not proceed parsing local / remote msgs untill previous relaying has been
             // finished
-            tokio::join!(relay_task_hdl);
+            _ = tokio::join!(relay_task_hdl);
 
             buf.clear();
             num_of_msg_read = 0;
@@ -951,6 +940,9 @@ impl CGWConnectionServer {
                         serial,
                         connmap_w_lock.len() + 1
                     );
+
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.create_device_messages_queue(&serial).await;
 
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group

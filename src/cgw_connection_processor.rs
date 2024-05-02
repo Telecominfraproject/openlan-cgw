@@ -1,6 +1,7 @@
 use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
+    cgw_ucentral_messages_queue_manager::{CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE},
     cgw_ucentral_parser::cgw_ucentral_event_parse,
     cgw_ucentral_parser::{cgw_ucentral_parse_connect_event, CGWUCentralEventType},
     cgw_ucentral_topology_map::CGWUcentralTopologyMap,
@@ -28,7 +29,7 @@ pub enum CGWConnectionProcessorReqMsg {
     // We got green light from server to process this connection on
     AddNewConnectionAck,
     AddNewConnectionShouldClose,
-    SinkRequestToDevice(String, String),
+    SinkRequestToDevice(CGWUCentralMessagesQueueItem),
 }
 
 #[derive(Debug)]
@@ -38,6 +39,12 @@ enum CGWConnectionState {
     IsDead,
     IsStale,
     ClosedGracefully,
+}
+
+#[derive(Debug, PartialEq)]
+enum CGWUCentralMessageProcessorState {
+    Idle,
+    ResultPending,
 }
 
 pub struct CGWConnectionProcessor {
@@ -171,6 +178,8 @@ impl CGWConnectionProcessor {
         &self,
         msg: Result<Message, tungstenite::error::Error>,
         device_type: CGWDeviceType,
+        fsm_state: &mut CGWUCentralMessageProcessorState,
+        pending_req_id: u64,
     ) -> Result<CGWConnectionState, &'static str> {
         match msg {
             Ok(msg) => match msg {
@@ -183,8 +192,14 @@ impl CGWConnectionProcessor {
                             let topo_map = CGWUcentralTopologyMap::get_ref();
                             topo_map.process_state_message(&device_type, evt).await;
                             topo_map.debug_dump_map().await;
+                        } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
+                            assert_eq!(*fsm_state, CGWUCentralMessageProcessorState::ResultPending);
+                            assert_eq!(content.id, pending_req_id);
+                            *fsm_state = CGWUCentralMessageProcessorState::Idle;
+                            debug!("Got reply event for pending request id: {}", pending_req_id);
                         }
                     }
+
                     self.cgw_server
                         .enqueue_mbox_message_from_device_to_nb_api_c(
                             self.serial.clone().unwrap(),
@@ -220,9 +235,12 @@ impl CGWConnectionProcessor {
                     debug!("MBOX_IN: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
                     return Ok(CGWConnectionState::IsForcedToClose);
                 }
-                CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, pload) => {
-                    debug!("MBOX_IN: SinkRequestToDevice, processor (mac:{processor_mac}) req for (mac:{mac}) payload:{pload}");
-                    sink.send(Message::text(pload)).await.ok();
+                CGWConnectionProcessorReqMsg::SinkRequestToDevice(pload) => {
+                    debug!("MBOX_IN: SinkRequestToDevice, processor (mac:{processor_mac}) req for (mac:{}) payload:{}",
+                        pload.command.serial,
+                        pload.message.clone(),
+                    );
+                    sink.send(Message::text(pload.message)).await.ok();
                 }
                 _ => panic!("Unexpected message received {:?}", msg),
             }
@@ -264,27 +282,30 @@ impl CGWConnectionProcessor {
             Stale,
         }
 
+        let device_mac = self.serial.clone().unwrap();
+        let mut pending_req_id: u64 = 0;
+        let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
         let mut last_contact = Instant::now();
-        let mut poll_wss_first = true;
 
-        // Get underlying wakeup reason and do initial parsion, like:
-        // - check if WSS stream has a message or an (recv) error
-        // - check if sinkmbox has a message or an (recv) error
-        // - check if connection's been stale for X time
-        //
-        // TODO: try_next intead of sync .next? could potentially
-        // skyrocket CPU usage.
         loop {
             let mut wakeup_reason: WakeupReason = WakeupReason::Unspecified;
+            // 1. Try to get some message from Queue
+            if fsm_state == CGWUCentralMessageProcessorState::Idle {
+                let queue_lock = CGW_MESSAGES_QUEUE.read().await;
 
-            // TODO: refactor
-            // Round-robin selection of stream to process:
-            // first, get single message from WSS, then get a single msg from RX MBOX
-            // It's done to ensure we process WSS and RX MBOX equally with same priority
-            // Also, we have to make sure we don't sleep-wait for any of the streams to
-            // make sure we don't cancel futures that are used for stream processing,
-            // especially TCP stream, which is not cancel-safe
-            if poll_wss_first {
+                // Check if message Queue is not empty
+                if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
+                    // Get message from queue
+                    pending_req_id = queue_msg.command.id;
+                    wakeup_reason = WakeupReason::MboxRx(Some(
+                        CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
+                    ));
+                    debug!("Got pending request with id: {}", pending_req_id);
+                    fsm_state = CGWUCentralMessageProcessorState::ResultPending;
+                } else if let Some(val) = mbox_rx.recv().now_or_never() {
+                    wakeup_reason = WakeupReason::MboxRx(val)
+                }
+            } else {
                 if let Some(val) = stream.next().now_or_never() {
                     if let Some(res) = val {
                         if let Ok(msg) = res {
@@ -297,32 +318,9 @@ impl CGWConnectionProcessor {
                             tungstenite::error::Error::AlreadyClosed,
                         ));
                     }
-                } else if let Some(val) = mbox_rx.recv().now_or_never() {
-                    wakeup_reason = WakeupReason::MboxRx(val)
                 }
-
-                poll_wss_first = !poll_wss_first;
-            } else {
-                if let Some(val) = mbox_rx.recv().now_or_never() {
-                    wakeup_reason = WakeupReason::MboxRx(val)
-                } else if let Some(val) = stream.next().now_or_never() {
-                    if let Some(res) = val {
-                        if let Ok(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
-                        } else if let Err(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
-                        }
-                    } else if let None = val {
-                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
-                            tungstenite::error::Error::AlreadyClosed,
-                        ));
-                    }
-                }
-                poll_wss_first = !poll_wss_first;
             }
 
-            // TODO: somehow workaround the sleeping?
-            // Both WSS and RX MBOX are empty: chill for a while
             if let WakeupReason::Unspecified = wakeup_reason {
                 sleep(Duration::from_millis(1000)).await;
                 wakeup_reason = WakeupReason::Stale;
@@ -331,7 +329,8 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, device_type).await
+                    self.process_wss_rx_msg(res, device_type, &mut fsm_state, pending_req_id)
+                        .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await

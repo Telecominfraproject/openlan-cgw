@@ -13,14 +13,14 @@ use crate::{
 
 pub type CGWUcentralJRPCMessage = Map<String, Value>;
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventLog {
     pub serial: String,
     pub log: String,
     pub severity: i64,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventConnectParamsCaps {
     pub compatible: String,
     pub model: String,
@@ -28,7 +28,7 @@ pub struct CGWUCentralEventConnectParamsCaps {
     pub label_macaddr: String,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventConnect {
     pub serial: String,
     pub firmware: String,
@@ -36,7 +36,7 @@ pub struct CGWUCentralEventConnect {
     pub capabilities: CGWUCentralEventConnectParamsCaps,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLLDPDataLinks {
     pub local_port: String,
     #[serde(skip)]
@@ -45,7 +45,7 @@ pub struct CGWUCentralEventStateLLDPDataLinks {
     pub is_downstream: bool,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLLDPData {
     // Parsed State LLDP data:
     // mac address of the device reporting the LLDP data
@@ -57,17 +57,17 @@ pub struct CGWUCentralEventStateLLDPData {
     pub links: Vec<CGWUCentralEventStateLLDPDataLinks>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventState {
     pub lldp_data: CGWUCentralEventStateLLDPData,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventReply {
     pub id: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum CGWUCentralEventType {
     Connect(CGWUCentralEventConnect),
     State(CGWUCentralEventState),

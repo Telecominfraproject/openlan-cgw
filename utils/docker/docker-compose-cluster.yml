@@ -1,0 +1,129 @@
+# docker compose file for running a 3-node PostgreSQL cluster
+# with 3-node etcd cluster as the DCS and one haproxy node
+#
+# requires a patroni image build from the Dockerfile:
+# $ docker build -t patroni .
+# The cluster could be started as:
+# $ docker-compose up -d
+# You can read more about it in the:
+# https://github.com/zalando/patroni/blob/master/docker/README.md
+version: "3.9"
+
+networks:
+    demo:
+
+services:
+    etcd1: &etcd
+        image: harbor.io.optimcloud.com/optimcloud/patroni:latest
+        ports:
+            - 2379
+            - 2380
+        networks: [ demo ]
+        environment:
+            ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+            ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+            ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+            ETCD_INITIAL_CLUSTER_STATE: new
+            ETCD_INITIAL_CLUSTER_TOKEN: tutorial
+            ETCD_UNSUPPORTED_ARCH: arm64
+        container_name: demo-etcd1
+        hostname: etcd1
+        command: etcd --name etcd1 --initial-advertise-peer-urls http://etcd1:2380
+
+    etcd2:
+        <<: *etcd
+        container_name: demo-etcd2
+        hostname: etcd2
+        command: etcd --name etcd2 --initial-advertise-peer-urls http://etcd2:2380
+
+    etcd3:
+        <<: *etcd
+        container_name: demo-etcd3
+        hostname: etcd3
+        command: etcd --name etcd3 --initial-advertise-peer-urls http://etcd3:2380
+
+    haproxy:
+        image: harbor.io.optimcloud.com/optimcloud/patroni:latest
+        networks: [ demo ]
+        env_file: docker/patroni.env
+        hostname: haproxy
+        container_name: demo-haproxy
+        ports:
+            - "5000:5000"
+            - "5001:5001"
+        command: haproxy
+        environment: &haproxy_env
+            ETCDCTL_ENDPOINTS: http://etcd1:2379,http://etcd2:2379,http://etcd3:2379
+            PATRONI_ETCD3_HOSTS: "'etcd1:2379','etcd2:2379','etcd3:2379'"
+            PATRONI_SCOPE: demo
+
+    patroni1:
+        image: harbor.io.optimcloud.com/optimcloud/patroni:latest
+        ports:
+            - "5432" 
+        networks: [ demo ]
+        env_file: docker/patroni.env
+        hostname: patroni1
+        container_name: demo-patroni1
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: patroni1
+        volumes:
+          - ./postgresql/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+
+    patroni2:
+        image: harbor.io.optimcloud.com/optimcloud/patroni:latest
+        ports:
+            - "5432" 
+        networks: [ demo ]
+        env_file: docker/patroni.env
+        hostname: patroni2
+        container_name: demo-patroni2
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: patroni2
+
+    patroni3:
+        image: harbor.io.optimcloud.com/optimcloud/patroni:latest
+        ports:
+            - "5432" 
+        networks: [ demo ]
+        env_file: docker/patroni.env
+        hostname: patroni3
+        container_name: demo-patroni3
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: patroni3
+
+    redis:
+        image: 'bitnami/redis:latest'
+        ports:
+            - "6379:6379"
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+
+    broker:
+        image: docker.io/bitnami/kafka:latest
+        ports:
+            - "9092:9092"
+            - "9094:9094"
+        environment:
+            - KAFKA_ENABLE_KRAFT=yes
+            - KAFKA_CFG_PROCESS_ROLES=broker,controller
+            - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+            - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+            - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+            - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,EXTERNAL://kafka_b:9094
+            - KAFKA_BROKER_ID=1
+            - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093
+            - ALLOW_PLAINTEXT_LISTENER=yes
+            - KAFKA_CFG_NODE_ID=1
+            - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+            - BITNAMI_DEBUG=yes
+            - KAFKA_CFG_NUM_PARTITIONS=2
+        healthcheck:
+            test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 5s

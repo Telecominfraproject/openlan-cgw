@@ -37,6 +37,32 @@ pub struct CGWUCentralEventConnect {
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralEventStateLLDPDataLinks {
+    pub local_port: String,
+    #[serde(skip)]
+    pub remote_mac: MacAddress,
+    pub remote_port: String,
+    pub is_downstream: bool,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralEventStateLLDPData {
+    // Parsed State LLDP data:
+    // mac address of the device reporting the LLDP data
+    #[serde(skip)]
+    pub local_mac: MacAddress,
+
+    // links reported by the device:
+    // local port, remote mac, remote port
+    pub links: Vec<CGWUCentralEventStateLLDPDataLinks>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct CGWUCentralEventState {
+    pub lldp_data: CGWUCentralEventStateLLDPData,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct CGWUCentralEventReply {
     pub id: u64,
 }
@@ -44,7 +70,7 @@ pub struct CGWUCentralEventReply {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CGWUCentralEventType {
     Connect(CGWUCentralEventConnect),
-    State,
+    State(CGWUCentralEventState),
     Healthcheck,
     Log(CGWUCentralEventLog),
     Event,
@@ -264,10 +290,10 @@ pub fn cgw_ucentral_parse_command_message(
 
 pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
-    message: Message,
+    message: &String,
 ) -> Result<CGWUCentralEvent, &'static str> {
     match device_type {
-        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(message),
-        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(message),
+        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(&message),
+        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(&message),
     }
 }

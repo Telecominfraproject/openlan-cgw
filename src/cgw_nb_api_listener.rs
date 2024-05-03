@@ -141,7 +141,10 @@ impl CGWCNCProducer {
 
     fn create_producer(app_args: &AppArgs) -> CGWCNCProducerType {
         let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string())
+            .set(
+                "bootstrap.servers",
+                app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
+            )
             .set("message.timeout.ms", "5000")
             .create()
             .expect("Producer creation error");

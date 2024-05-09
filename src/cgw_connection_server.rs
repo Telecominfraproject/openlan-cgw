@@ -117,6 +117,10 @@ pub struct CGWConnectionServer {
     // remote-cgw messages is being relayed inside this context
     mbox_relay_msg_runtime_handle: Arc<Runtime>,
 
+    // Dedicated runtime (threadpool) for handling disconnected devices message queue
+    // Iterate over list of disconnected devices - dequeue aged messages
+    queue_timeout_handle: Arc<Runtime>,
+
     // CGWConnectionServer write into this mailbox,
     // and other correspondig NB API client is responsible for doing an RX over
     // receive handle counterpart
@@ -211,6 +215,15 @@ impl CGWConnectionServer {
                 .build()
                 .unwrap(),
         );
+        let queue_timeout_handle = Arc::new(
+            Builder::new_multi_thread()
+                .worker_threads(1)
+                .thread_name("cgw-queue-timeout")
+                .thread_stack_size(1 * 1024 * 1024)
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
 
         let (internal_tx, internal_rx) = unbounded_channel::<CGWConnectionServerReqMsg>();
         let (nb_api_tx, nb_api_rx) = unbounded_channel::<CGWConnectionNBAPIReqMsg>();
@@ -227,6 +240,7 @@ impl CGWConnectionServer {
             mbox_nb_api_runtime_handle: nb_api_mbox_runtime_handle,
             mbox_nb_api_tx_runtime_handle: nb_api_mbox_tx_runtime_handle,
             mbox_internal_tx: internal_tx,
+            queue_timeout_handle,
             nb_api_client: nb_api_c,
             cgw_remote_discovery: Arc::new(CGWRemoteDiscovery::new(app_args).await),
             mbox_relayed_messages_handle: nb_api_tx,
@@ -243,6 +257,11 @@ impl CGWConnectionServer {
         let server_clone = server.clone();
         server.mbox_nb_api_runtime_handle.spawn(async move {
             server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+        });
+
+        server.queue_timeout_handle.spawn(async move {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            queue_lock.start_queue_timeout_manager().await;
         });
 
         // Sync RAM cache with PostgressDB.
@@ -822,7 +841,7 @@ impl CGWConnectionServer {
 
                             // 2. Add message to queue
                             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                            queue_lock.push_device_message(&mac, &queue_msg).await;
+                            queue_lock.push_device_message(mac, queue_msg).await;
                         }
                         CGWNBApiParsedMsg {
                             uuid,
@@ -909,6 +928,10 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
+                    // Remove device from disconnected device list
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.device_connected(&serial).await;
+
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -940,9 +963,6 @@ impl CGWConnectionServer {
                         serial,
                         connmap_w_lock.len() + 1
                     );
-
-                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.create_device_messages_queue(&serial).await;
 
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group
@@ -1024,6 +1044,10 @@ impl CGWConnectionServer {
                     );
                     connmap_w_lock.remove(&serial);
 
+                    // Insert device to disconnected device list
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.device_disconnected(&serial).await;
+
                     let mut devices_cache = self.devices_cache.write().await;
                     if devices_cache.check_device_exists(&serial) {
                         let device = devices_cache.get_device(&serial).unwrap();
@@ -1089,7 +1113,6 @@ mod tests {
         cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
         cgw_ucentral_parser::{CGWUCentralEvent, CGWUCentralEventType},
     };
-    use tokio_tungstenite::tungstenite::protocol::Message;
 
     fn get_connect_json_msg() -> &'static str {
         r#"

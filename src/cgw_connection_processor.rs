@@ -1,9 +1,14 @@
 use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
-    cgw_ucentral_messages_queue_manager::{CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE},
-    cgw_ucentral_parser::cgw_ucentral_event_parse,
-    cgw_ucentral_parser::{cgw_ucentral_parse_connect_event, CGWUCentralEventType},
+    cgw_ucentral_messages_queue_manager::{
+        CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
+        MESSAGE_TIMEOUT_DURATION,
+    },
+    cgw_ucentral_parser::{
+        cgw_ucentral_event_parse, cgw_ucentral_parse_connect_event, CGWUCentralCommandType,
+        CGWUCentralEventType,
+    },
     cgw_ucentral_topology_map::CGWUcentralTopologyMap,
 };
 
@@ -141,6 +146,20 @@ impl CGWConnectionProcessor {
 
         self.serial = Some(evt.serial.clone());
         let device_type = CGWDeviceType::from_str(caps.platform.as_str()).unwrap();
+
+        // Check if device queue already exist
+        // If yes - it could mean that we have device reconnection event
+        // The possible reconnect reason could be: FW Upgrade or Factory reset
+        // Need to make sure queue is unlocked to process requests
+        // If no - create new message queue for device
+        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+        if queue_lock.check_messages_queue_exists(&evt.serial).await {
+            queue_lock
+                .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
+                .await;
+        } else {
+            queue_lock.create_device_messages_queue(&evt.serial).await;
+        }
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
@@ -284,39 +303,88 @@ impl CGWConnectionProcessor {
 
         let device_mac = self.serial.clone().unwrap();
         let mut pending_req_id: u64 = 0;
+        let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
         let mut last_contact = Instant::now();
 
+        // 1. Get last request timeout value
+        // 2. Get last request id
+        // 3. Update values
+        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+        let last_req_id = queue_lock.get_device_last_request_id(&device_mac).await;
+        if last_req_id != 0 {
+            pending_req_id = last_req_id;
+            fsm_state = CGWUCentralMessageProcessorState::ResultPending;
+        }
+
         loop {
             let mut wakeup_reason: WakeupReason = WakeupReason::Unspecified;
-            // 1. Try to get some message from Queue
-            if fsm_state == CGWUCentralMessageProcessorState::Idle {
-                let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            let mut start_time: Instant = Instant::now();
 
-                // Check if message Queue is not empty
-                if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
-                    // Get message from queue
-                    pending_req_id = queue_msg.command.id;
-                    wakeup_reason = WakeupReason::MboxRx(Some(
-                        CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
-                    ));
-                    debug!("Got pending request with id: {}", pending_req_id);
-                    fsm_state = CGWUCentralMessageProcessorState::ResultPending;
-                } else if let Some(val) = mbox_rx.recv().now_or_never() {
-                    wakeup_reason = WakeupReason::MboxRx(val)
-                }
+            if let Some(val) = mbox_rx.recv().now_or_never() {
+                wakeup_reason = WakeupReason::MboxRx(val)
             } else {
-                if let Some(val) = stream.next().now_or_never() {
-                    if let Some(res) = val {
-                        if let Ok(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
-                        } else if let Err(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
+                if fsm_state == CGWUCentralMessageProcessorState::Idle {
+                    match queue_lock.get_device_queue_state(&device_mac).await {
+                        CGWUCentralMessagesQueueState::RxTx => {
+                            // Check if message Queue is not empty
+                            if let Some(queue_msg) =
+                                queue_lock.dequeue_device_message(&device_mac).await
+                            {
+                                // Get message from queue, start measure requet processing time
+                                start_time = Instant::now();
+                                pending_req_id = queue_msg.command.id;
+                                pending_req_type = queue_msg.command.cmd_type.clone();
+                                wakeup_reason = WakeupReason::MboxRx(Some(
+                                    CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
+                                ));
+
+                                // Set new pending request timeout value
+                                queue_lock
+                                    .set_device_last_req_info(
+                                        &device_mac,
+                                        pending_req_id,
+                                        MESSAGE_TIMEOUT_DURATION,
+                                    )
+                                    .await;
+
+                                debug!("Got pending request with id: {}", pending_req_id);
+                                if pending_req_type == CGWUCentralCommandType::Factory
+                                    || pending_req_type == CGWUCentralCommandType::Upgrade
+                                {
+                                    queue_lock
+                                        .set_device_queue_state(
+                                            &device_mac,
+                                            CGWUCentralMessagesQueueState::Discard,
+                                        )
+                                        .await;
+                                } else if pending_req_type == CGWUCentralCommandType::Reboot {
+                                    queue_lock
+                                        .set_device_queue_state(
+                                            &device_mac,
+                                            CGWUCentralMessagesQueueState::Rx,
+                                        )
+                                        .await;
+                                }
+
+                                fsm_state = CGWUCentralMessageProcessorState::ResultPending;
+                            }
                         }
-                    } else if let None = val {
-                        wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
-                            tungstenite::error::Error::AlreadyClosed,
-                        ));
+                        _ => {}
+                    }
+                } else {
+                    if let Some(val) = stream.next().now_or_never() {
+                        if let Some(res) = val {
+                            if let Ok(msg) = res {
+                                wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
+                            } else if let Err(msg) = res {
+                                wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
+                            }
+                        } else if let None = val {
+                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
+                                tungstenite::error::Error::AlreadyClosed,
+                            ));
+                        }
                     }
                 }
             }
@@ -324,6 +392,29 @@ impl CGWConnectionProcessor {
             if let WakeupReason::Unspecified = wakeup_reason {
                 sleep(Duration::from_millis(1000)).await;
                 wakeup_reason = WakeupReason::Stale;
+            }
+
+            if fsm_state == CGWUCentralMessageProcessorState::ResultPending {
+                let elapsed_time = Instant::now() - start_time;
+
+                // check request timeout value - if request get timedout - remove it from queue
+                if queue_lock
+                    .device_request_tick(&device_mac, elapsed_time)
+                    .await
+                {
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.clear_device_message_queue(&device_mac).await;
+
+                    // reset request duration, request id and queue state
+                    pending_req_id = 0;
+                    queue_lock
+                        .set_device_queue_state(&device_mac, CGWUCentralMessagesQueueState::RxTx)
+                        .await;
+                    queue_lock
+                        .set_device_last_req_info(&device_mac, 0, Duration::ZERO)
+                        .await;
+                    fsm_state = CGWUCentralMessageProcessorState::Idle;
+                }
             }
 
             let rc = match wakeup_reason {

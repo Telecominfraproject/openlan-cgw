@@ -11,5 +11,5 @@ data:
 kind: ConfigMap
 metadata:
   labels:
-    io.kompose.service: coord1-patroni-env
+    io.kompose.service: haproxy-patroni-env
   name: patroni-env

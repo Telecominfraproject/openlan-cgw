@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
+    kompose.cmd: kompose -f docker-compose.yml convert -c
     kompose.version: 1.33.0 (3ce457399)
   labels:
     io.kompose.service: etcd1
@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
+        kompose.cmd: kompose -f docker-compose.yml convert -c
         kompose.version: 1.33.0 (3ce457399)
       labels:
         io.kompose.network/patroni-demo: "true"
@@ -41,7 +41,7 @@ spec:
               value: http://0.0.0.0:2380
             - name: ETCD_UNSUPPORTED_ARCH
               value: arm64
-          image: harbor.io.optimcloud.com/optimcloud/patroni-citus:latest
+          image: harbor.io.optimcloud.com/optimcloud/patroni:latest
           name: demo-etcd1
           ports:
             - containerPort: 2379

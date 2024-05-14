@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
+    kompose.version: 1.33.0 (3ce457399)
+  labels:
+    io.kompose.service: clickhouse-keeper-03
+  name: clickhouse-keeper-03
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: clickhouse-keeper-03
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
+        kompose.version: 1.33.0 (3ce457399)
+      labels:
+        io.kompose.network/patroni-default: "true"
+        io.kompose.service: clickhouse-keeper-03
+    spec:
+      containers:
+        - image: clickhouse/clickhouse-keeper:latest-alpine
+          name: clickhouse-keeper-03
+          ports:
+            - containerPort: 9181
+              hostIP: 127.0.0.1
+              hostPort: 9183
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/clickhouse-keeper/keeper_config.xml
+              name: clickhouse-keeper-03-cm0
+              subPath: keeper_config.xml
+      hostname: clickhouse-keeper-03
+      restartPolicy: Always
+      volumes:
+        - configMap:
+            items:
+              - key: keeper_config.xml
+                path: keeper_config.xml
+            name: clickhouse-keeper-03-cm0
+          name: clickhouse-keeper-03-cm0

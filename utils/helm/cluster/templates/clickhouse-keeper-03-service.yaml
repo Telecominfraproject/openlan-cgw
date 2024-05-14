@@ -5,15 +5,12 @@ metadata:
     kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
     kompose.version: 1.33.0 (3ce457399)
   labels:
-    io.kompose.service: etcd1
-  name: etcd1
+    io.kompose.service: clickhouse-keeper-03
+  name: clickhouse-keeper-03
 spec:
   ports:
-    - name: "2379"
-      port: 2379
-      targetPort: 2379
-    - name: "2380"
-      port: 2380
-      targetPort: 2380
+    - name: "9183"
+      port: 9183
+      targetPort: 9181
   selector:
-    io.kompose.service: etcd1
+    io.kompose.service: clickhouse-keeper-03

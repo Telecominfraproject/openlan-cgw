@@ -2,15 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   annotations:
-    kompose.cmd: kompose -f docker-compose.yml convert -c
+    kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
     kompose.version: 1.33.0 (3ce457399)
   labels:
-    io.kompose.service: patroni2
-  name: patroni2
+    io.kompose.service: coord3
+  name: coord3
 spec:
   ports:
     - name: "5432"
       port: 5432
       targetPort: 5432
   selector:
-    io.kompose.service: patroni2
+    io.kompose.service: coord3

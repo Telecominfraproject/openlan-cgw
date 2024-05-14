@@ -2,35 +2,37 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    kompose.cmd: kompose -f docker-compose.yml convert -c
+    kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
     kompose.version: 1.33.0 (3ce457399)
   labels:
-    io.kompose.service: patroni1
-  name: patroni1
+    io.kompose.service: work2-2
+  name: work2-2
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: patroni1
-  strategy:
-    type: Recreate
+      io.kompose.service: work2-2
   template:
     metadata:
       annotations:
-        kompose.cmd: kompose -f docker-compose.yml convert -c
+        kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
         kompose.version: 1.33.0 (3ce457399)
       labels:
         io.kompose.network/patroni-demo: "true"
-        io.kompose.service: patroni1
+        io.kompose.service: work2-2
     spec:
       containers:
         - env:
             - name: ETCDCTL_ENDPOINTS
               value: http://etcd1:2379,http://etcd2:2379,http://etcd3:2379
+            - name: PATRONI_CITUS_DATABASE
+              value: citus
+            - name: PATRONI_CITUS_GROUP
+              value: "2"
             - name: PATRONI_ETCD3_HOSTS
               value: '''etcd1:2379'',''etcd2:2379'',''etcd3:2379'''
             - name: PATRONI_NAME
-              value: patroni1
+              value: work2-2
             - name: PATRONI_REPLICATION_PASSWORD
               valueFrom:
                 configMapKeyRef:
@@ -73,17 +75,18 @@ spec:
                 configMapKeyRef:
                   key: PATRONI_admin_PASSWORD
                   name: patroni-env
-          image: harbor.io.optimcloud.com/optimcloud/patroni:latest
-          name: demo-patroni1
+            - name: PGSSLCERT
+              value: /etc/ssl/certs/ssl-cert-snakeoil.pem
+            - name: PGSSLKEY
+              value: /etc/ssl/private/ssl-cert-snakeoil.key
+            - name: PGSSLMODE
+              value: verify-ca
+            - name: PGSSLROOTCERT
+              value: /etc/ssl/certs/ssl-cert-snakeoil.pem
+          image: harbor.io.optimcloud.com/optimcloud/patroni-citus:latest
+          name: demo-work2-2
           ports:
             - containerPort: 5432
               protocol: TCP
-          volumeMounts:
-            - mountPath: /docker-entrypoint-initdb.d/init-db.sh
-              name: patroni1-claim0
-      hostname: patroni1
+      hostname: work2-2
       restartPolicy: Always
-      volumes:
-        - name: patroni1-claim0
-          persistentVolumeClaim:
-            claimName: patroni1-claim0

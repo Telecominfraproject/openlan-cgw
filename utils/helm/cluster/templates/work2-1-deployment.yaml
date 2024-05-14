@@ -5,13 +5,13 @@ metadata:
     kompose.cmd: kompose convert -f docker-compose-citus.yml -c -o patroni-compose
     kompose.version: 1.33.0 (3ce457399)
   labels:
-    io.kompose.service: haproxy
-  name: haproxy
+    io.kompose.service: work2-1
+  name: work2-1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: haproxy
+      io.kompose.service: work2-1
   template:
     metadata:
       annotations:
@@ -19,20 +19,20 @@ spec:
         kompose.version: 1.33.0 (3ce457399)
       labels:
         io.kompose.network/patroni-demo: "true"
-        io.kompose.service: haproxy
+        io.kompose.service: work2-1
     spec:
       containers:
-        - args:
-            - haproxy
-          env:
+        - env:
             - name: ETCDCTL_ENDPOINTS
               value: http://etcd1:2379,http://etcd2:2379,http://etcd3:2379
             - name: PATRONI_CITUS_DATABASE
               value: citus
             - name: PATRONI_CITUS_GROUP
-              value: "0"
+              value: "2"
             - name: PATRONI_ETCD3_HOSTS
               value: '''etcd1:2379'',''etcd2:2379'',''etcd3:2379'''
+            - name: PATRONI_NAME
+              value: work2-1
             - name: PATRONI_REPLICATION_PASSWORD
               valueFrom:
                 configMapKeyRef:
@@ -84,13 +84,9 @@ spec:
             - name: PGSSLROOTCERT
               value: /etc/ssl/certs/ssl-cert-snakeoil.pem
           image: harbor.io.optimcloud.com/optimcloud/patroni-citus:latest
-          name: demo-haproxy
+          name: demo-work2-1
           ports:
-            - containerPort: 5000
-              hostPort: 5000
+            - containerPort: 5432
               protocol: TCP
-            - containerPort: 5001
-              hostPort: 5001
-              protocol: TCP
-      hostname: haproxy
+      hostname: work2-1
       restartPolicy: Always

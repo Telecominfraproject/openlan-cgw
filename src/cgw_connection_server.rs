@@ -1,6 +1,10 @@
 use crate::cgw_device::{
     cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
 };
+use crate::cgw_ucentral_messages_queue_manager::{
+    CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
+};
+use crate::cgw_ucentral_parser::{cgw_ucentral_parse_command_message, CGWUCentralCommand};
 use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
 use crate::cgw_ucentral_topology_map::CGWUcentralTopologyMap;
 use crate::AppArgs;
@@ -113,6 +117,10 @@ pub struct CGWConnectionServer {
     // remote-cgw messages is being relayed inside this context
     mbox_relay_msg_runtime_handle: Arc<Runtime>,
 
+    // Dedicated runtime (threadpool) for handling disconnected devices message queue
+    // Iterate over list of disconnected devices - dequeue aged messages
+    queue_timeout_handle: Arc<Runtime>,
+
     // CGWConnectionServer write into this mailbox,
     // and other correspondig NB API client is responsible for doing an RX over
     // receive handle counterpart
@@ -207,6 +215,15 @@ impl CGWConnectionServer {
                 .build()
                 .unwrap(),
         );
+        let queue_timeout_handle = Arc::new(
+            Builder::new_multi_thread()
+                .worker_threads(1)
+                .thread_name("cgw-queue-timeout")
+                .thread_stack_size(1 * 1024 * 1024)
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
 
         let (internal_tx, internal_rx) = unbounded_channel::<CGWConnectionServerReqMsg>();
         let (nb_api_tx, nb_api_rx) = unbounded_channel::<CGWConnectionNBAPIReqMsg>();
@@ -223,6 +240,7 @@ impl CGWConnectionServer {
             mbox_nb_api_runtime_handle: nb_api_mbox_runtime_handle,
             mbox_nb_api_tx_runtime_handle: nb_api_mbox_tx_runtime_handle,
             mbox_internal_tx: internal_tx,
+            queue_timeout_handle,
             nb_api_client: nb_api_c,
             cgw_remote_discovery: Arc::new(CGWRemoteDiscovery::new(app_args).await),
             mbox_relayed_messages_handle: nb_api_tx,
@@ -239,6 +257,11 @@ impl CGWConnectionServer {
         let server_clone = server.clone();
         server.mbox_nb_api_runtime_handle.spawn(async move {
             server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+        });
+
+        server.queue_timeout_handle.spawn(async move {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            queue_lock.start_queue_timeout_manager().await;
         });
 
         // Sync RAM cache with PostgressDB.
@@ -700,7 +723,6 @@ impl CGWConnectionServer {
             // TODO: try to parallelize at least parsing of msg:
             // iterate each msg, get index, spawn task that would
             // write indexed parsed msg into output parsed msg buf.
-            let connmap_clone = self.connmap.map.clone();
             while !local_cgw_msg_buf.is_empty() {
                 let msg = local_cgw_msg_buf.remove(0);
                 if let CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
@@ -811,29 +833,15 @@ impl CGWConnectionServer {
                                     format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
-                            debug!("Sending msg to device {mac}");
-                            let rd_lock = connmap_clone.read().await;
-                            let rc = rd_lock.get(&mac);
-                            if let None = rc {
-                                error!("Cannot find suitable connection for {mac}");
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!("Failed to send msg (device not connected?), gid {gid}, uuid {uuid}"));
-                                continue;
-                            }
+                            // 1. Parse message from NB
+                            let parsed_cmd: CGWUCentralCommand =
+                                cgw_ucentral_parse_command_message(&msg.clone()).unwrap();
+                            let queue_msg: CGWUCentralMessagesQueueItem =
+                                CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
 
-                            let proc_mbox_tx = rc.unwrap();
-                            if let Err(_e) = proc_mbox_tx
-                                .send(CGWConnectionProcessorReqMsg::SinkRequestToDevice(mac, msg))
-                            {
-                                error!(
-                                    "Failed to send message to remote device (msg uuid({uuid}))"
-                                );
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!("Failed to send msg, gid {gid}, uuid {uuid}"),
-                                );
-                            }
+                            // 2. Add message to queue
+                            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                            queue_lock.push_device_message(mac, queue_msg).await;
                         }
                         CGWNBApiParsedMsg {
                             uuid,
@@ -862,7 +870,7 @@ impl CGWConnectionServer {
 
             // Do not proceed parsing local / remote msgs untill previous relaying has been
             // finished
-            tokio::join!(relay_task_hdl);
+            _ = tokio::join!(relay_task_hdl);
 
             buf.clear();
             num_of_msg_read = 0;
@@ -920,6 +928,10 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
+                    // Remove device from disconnected device list
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.device_connected(&serial).await;
+
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -1032,6 +1044,10 @@ impl CGWConnectionServer {
                     );
                     connmap_w_lock.remove(&serial);
 
+                    // Insert device to disconnected device list
+                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                    queue_lock.device_disconnected(&serial).await;
+
                     let mut devices_cache = self.devices_cache.write().await;
                     if devices_cache.check_device_exists(&serial) {
                         let device = devices_cache.get_device(&serial).unwrap();
@@ -1097,7 +1113,6 @@ mod tests {
         cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
         cgw_ucentral_parser::{CGWUCentralEvent, CGWUCentralEventType},
     };
-    use tokio_tungstenite::tungstenite::protocol::Message;
 
     fn get_connect_json_msg() -> &'static str {
         r#"

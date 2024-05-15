@@ -1,11 +1,9 @@
-use std::str::FromStr;
-
 use eui48::MacAddress;
 use serde_json::Value;
+use std::str::FromStr;
 
 use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
-    CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateLLDPData,
+    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateLLDPData,
     CGWUCentralEventStateLLDPDataLinks, CGWUCentralEventType, CGWUcentralJRPCMessage,
 };
 

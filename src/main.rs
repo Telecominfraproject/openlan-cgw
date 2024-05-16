@@ -10,10 +10,10 @@ mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
 mod cgw_ucentral_ap_parser;
+mod cgw_ucentral_messages_queue_manager;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
 mod cgw_ucentral_topology_map;
-mod cgw_ucentral_messages_queue_manager;
 
 #[macro_use]
 extern crate log;
@@ -29,7 +29,9 @@ use tokio::{
 
 use native_tls::Identity;
 use std::{
+    env,
     net::{Ipv4Addr, SocketAddr},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -41,82 +43,192 @@ use cgw_remote_server::CGWRemoteServer;
 
 use cgw_metrics::CGWMetrics;
 
-use clap::{Parser, ValueEnum};
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone)]
 enum AppCoreLogLevel {
     /// Print debug-level messages and above
     Debug,
     /// Print info-level messages and above
-    ///
-    ///
     Info,
 }
 
+impl FromStr for AppCoreLogLevel {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "debug" => Ok(AppCoreLogLevel::Debug),
+            "info" => Ok(AppCoreLogLevel::Info),
+            _ => Err(()),
+        }
+    }
+}
+
+const CGW_DEFAULT_ID: i32 = 0;
+const CGW_DEFAULT_WSS_T_NUM: usize = 4;
+const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
+const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
+const CGW_DEFAULT_WSS_PORT: u16 = 15002;
+const CGW_DEFAULT_GRPC_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
+const CGW_DEFAULT_GRPC_PORT: u16 = 50051;
+const CGW_DEFAULT_KAFKA_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+const CGW_DEFAULT_KAFKA_PORT: u16 = 9092;
+const CGW_DEFAULT_KAFKA_CONSUME_TOPIC: &str = "CnC";
+const CGW_DEFAULT_KAFKA_PRODUCE_TOPIC: &str = "CnC_Res";
+const CGW_DEFAULT_DB_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+const CGW_DEFAULT_DB_PORT: u16 = 6379;
+const CGW_DEFAULT_DB_NAME: &str = "cgw";
+const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
+const CGW_DEFAULT_DB_PASSWORD: &str = "123";
+const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
+
 /// CGW server
-#[derive(Parser, Clone)]
-#[command(version, about, long_about = None)]
 pub struct AppArgs {
+    /// Loglevel of application
+    log_level: AppCoreLogLevel,
+
     /// CGW unique identifier (u64)
-    #[arg(short, long, default_value_t = 0)]
     cgw_id: i32,
 
     /// Number of thread in a threadpool dedicated for handling secure websocket connections
-    #[arg(short, long, default_value_t = 4)]
     wss_t_num: usize,
-    /// Loglevel of application
-    #[arg(value_enum, default_value_t = AppCoreLogLevel::Debug)]
-    log_level: AppCoreLogLevel,
-
     /// IP to listen for incoming WSS connection
-    #[arg(long, default_value_t = Ipv4Addr::new(0, 0, 0, 0))]
     wss_ip: Ipv4Addr,
     /// PORT to listen for incoming WSS connection
-    #[arg(long, default_value_t = 15002)]
     wss_port: u16,
 
     /// IP to listen for incoming GRPC connection
-    #[arg(long, default_value_t = Ipv4Addr::new(0, 0, 0, 0))]
     grpc_ip: Ipv4Addr,
     /// PORT to listen for incoming GRPC connection
-    #[arg(long, default_value_t = 50051)]
     grpc_port: u16,
 
     /// IP to connect to KAFKA broker
-    #[arg(long, default_value_t = Ipv4Addr::new(127, 0, 0, 1))]
     kafka_ip: Ipv4Addr,
     /// PORT to connect to KAFKA broker
-    #[arg(long, default_value_t = 9092)]
     kafka_port: u16,
     /// KAFKA topic from where to consume messages
-    #[arg(long, default_value_t = String::from("CnC"))]
+    #[allow(unused)]
     kafka_consume_topic: String,
     /// KAFKA topic where to produce messages
-    #[arg(long, default_value_t = String::from("CnC_Res"))]
+    #[allow(unused)]
     kafka_produce_topic: String,
 
     /// IP to connect to DB (PSQL)
-    #[arg(long, default_value_t = Ipv4Addr::new(127, 0, 0, 1))]
     db_ip: Ipv4Addr,
     /// PORT to connect to DB (PSQL)
-    #[arg(long, default_value_t = 5432)]
     db_port: u16,
     /// DB name to connect to in DB (PSQL)
-    #[arg(long, default_value_t = String::from("cgw"))]
     db_name: String,
     /// DB user name use with connection to in DB (PSQL)
-    #[arg(long, default_value_t = String::from("cgw"))]
     db_username: String,
     /// DB user password use with connection to in DB (PSQL)
-    #[arg(long, default_value_t = String::from("123"))]
     db_password: String,
 
     /// IP to connect to DB (REDIS)
-    #[arg(long, default_value_t = Ipv4Addr::new(127, 0, 0, 1))]
     redis_db_ip: Ipv4Addr,
     /// PORT to connect to DB (REDIS)
-    #[arg(long, default_value_t = 6379)]
     redis_db_port: u16,
+}
+
+impl AppArgs {
+    fn parse() -> Self {
+        let log_level: AppCoreLogLevel = match env::var("CGW_LOG_LEVEL") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_LOG_LEVEL),
+            Err(_) => CGW_DEFAULT_LOG_LEVEL,
+        };
+
+        let cgw_id: i32 = match env::var("CGW_ID") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_ID),
+            Err(_) => CGW_DEFAULT_ID,
+        };
+
+        let wss_t_num: usize = match env::var("DEFAULT_WSS_THREAD_NUM") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_WSS_T_NUM),
+            Err(_) => CGW_DEFAULT_WSS_T_NUM,
+        };
+
+        let wss_ip: Ipv4Addr = match env::var("CGW_WSS_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_WSS_IP),
+            Err(_) => CGW_DEFAULT_WSS_IP,
+        };
+
+        let wss_port: u16 = match env::var("CGW_WSS_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_WSS_PORT),
+            Err(_) => CGW_DEFAULT_WSS_PORT,
+        };
+
+        let grpc_ip: Ipv4Addr = match env::var("CGW_GRPC_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_IP),
+            Err(_) => CGW_DEFAULT_GRPC_IP,
+        };
+
+        let grpc_port: u16 = match env::var("CGW_GRPC_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_PORT),
+            Err(_) => CGW_DEFAULT_GRPC_PORT,
+        };
+
+        let kafka_ip: Ipv4Addr = match env::var("CGW_KAFKA_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_KAFKA_IP),
+            Err(_) => CGW_DEFAULT_KAFKA_IP,
+        };
+
+        let kafka_port: u16 = match env::var("CGW_KAFKA_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_KAFKA_PORT),
+            Err(_) => CGW_DEFAULT_KAFKA_PORT,
+        };
+
+        let kafka_consume_topic: String = env::var("CGW_KAFKA_CONSUMER_TOPIC")
+            .unwrap_or(CGW_DEFAULT_KAFKA_CONSUME_TOPIC.to_string());
+        let kafka_produce_topic: String = env::var("CGW_KAFKA_PRODUCER_TOPIC")
+            .unwrap_or(CGW_DEFAULT_KAFKA_PRODUCE_TOPIC.to_string());
+
+        let db_ip: Ipv4Addr = match env::var("CGW_DB_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_DB_IP),
+            Err(_) => CGW_DEFAULT_DB_IP,
+        };
+
+        let db_port: u16 = match env::var("CGW_DB_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_DB_PORT),
+            Err(_) => CGW_DEFAULT_DB_PORT,
+        };
+
+        let db_name: String = env::var("CGW_DB_NAME").unwrap_or(CGW_DEFAULT_DB_NAME.to_string());
+        let db_username: String =
+            env::var("CGW_DB_USERNAME").unwrap_or(CGW_DEFAULT_DB_USERNAME.to_string());
+        let db_password: String =
+            env::var("CGW_DB_PASSWORD").unwrap_or(CGW_DEFAULT_DB_PASSWORD.to_string());
+
+        let redis_db_ip: Ipv4Addr = match env::var("CGW_REDIS_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_REDIS_IP),
+            Err(_) => CGW_DEFAULT_KAFKA_IP,
+        };
+
+        let redis_db_port: u16 = match env::var("CGW_REDIS_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_REDIS_PORT),
+            Err(_) => CGW_DEFAULT_REDIS_PORT,
+        };
+
+        AppArgs {
+            log_level,
+            cgw_id,
+            wss_t_num,
+            wss_ip,
+            wss_port,
+            grpc_ip,
+            grpc_port,
+            kafka_ip,
+            kafka_port,
+            kafka_consume_topic,
+            kafka_produce_topic,
+            db_ip,
+            db_port,
+            db_name,
+            db_username,
+            db_password,
+            redis_db_ip,
+            redis_db_port,
+        }
+    }
 }
 
 pub struct AppCore {

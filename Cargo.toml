@@ -26,7 +26,6 @@ rlimit = "0.10.1"
 tonic = "0.10.2"
 prost = "0.12"
 rdkafka = "0.35.0"
-clap = { version = "4.4.8", features = ["derive"] }
 eui48 = "1.1.0"
 uuid = { version = "1.6.1", features = ["serde"] }
 redis-async = "0.16.1"

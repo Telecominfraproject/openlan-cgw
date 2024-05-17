@@ -9,9 +9,10 @@ use crate::{
         cgw_ucentral_event_parse, cgw_ucentral_parse_connect_event, CGWUCentralCommandType,
         CGWUCentralEventType,
     },
-    cgw_ucentral_topology_map::CGWUcentralTopologyMap,
+    cgw_ucentral_topology_map::CGWUCentralTopologyMap,
 };
 
+use chrono::offset::Local;
 use eui48::MacAddress;
 use futures_util::{
     stream::{SplitSink, SplitStream},
@@ -225,15 +226,21 @@ impl CGWConnectionProcessor {
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
     ) -> Result<CGWConnectionState, &'static str> {
+        // Make sure we always track the as accurate as possible the time
+        // of receiving of the event (where needed).
+        let timestamp = Local::now();
+
         match msg {
             Ok(msg) => match msg {
                 Close(_t) => {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
-                    if let Ok(evt) = cgw_ucentral_event_parse(&device_type, &payload) {
+                    if let Ok(evt) =
+                        cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
+                    {
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
-                            let topo_map = CGWUcentralTopologyMap::get_ref();
+                            let topo_map = CGWUCentralTopologyMap::get_ref();
                             topo_map.process_state_message(&device_type, evt).await;
                             topo_map.debug_dump_map().await;
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
@@ -241,6 +248,12 @@ impl CGWConnectionProcessor {
                             assert_eq!(content.id, pending_req_id);
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
                             debug!("Got reply event for pending request id: {}", pending_req_id);
+                        } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
+                            let topo_map = CGWUCentralTopologyMap::get_ref();
+                            topo_map
+                                .process_device_topology_event(&device_type, evt)
+                                .await;
+                            topo_map.debug_dump_map().await;
                         }
                     }
 

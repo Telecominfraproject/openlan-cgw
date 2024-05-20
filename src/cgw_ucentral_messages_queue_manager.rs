@@ -381,23 +381,25 @@ impl CGWUCentralMessagesQueueManager {
     }
 
     async fn iterate_over_disconnected_devices(&self) {
-        let container_read_lock = self.disconnected_devices.read().await;
         let mut devices_to_flush: Vec<String> = Vec::<String>::new();
 
-        // 1. Check if disconnected device message queue is empty
-        // If not empty - just do tick
-        // Else - disconnected device and it queue should be removed
-        for (device_mac, _) in container_read_lock.iter() {
-            if self.get_device_messages_queue_len(device_mac).await > 0 {
-                // If device request is timed out - device and it queue should be removed
-                if self
-                    .device_request_tick(device_mac, TIMEOUT_MANAGER_DURATION)
-                    .await
-                {
+        {
+            // 1. Check if disconnected device message queue is empty
+            // If not empty - just do tick
+            // Else - disconnected device and it queue should be removed
+            let container_read_lock = self.disconnected_devices.read().await;
+            for (device_mac, _) in container_read_lock.iter() {
+                if self.get_device_messages_queue_len(device_mac).await > 0 {
+                    // If device request is timed out - device and it queue should be removed
+                    if self
+                        .device_request_tick(device_mac, TIMEOUT_MANAGER_DURATION)
+                            .await
+                            {
+                                devices_to_flush.push(device_mac.clone());
+                            }
+                } else {
                     devices_to_flush.push(device_mac.clone());
                 }
-            } else {
-                devices_to_flush.push(device_mac.clone());
             }
         }
 

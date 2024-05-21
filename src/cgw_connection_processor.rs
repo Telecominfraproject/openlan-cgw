@@ -22,7 +22,7 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver},
     time::{sleep, Duration, Instant},
 };
-use tokio_native_tls::TlsStream;
+use tokio_rustls::server::TlsStream;
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 use tungstenite::Message::{Close, Ping, Text};
 

@@ -61,6 +61,8 @@ CGW_GRPC_IP - IP to bind gRPC server to (listens for gRPC requests from remote C
 CGW_GRPC_PORT - PORT to bind gRPC server to
 CGW_WSS_IP - IP to bind websocket server to (listens for incoming WSS connections from underlying devices - infrastructures)
 CGW_WSS_PORT - PORT to bind WSS server to
+CGW_WSS_CERT - Web socket server certificate file name
+CGW_WSS_KEY - Web socket server private key file name
 CGW_KAFKA_IP - IP of remote KAFKA server to connect to (NB API)
 CGW_KAFKA_PORT - PORT of remote KAFKA server to connect to
 CGW_DB_IP - IP of remote database server to connect to
@@ -70,6 +72,7 @@ CGW_DB_PASS - PSQL DB password (credentials) to use upon connect to DB
 CGW_REDIS_DB_IP - IP of remote redis-db server to connect to
 CGW_REDIS_DB_PORT - PORT of remote redis-db server to connect to
 CGW_LOG_LEVEL - log level to start CGW application with (debug, info)
+CGW_CERTS_PATH - path to certificates located on host machine
 ```
 
 Example of properly configured list of env variables to start CGW:
@@ -89,6 +92,9 @@ declare -x CGW_LOG_LEVEL="debug"
 declare -x CGW_REDIS_DB_IP="172.20.10.136" # redis server can be found at the xxx.136 host
 declare -x CGW_WSS_IP="0.0.0.0"            # accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"
+declare -x CGW_WSS_CERT="cgw.crt"
+declare -x CGW_WSS_KEY="cgw.key"
+declare -x CGW_CERTS_PATH="/etc/ssl/certs" # path to certificates located on host machine
 ```
 # Certificates
 TBD

@@ -14,6 +14,7 @@ mod cgw_ucentral_messages_queue_manager;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
 mod cgw_ucentral_topology_map;
+mod cgw_tls;
 
 #[macro_use]
 extern crate log;
@@ -27,12 +28,10 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use native_tls::Identity;
+use tokio_rustls::{rustls, TlsAcceptor};
+
 use std::{
-    env,
-    net::{Ipv4Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
+    env, io, net::{Ipv4Addr, SocketAddr}, str::FromStr, sync::Arc
 };
 
 use rlimit::{setrlimit, Resource};
@@ -42,6 +41,8 @@ use cgw_connection_server::CGWConnectionServer;
 use cgw_remote_server::CGWRemoteServer;
 
 use cgw_metrics::CGWMetrics;
+
+use crate::cgw_tls::{cgw_tls_read_certs, cgw_tls_read_private_key};
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -68,6 +69,8 @@ const CGW_DEFAULT_WSS_T_NUM: usize = 4;
 const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
 const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_WSS_PORT: u16 = 15002;
+const CGW_DEFAULT_WSS_CERT: &str = "cgw.crt";
+const CGW_DEFAULT_WSS_KEY: &str = "cgw.key";
 const CGW_DEFAULT_GRPC_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_GRPC_PORT: u16 = 50051;
 const CGW_DEFAULT_KAFKA_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
@@ -81,6 +84,8 @@ const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
 const CGW_DEFAULT_DB_PASSWORD: &str = "123";
 const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
+
+const CGW_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
 
 /// CGW server
 pub struct AppArgs {
@@ -96,6 +101,10 @@ pub struct AppArgs {
     wss_ip: Ipv4Addr,
     /// PORT to listen for incoming WSS connection
     wss_port: u16,
+    /// WSS certificate
+    wss_cert: String,
+    /// WSS private key
+    wss_key: String,
 
     /// IP to listen for incoming GRPC connection
     grpc_ip: Ipv4Addr,
@@ -157,6 +166,9 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_WSS_PORT,
         };
 
+        let wss_cert: String = env::var("CGW_WSS_CERT").unwrap_or(CGW_DEFAULT_WSS_CERT.to_string());
+        let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
+
         let grpc_ip: Ipv4Addr = match env::var("CGW_GRPC_IP") {
             Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_IP),
             Err(_) => CGW_DEFAULT_GRPC_IP,
@@ -214,6 +226,8 @@ impl AppArgs {
             wss_t_num,
             wss_ip,
             wss_port,
+            wss_cert,
+            wss_key,
             grpc_ip,
             grpc_port,
             kafka_ip,
@@ -328,20 +342,19 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
     };
 
     info!("Started WSS server.");
-    // Create the TLS acceptor.
-    // TODO: custom acceptor
-    let der = include_bytes!("localhost.crt");
-    let key = include_bytes!("localhost.key");
-    let cert = match Identity::from_pkcs8(der, key) {
-        Ok(cert) => cert,
-        Err(e) => panic!("Cannot create SSL identity from supplied cert\n{e}"),
-    };
 
-    let tls_acceptor =
-        tokio_native_tls::TlsAcceptor::from(match native_tls::TlsAcceptor::builder(cert).build() {
-            Ok(builder) => builder,
-            Err(e) => panic!("Cannot create SSL-acceptor from supplied cert\n{e}"),
-        });
+    // Create the TLS acceptor.
+    let cert_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cert);
+    let cert = cgw_tls_read_certs(cert_path.as_str()).await.unwrap();
+
+    let key_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_key);
+    let key = cgw_tls_read_private_key(key_path.as_str()).await.unwrap();
+
+    let config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert, key)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err)).unwrap();
+    let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
     CGWMetrics::get_ref().start(&app_core.args).await;
 

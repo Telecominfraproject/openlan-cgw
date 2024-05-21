@@ -28,6 +28,7 @@ use tokio::{
     },
     time::{sleep, Duration},
 };
+use tokio_rustls::server::TlsStream;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1082,7 +1083,7 @@ impl CGWConnectionServer {
     pub async fn ack_connection(
         self: Arc<Self>,
         socket: TcpStream,
-        tls_acceptor: tokio_native_tls::TlsAcceptor,
+        tls_acceptor: tokio_rustls::TlsAcceptor,
         addr: SocketAddr,
         conn_idx: i64,
     ) {

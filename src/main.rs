@@ -14,6 +14,7 @@ mod cgw_ucentral_messages_queue_manager;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
 mod cgw_ucentral_topology_map;
+mod cgw_tls;
 
 #[macro_use]
 extern crate log;
@@ -27,12 +28,10 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use native_tls::Identity;
+use tokio_rustls::{rustls, TlsAcceptor};
+
 use std::{
-    env,
-    net::{Ipv4Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
+    env, io, net::{Ipv4Addr, SocketAddr}, str::FromStr, sync::Arc
 };
 
 use rlimit::{setrlimit, Resource};
@@ -42,6 +41,8 @@ use cgw_connection_server::CGWConnectionServer;
 use cgw_remote_server::CGWRemoteServer;
 
 use cgw_metrics::CGWMetrics;
+
+use crate::cgw_tls::{cgw_tls_read_certs, cgw_tls_read_private_key, LOCALHOST_CERTIFIFCATE_FILE, LOCALHOST_PRIVATE_KEY_FILE};
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -328,20 +329,16 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
     };
 
     info!("Started WSS server.");
-    // Create the TLS acceptor.
-    // TODO: custom acceptor
-    let der = include_bytes!("localhost.crt");
-    let key = include_bytes!("localhost.key");
-    let cert = match Identity::from_pkcs8(der, key) {
-        Ok(cert) => cert,
-        Err(e) => panic!("Cannot create SSL identity from supplied cert\n{e}"),
-    };
 
-    let tls_acceptor =
-        tokio_native_tls::TlsAcceptor::from(match native_tls::TlsAcceptor::builder(cert).build() {
-            Ok(builder) => builder,
-            Err(e) => panic!("Cannot create SSL-acceptor from supplied cert\n{e}"),
-        });
+    // Create the TLS acceptor.
+    let cert = cgw_tls_read_certs(LOCALHOST_CERTIFIFCATE_FILE).await.unwrap();
+    let key = cgw_tls_read_private_key(LOCALHOST_PRIVATE_KEY_FILE).await.unwrap();
+
+    let config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert, key)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err)).unwrap();
+    let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
     CGWMetrics::get_ref().start(&app_core.args).await;
 

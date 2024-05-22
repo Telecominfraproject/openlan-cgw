@@ -152,13 +152,15 @@ impl CGWConnectionProcessor {
         // The possible reconnect reason could be: FW Upgrade or Factory reset
         // Need to make sure queue is unlocked to process requests
         // If no - create new message queue for device
-        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-        if queue_lock.check_messages_queue_exists(&evt.serial).await {
-            queue_lock
-                .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
-                .await;
-        } else {
-            queue_lock.create_device_messages_queue(&evt.serial).await;
+        {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            if queue_lock.check_messages_queue_exists(&evt.serial).await {
+                queue_lock
+                    .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
+                    .await;
+            } else {
+                queue_lock.create_device_messages_queue(&evt.serial).await;
+            }
         }
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
@@ -322,7 +324,7 @@ impl CGWConnectionProcessor {
             let mut start_time: Instant = Instant::now();
 
             if let Some(val) = mbox_rx.recv().now_or_never() {
-                wakeup_reason = WakeupReason::MboxRx(val)
+                wakeup_reason = WakeupReason::MboxRx(val);
             } else {
                 if fsm_state == CGWUCentralMessageProcessorState::Idle {
                     match queue_lock.get_device_queue_state(&device_mac).await {
@@ -372,26 +374,22 @@ impl CGWConnectionProcessor {
                         }
                         _ => {}
                     }
-                } else {
-                    if let Some(val) = stream.next().now_or_never() {
-                        if let Some(res) = val {
-                            if let Ok(msg) = res {
-                                wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
-                            } else if let Err(msg) = res {
-                                wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
-                            }
-                        } else if let None = val {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(
-                                tungstenite::error::Error::AlreadyClosed,
-                            ));
-                        }
-                    }
                 }
             }
 
             if let WakeupReason::Unspecified = wakeup_reason {
-                sleep(Duration::from_millis(1000)).await;
-                wakeup_reason = WakeupReason::Stale;
+                if let Some(val) = stream.next().now_or_never() {
+                    if let Some(res) = val {
+                        if let Ok(msg) = res {
+                            wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
+                        } else if let Err(msg) = res {
+                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
+                        }
+                    }
+                } else {
+                    sleep(Duration::from_millis(1000)).await;
+                    wakeup_reason = WakeupReason::Stale;
+                }
             }
 
             if fsm_state == CGWUCentralMessageProcessorState::ResultPending {

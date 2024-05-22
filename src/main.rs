@@ -91,6 +91,7 @@ const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
 const CGW_DEFAULT_DB_PASSWORD: &str = "123";
 const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
+const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
 
 const CGW_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
 
@@ -146,6 +147,9 @@ pub struct AppArgs {
     redis_db_ip: Ipv4Addr,
     /// PORT to connect to DB (REDIS)
     redis_db_port: u16,
+
+    /// Allow Missmatch
+    allow_mismatch: bool,
 }
 
 impl AppArgs {
@@ -230,6 +234,9 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
 
+        let mismatch: String = env::var("CGW_ALLOW_CERT_MISMATCH").unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
+        let allow_mismatch = mismatch == "yes";
+
         AppArgs {
             log_level,
             cgw_id,
@@ -252,6 +259,7 @@ impl AppArgs {
             db_password,
             redis_db_ip,
             redis_db_port,
+            allow_mismatch,
         }
     }
 }

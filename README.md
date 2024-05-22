@@ -74,6 +74,7 @@ CGW_REDIS_DB_IP - IP of remote redis-db server to connect to
 CGW_REDIS_DB_PORT - PORT of remote redis-db server to connect to
 CGW_LOG_LEVEL - log level to start CGW application with (debug, info)
 CGW_CERTS_PATH - path to certificates located on host machine
+CGW_ALLOW_CERT_MISMATCH - allow client certificate CN and device MAC address mismatch (used for OWLS)
 ```
 
 Example of properly configured list of env variables to start CGW:
@@ -97,6 +98,18 @@ declare -x CGW_WSS_CAS="cas.pem"
 declare -x CGW_WSS_CERT="cert.pem"
 declare -x CGW_WSS_KEY="key.pem"
 declare -x CGW_CERTS_PATH="/etc/ssl/certs" # path to certificates located on host machine
+declare -x CGW_ALLOW_CERT_MISMATCH="no"    # allow client certificate CN and device MAC address mismatch
 ```
 # Certificates
-TBD
+The CGW uses a number of certificates to provide security.
+There are 2 types of certificates required for a normal deployment:
+1. Server certificates
+2. Client certificates
+
+The certificates are accessible from CGW docker container via volume: [/etc/cgw/certs]
+
+There are several environment variable to configure certificates path and names to be used within CGW:
+1. CGW_WSS_CERT - CGW WSS Certificate
+2. CGW_WSS_KEY - CGW WSS Private Key
+3. CGW_WSS_CAS - Chain certificates to validate client (root/issuer)
+4. CGW_CERTS_PATH - path to certificates located on host machine

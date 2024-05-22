@@ -234,7 +234,8 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
 
-        let mismatch: String = env::var("CGW_ALLOW_CERT_MISMATCH").unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
+        let mismatch: String = env::var("CGW_ALLOW_CERT_MISMATCH")
+            .unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
         let allow_mismatch = mismatch == "yes";
 
         AppArgs {

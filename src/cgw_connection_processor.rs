@@ -71,7 +71,12 @@ impl CGWConnectionProcessor {
         conn_processor
     }
 
-    pub async fn start(mut self, tls_stream: TlsStream<TcpStream>, client_cn: String, allow_mismatch: bool) {
+    pub async fn start(
+        mut self,
+        tls_stream: TlsStream<TcpStream>,
+        client_cn: String,
+        allow_mismatch: bool,
+    ) {
         let ws_stream = tokio_tungstenite::accept_async(tls_stream)
             .await
             .expect("error during the websocket handshake occurred");

@@ -1117,7 +1117,9 @@ impl CGWConnectionServer {
 
             let allow_mismatch = server_clone.allow_mismatch;
             let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
-            conn_processor.start(tls_stream, client_cn, allow_mismatch).await;
+            conn_processor
+                .start(tls_stream, client_cn, allow_mismatch)
+                .await;
         });
     }
 }

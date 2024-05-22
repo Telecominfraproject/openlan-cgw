@@ -9,12 +9,12 @@ mod cgw_nb_api_listener;
 mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
+mod cgw_tls;
 mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_messages_queue_manager;
 mod cgw_ucentral_parser;
 mod cgw_ucentral_switch_parser;
 mod cgw_ucentral_topology_map;
-mod cgw_tls;
 
 #[macro_use]
 extern crate log;
@@ -28,10 +28,16 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use tokio_rustls::{rustls, TlsAcceptor};
+use tokio_rustls::{
+    rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
+    TlsAcceptor,
+};
 
 use std::{
-    env, io, net::{Ipv4Addr, SocketAddr}, str::FromStr, sync::Arc
+    env, io,
+    net::{Ipv4Addr, SocketAddr},
+    str::FromStr,
+    sync::Arc,
 };
 
 use rlimit::{setrlimit, Resource};
@@ -69,8 +75,9 @@ const CGW_DEFAULT_WSS_T_NUM: usize = 4;
 const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
 const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_WSS_PORT: u16 = 15002;
-const CGW_DEFAULT_WSS_CERT: &str = "cgw.crt";
-const CGW_DEFAULT_WSS_KEY: &str = "cgw.key";
+const CGW_DEFAULT_WSS_CAS: &str = "cas.pem";
+const CGW_DEFAULT_WSS_CERT: &str = "cert.pem";
+const CGW_DEFAULT_WSS_KEY: &str = "key.pem";
 const CGW_DEFAULT_GRPC_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_GRPC_PORT: u16 = 50051;
 const CGW_DEFAULT_KAFKA_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
@@ -101,6 +108,8 @@ pub struct AppArgs {
     wss_ip: Ipv4Addr,
     /// PORT to listen for incoming WSS connection
     wss_port: u16,
+    /// WSS CAS certificate (contains root and issuer certificates)
+    wss_cas: String,
     /// WSS certificate
     wss_cert: String,
     /// WSS private key
@@ -166,6 +175,7 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_WSS_PORT,
         };
 
+        let wss_cas: String = env::var("CGW_WSS_CAS").unwrap_or(CGW_DEFAULT_WSS_CAS.to_string());
         let wss_cert: String = env::var("CGW_WSS_CERT").unwrap_or(CGW_DEFAULT_WSS_CERT.to_string());
         let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
 
@@ -226,6 +236,7 @@ impl AppArgs {
             wss_t_num,
             wss_ip,
             wss_port,
+            wss_cas,
             wss_cert,
             wss_key,
             grpc_ip,
@@ -343,17 +354,35 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
 
     info!("Started WSS server.");
 
-    // Create the TLS acceptor.
-    let cert_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cert);
-    let cert = cgw_tls_read_certs(cert_path.as_str()).await.unwrap();
+    // Read root/issuer certs.
+    let cas_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cas);
+    let cas = cgw_tls_read_certs(cas_path.as_str()).await.unwrap();
 
+    // Read cert.
+    let cert_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cert);
+    let mut cert = cgw_tls_read_certs(cert_path.as_str()).await.unwrap();
+    cert.extend(cas.clone());
+
+    // Read private key.
     let key_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_key);
     let key = cgw_tls_read_private_key(key_path.as_str()).await.unwrap();
 
-    let config = rustls::ServerConfig::builder()
-        .with_no_client_auth()
+    // Create the client certs verifier.
+    let mut roots = RootCertStore::empty();
+    roots.add_parsable_certificates(cas);
+
+    let client_verifier = WebPkiClientVerifier::builder(Arc::new(roots))
+        .build()
+        .unwrap();
+
+    // Create server config.
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
         .with_single_cert(cert, key)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err)).unwrap();
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))
+        .unwrap();
+
+    // Create the TLS acceptor.
     let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
     CGWMetrics::get_ref().start(&app_core.args).await;

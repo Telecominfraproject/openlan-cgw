@@ -13,8 +13,9 @@ DEFAULT_WSS_PORT=15002
 DEFAULT_WSS_THREAD_NUM=4
 
 DEFAULT_CERTS_PATH="/etc/ssl/certs"
-DEFAULT_WSS_CERT="cgw.crt"
-DEFAULT_WSS_KEY="cgw.key"
+DEFAULT_WSS_CAS="cas.pem"
+DEFAULT_WSS_CERT="cert.pem"
+DEFAULT_WSS_KEY="key.pem"
 
 DEFAULT_KAFKA_IP="127.0.0.1"
 DEFAULT_KAFKA_PORT=9092
@@ -37,6 +38,7 @@ export CGW_ID="${CGW_ID:-$DEFAULT_ID}"
 export CGW_WSS_IP="${CGW_WSS_IP:-$DEFAULT_WSS_IP}"
 export CGW_WSS_PORT="${CGW_WSS_PORT:-$DEFAULT_WSS_PORT}"
 export CGW_WSS_THREAD_NUM="${CGW_WSS_THREAD_NUM:-$DEFAULT_WSS_THREAD_NUM}"
+export CGW_WSS_CAS="${CGW_WSS_CAS:-$DEFAULT_WSS_CAS}"
 export CGW_WSS_CERT="${CGW_WSS_CERT:-$DEFAULT_WSS_CERT}"
 export CGW_WSS_KEY="${CGW_WSS_KEY:-$DEFAULT_WSS_KEY}"
 export CGW_GRPC_IP="${CGW_GRPC_IP:-$DEFAULT_SRC_IP}"
@@ -59,6 +61,7 @@ echo "CGW LOG LEVEL     : $CGW_LOG_LEVEL"
 echo "CGW ID            : $CGW_ID"
 echo "CGW WSS THREAD NUM: $CGW_WSS_THREAD_NUM"
 echo "CGW WSS IP/PORT   : $CGW_WSS_IP:$CGW_WSS_PORT"
+echo "CGW WSS CAS       : $CGW_WSS_CAS"
 echo "CGW WSS CERT      : $CGW_WSS_CERT"
 echo "CGW WSS KEY       : $CGW_WSS_KEY"
 echo "CGW GRPC          : $CGW_GRPC_IP:$CGW_GRPC_PORT"
@@ -76,6 +79,7 @@ docker run \
 	-e CGW_WSS_IP              \
 	-e CGW_WSS_PORT            \
 	-e CGW_WSS_THREAD_NUM      \
+	-e CGW_WSS_CAS             \
 	-e CGW_WSS_CERT            \
 	-e CGW_WSS_KEY             \
 	-e CGW_GRPC_IP             \

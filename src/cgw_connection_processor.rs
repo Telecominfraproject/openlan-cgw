@@ -22,7 +22,7 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver},
     time::{sleep, Duration, Instant},
 };
-use tokio_native_tls::TlsStream;
+use tokio_rustls::server::TlsStream;
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 use tungstenite::Message::{Close, Ping, Text};
 
@@ -71,7 +71,12 @@ impl CGWConnectionProcessor {
         conn_processor
     }
 
-    pub async fn start(mut self, tls_stream: TlsStream<TcpStream>) {
+    pub async fn start(
+        mut self,
+        tls_stream: TlsStream<TcpStream>,
+        client_cn: String,
+        allow_mismatch: bool,
+    ) {
         let ws_stream = tokio_tungstenite::accept_async(tls_stream)
             .await
             .expect("error during the websocket handshake occurred");
@@ -125,6 +130,26 @@ impl CGWConnectionProcessor {
                 return;
             }
         };
+
+        let device_serial = eui48::MacAddress::parse_str(&evt.serial).unwrap();
+        let device_cn = eui48::MacAddress::parse_str(client_cn.as_str()).unwrap();
+
+        if !allow_mismatch {
+            if device_serial != device_cn {
+                error!(
+                    "The client MAC address {} and clinet certificate CN {} check failed!",
+                    device_serial.to_hex_string(),
+                    device_cn.to_hex_string()
+                );
+                return;
+            } else {
+                debug!(
+                    "The client MAC address {} and clinet certificate CN {} chech passed!",
+                    device_serial.to_hex_string(),
+                    device_cn.to_hex_string()
+                );
+            }
+        }
 
         debug!("Done Parse Connect Event");
 

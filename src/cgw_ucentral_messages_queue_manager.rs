@@ -393,10 +393,10 @@ impl CGWUCentralMessagesQueueManager {
                     // If device request is timed out - device and it queue should be removed
                     if self
                         .device_request_tick(device_mac, TIMEOUT_MANAGER_DURATION)
-                            .await
-                            {
-                                devices_to_flush.push(device_mac.clone());
-                            }
+                        .await
+                    {
+                        devices_to_flush.push(device_mac.clone());
+                    }
                 } else {
                     devices_to_flush.push(device_mac.clone());
                 }

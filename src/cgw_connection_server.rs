@@ -1,6 +1,7 @@
 use crate::cgw_device::{
     cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
 };
+use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
     CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
 };
@@ -89,6 +90,9 @@ pub enum CGWConnectionNBAPIReqMsg {
 }
 
 pub struct CGWConnectionServer {
+    // Allow client certificate mismatch
+    allow_mismatch: bool,
+
     local_cgw_id: i32,
     // CGWConnectionServer write into this mailbox,
     // and other correspondig Server task Reads RX counterpart
@@ -233,6 +237,7 @@ impl CGWConnectionServer {
         let nb_api_c = CGWNBApiClient::new(app_args, &nb_api_tx);
 
         let server = Arc::new(CGWConnectionServer {
+            allow_mismatch: app_args.allow_mismatch,
             local_cgw_id: app_args.cgw_id,
             connmap: CGWConnMap::new(),
             wss_rx_tx_runtime: wss_runtime_handle,
@@ -1082,26 +1087,39 @@ impl CGWConnectionServer {
     pub async fn ack_connection(
         self: Arc<Self>,
         socket: TcpStream,
-        tls_acceptor: tokio_native_tls::TlsAcceptor,
+        tls_acceptor: tokio_rustls::TlsAcceptor,
         addr: SocketAddr,
         conn_idx: i64,
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)
         let server_clone = self.clone();
+        let mut client_cn: String = String::new();
 
         self.wss_rx_tx_runtime.spawn(async move {
             // Accept the TLS connection.
             let tls_stream = match tls_acceptor.accept(socket).await {
-                Ok(a) => a,
+                Ok(a) => match cgw_tls_get_cn_from_stream(&a).await {
+                    Some(cn) => {
+                        client_cn = cn;
+                        a
+                    }
+                    None => {
+                        warn!("Failed to get client certificate CN!");
+                        return;
+                    }
+                },
                 Err(e) => {
                     warn!("Err {e}");
                     return;
                 }
             };
 
+            let allow_mismatch = server_clone.allow_mismatch;
             let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
-            conn_processor.start(tls_stream).await;
+            conn_processor
+                .start(tls_stream, client_cn, allow_mismatch)
+                .await;
         });
     }
 }

@@ -9,6 +9,7 @@ mod cgw_nb_api_listener;
 mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
+mod cgw_tls;
 mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_messages_queue_manager;
 mod cgw_ucentral_parser;
@@ -27,9 +28,13 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use native_tls::Identity;
+use tokio_rustls::{
+    rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
+    TlsAcceptor,
+};
+
 use std::{
-    env,
+    env, io,
     net::{Ipv4Addr, SocketAddr},
     str::FromStr,
     sync::Arc,
@@ -42,6 +47,8 @@ use cgw_connection_server::CGWConnectionServer;
 use cgw_remote_server::CGWRemoteServer;
 
 use cgw_metrics::CGWMetrics;
+
+use crate::cgw_tls::{cgw_tls_read_certs, cgw_tls_read_private_key};
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -68,6 +75,9 @@ const CGW_DEFAULT_WSS_T_NUM: usize = 4;
 const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
 const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_WSS_PORT: u16 = 15002;
+const CGW_DEFAULT_WSS_CAS: &str = "cas.pem";
+const CGW_DEFAULT_WSS_CERT: &str = "cert.pem";
+const CGW_DEFAULT_WSS_KEY: &str = "key.pem";
 const CGW_DEFAULT_GRPC_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const CGW_DEFAULT_GRPC_PORT: u16 = 50051;
 const CGW_DEFAULT_KAFKA_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
@@ -81,6 +91,9 @@ const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
 const CGW_DEFAULT_DB_PASSWORD: &str = "123";
 const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
+const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
+
+const CGW_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
 
 /// CGW server
 pub struct AppArgs {
@@ -96,6 +109,12 @@ pub struct AppArgs {
     wss_ip: Ipv4Addr,
     /// PORT to listen for incoming WSS connection
     wss_port: u16,
+    /// WSS CAS certificate (contains root and issuer certificates)
+    wss_cas: String,
+    /// WSS certificate
+    wss_cert: String,
+    /// WSS private key
+    wss_key: String,
 
     /// IP to listen for incoming GRPC connection
     grpc_ip: Ipv4Addr,
@@ -128,6 +147,9 @@ pub struct AppArgs {
     redis_db_ip: Ipv4Addr,
     /// PORT to connect to DB (REDIS)
     redis_db_port: u16,
+
+    /// Allow Missmatch
+    allow_mismatch: bool,
 }
 
 impl AppArgs {
@@ -156,6 +178,10 @@ impl AppArgs {
             Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_WSS_PORT),
             Err(_) => CGW_DEFAULT_WSS_PORT,
         };
+
+        let wss_cas: String = env::var("CGW_WSS_CAS").unwrap_or(CGW_DEFAULT_WSS_CAS.to_string());
+        let wss_cert: String = env::var("CGW_WSS_CERT").unwrap_or(CGW_DEFAULT_WSS_CERT.to_string());
+        let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
 
         let grpc_ip: Ipv4Addr = match env::var("CGW_GRPC_IP") {
             Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_IP),
@@ -208,12 +234,19 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
 
+        let mismatch: String = env::var("CGW_ALLOW_CERT_MISMATCH")
+            .unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
+        let allow_mismatch = mismatch == "yes";
+
         AppArgs {
             log_level,
             cgw_id,
             wss_t_num,
             wss_ip,
             wss_port,
+            wss_cas,
+            wss_cert,
+            wss_key,
             grpc_ip,
             grpc_port,
             kafka_ip,
@@ -227,6 +260,7 @@ impl AppArgs {
             db_password,
             redis_db_ip,
             redis_db_port,
+            allow_mismatch,
         }
     }
 }
@@ -328,20 +362,37 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
     };
 
     info!("Started WSS server.");
-    // Create the TLS acceptor.
-    // TODO: custom acceptor
-    let der = include_bytes!("localhost.crt");
-    let key = include_bytes!("localhost.key");
-    let cert = match Identity::from_pkcs8(der, key) {
-        Ok(cert) => cert,
-        Err(e) => panic!("Cannot create SSL identity from supplied cert\n{e}"),
-    };
 
-    let tls_acceptor =
-        tokio_native_tls::TlsAcceptor::from(match native_tls::TlsAcceptor::builder(cert).build() {
-            Ok(builder) => builder,
-            Err(e) => panic!("Cannot create SSL-acceptor from supplied cert\n{e}"),
-        });
+    // Read root/issuer certs.
+    let cas_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cas);
+    let cas = cgw_tls_read_certs(cas_path.as_str()).await.unwrap();
+
+    // Read cert.
+    let cert_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cert);
+    let mut cert = cgw_tls_read_certs(cert_path.as_str()).await.unwrap();
+    cert.extend(cas.clone());
+
+    // Read private key.
+    let key_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_key);
+    let key = cgw_tls_read_private_key(key_path.as_str()).await.unwrap();
+
+    // Create the client certs verifier.
+    let mut roots = RootCertStore::empty();
+    roots.add_parsable_certificates(cas);
+
+    let client_verifier = WebPkiClientVerifier::builder(Arc::new(roots))
+        .build()
+        .unwrap();
+
+    // Create server config.
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
+        .with_single_cert(cert, key)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))
+        .unwrap();
+
+    // Create the TLS acceptor.
+    let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
     CGWMetrics::get_ref().start(&app_core.args).await;
 

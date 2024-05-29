@@ -39,11 +39,8 @@ cgw-build-env-img:
 # Generates both build-env img as well as CGW result docker img
 # Uses local FS / project dir for storing cache for build etc
 cgw-img: stop cgw-build-env-img
-	@mkdir -p output/bin > /dev/null 2>&1 || true
 	@docker run -it --name ${CGW_BUILD_ENV_IMG_CONTAINER_NAME} --network=host \
-		-v `realpath ./`:/usr/src/openlan-cgw \
 		${CGW_BUILD_ENV_IMG_ID}:${CGW_BUILD_ENV_IMG_TAG}
-	@docker cp ${CGW_BUILD_ENV_IMG_CONTAINER_NAME}:/usr/src/openlan-cgw/target/x86_64-unknown-linux-gnu/release/ucentral-cgw ./output/bin
 	@docker build --file Dockerfile \
 		--tag ${CGW_IMG_ID}:${CGW_IMG_TAG} \
 		--target cgw-img \

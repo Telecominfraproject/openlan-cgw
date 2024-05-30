@@ -21,16 +21,11 @@ impl FromStr for CGWDeviceType {
     }
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq)]
 pub enum CGWDeviceState {
     CGWDeviceConnected,
+    #[default]
     CGWDeviceDisconnected,
-}
-
-impl Default for CGWDeviceState {
-    fn default() -> Self {
-        CGWDeviceState::CGWDeviceDisconnected
-    }
 }
 
 pub struct OldNew {

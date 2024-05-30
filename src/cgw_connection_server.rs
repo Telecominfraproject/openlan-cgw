@@ -19,7 +19,6 @@ use crate::{
     cgw_remote_discovery::CGWRemoteDiscovery,
 };
 
-use std::str::FromStr;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -55,8 +54,8 @@ impl CGWConnMap {
             HashMap::new();
         let map: Arc<RwLock<HashMap<MacAddress, UnboundedSender<CGWConnectionProcessorReqMsg>>>> =
             Arc::new(RwLock::new(hash_map));
-        let connmap = CGWConnMap { map };
-        connmap
+
+        CGWConnMap { map }
     }
 }
 
@@ -326,7 +325,7 @@ impl CGWConnectionServer {
     // TODO: rename to something like: cgw_construct_device_caps_change_msg
     fn cgw_create_device_update_msg_to_nb(
         &self,
-        mac: &MacAddress,
+        device_mac: &MacAddress,
         group_id: i32,
         diff: &HashMap<String, OldNew>,
     ) -> String {
@@ -343,13 +342,11 @@ impl CGWConnectionServer {
         let msg_str = CGWDeviceChangedData {
             msg_type: CGWToNBMessageType::InfrastructureDeviceCapabilitiesChanged,
             infra_group_id: group_id.to_string(),
-            infra_group_infra_device: mac.clone(),
+            infra_group_infra_device: *device_mac,
             changes: vec_changes,
         };
 
-        let msg_str = serde_json::to_string(&msg_str).unwrap();
-
-        msg_str
+        serde_json::to_string(&msg_str).unwrap()
     }
 
     fn parse_nbapi_msg(&self, pload: &String) -> Option<CGWNBApiParsedMsg> {
@@ -402,7 +399,7 @@ impl CGWConnectionServer {
         let map: Map<String, Value> = rc.unwrap();
 
         let rc = map.get(&String::from("type"));
-        if let None = rc {
+        if rc.is_none() {
             error!("No msg_type found in\n{pload}");
             return None;
         }
@@ -410,7 +407,7 @@ impl CGWConnectionServer {
 
         let msg_type = rc.as_str().unwrap();
         let rc = map.get(&String::from("infra_group_id"));
-        if let None = rc {
+        if rc.is_none() {
             error!("No infra_group_id found in\n{pload}");
             return None;
         }
@@ -420,7 +417,7 @@ impl CGWConnectionServer {
 
         match msg_type {
             "infrastructure_group_create" => {
-                let json_msg: InfraGroupCreate = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupCreate = serde_json::from_str(pload).unwrap();
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -428,7 +425,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_delete" => {
-                let json_msg: InfraGroupDelete = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupDelete = serde_json::from_str(pload).unwrap();
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -436,7 +433,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_device_add" => {
-                let json_msg: InfraGroupInfraAdd = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupInfraAdd = serde_json::from_str(pload).unwrap();
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -446,7 +443,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_device_del" => {
-                let json_msg: InfraGroupInfraDel = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupInfraDel = serde_json::from_str(pload).unwrap();
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -456,7 +453,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_device_message" => {
-                let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).unwrap();
                 debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
@@ -468,7 +465,7 @@ impl CGWConnectionServer {
                 ));
             }
             "rebalance_groups" => {
-                let json_msg: InfraGroupMsgJSON = serde_json::from_str(&pload).unwrap();
+                let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).unwrap();
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -530,12 +527,8 @@ impl CGWConnectionServer {
                 // If none read - break from recv, process all buffers that've
                 // been filled-up so far (both local and remote).
                 // Upon done - repeat.
-                if rd_num >= 1 {
+                if rd_num >= 1 || num_of_msg_read == 0 {
                     continue;
-                } else {
-                    if num_of_msg_read == 0 {
-                        continue;
-                    }
                 }
             }
 
@@ -747,7 +740,7 @@ impl CGWConnectionServer {
                         self.local_cgw_id
                     );
                     let msg = self.parse_nbapi_msg(&payload);
-                    if let None = msg {
+                    if msg.is_none() {
                         error!("Failed to parse msg from NBAPI (malformed?)");
                         continue;
                     }
@@ -758,10 +751,11 @@ impl CGWConnectionServer {
                             gid,
                             msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraAdd(mac_list),
                         } => {
-                            if let None = self
+                            if (self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
-                                .await
+                                .await)
+                                .is_none()
                             {
                                 warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}");
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -795,10 +789,11 @@ impl CGWConnectionServer {
                             gid,
                             msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(mac_list),
                         } => {
-                            if let None = self
+                            if (self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
-                                .await
+                                .await)
+                                .is_none()
                             {
                                 warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid}");
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -833,10 +828,11 @@ impl CGWConnectionServer {
                             msg_type:
                                 CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(device_mac, msg),
                         } => {
-                            if let None = self
+                            if (self
                                 .cgw_remote_discovery
                                 .get_infra_group_owner_id(gid_numeric)
-                                .await
+                                .await)
+                                .is_none()
                             {
                                 warn!("Unexpected: tried to sink down msg to device of nonexisting group (gid {gid}, uuid {uuid}");
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -921,10 +917,8 @@ impl CGWConnectionServer {
                     if num_of_msg_read < 100 {
                         continue;
                     }
-                } else {
-                    if num_of_msg_read == 0 {
-                        continue;
-                    }
+                } else if num_of_msg_read == 0 {
+                    continue;
                 }
             }
 

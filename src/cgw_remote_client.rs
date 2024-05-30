@@ -30,11 +30,9 @@ impl CGWRemoteClient {
 
     pub async fn relay_request_stream(&self, stream: Vec<(String, String)>) -> Result<(), ()> {
         let mut cl_clone = self.remote_client.clone();
-
         let mut messages: Vec<EnqueueRequest> = vec![];
-        let mut it = stream.into_iter();
 
-        while let Some(x) = it.next() {
+        for x in stream.into_iter() {
             messages.push(EnqueueRequest { key: x.0, req: x.1 });
         }
 

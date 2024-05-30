@@ -10,7 +10,6 @@ use crate::{
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -21,14 +20,14 @@ use eui48::MacAddress;
 use tokio::sync::RwLock;
 
 // Used in remote lookup
-static REDIS_KEY_SHARD_ID_PREFIX: &'static str = "shard_id_";
+static REDIS_KEY_SHARD_ID_PREFIX: &str = "shard_id_";
 static REDIS_KEY_SHARD_ID_FIELDS_NUM: usize = 12;
-static REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM: &'static str = "assigned_groups_num";
+static REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM: &str = "assigned_groups_num";
 
 // Used in group assign / reassign
-static REDIS_KEY_GID: &'static str = "group_id_";
-static REDIS_KEY_GID_VALUE_GID: &'static str = "gid";
-static REDIS_KEY_GID_VALUE_SHARD_ID: &'static str = "shard_id";
+static REDIS_KEY_GID: &str = "group_id_";
+static REDIS_KEY_GID_VALUE_GID: &str = "gid";
+static REDIS_KEY_GID_VALUE_SHARD_ID: &str = "shard_id";
 
 #[derive(Clone, Debug)]
 pub struct CGWREDISDBShard {
@@ -151,11 +150,17 @@ impl CGWRemoteDiscovery {
         let _ = rc.sync_gid_to_cgw_map().await;
         let _ = rc.sync_remote_cgw_map().await;
 
-        if let None = rc.remote_cgws_map.read().await.get(&rc.local_shard_id) {
+        if rc
+            .remote_cgws_map
+            .read()
+            .await
+            .get(&rc.local_shard_id)
+            .is_none()
+        {
             let redisdb_shard_info = CGWREDISDBShard {
                 id: app_args.cgw_id,
-                server_ip: std::net::IpAddr::V4(app_args.grpc_ip.clone()),
-                server_port: u16::try_from(app_args.grpc_port).unwrap(),
+                server_ip: std::net::IpAddr::V4(app_args.grpc_ip),
+                server_port: app_args.grpc_port,
                 assigned_groups_num: 0i32,
                 capacity: 1000i32,
                 threshold: 50i32,
@@ -465,7 +470,7 @@ impl CGWRemoteDiscovery {
             return Ok(least_loaded_cgw.shard.id);
         }
 
-        return Err("Unexpected: Failed to find the least loaded CGW shard");
+        Err("Unexpected: Failed to find the least loaded CGW shard")
     }
 
     async fn assign_infra_group_to_cgw(&self, gid: i32) -> Result<i32, &'static str> {
@@ -526,9 +531,7 @@ impl CGWRemoteDiscovery {
     ) -> Result<i32, &'static str> {
         //TODO: transaction-based insert/assigned_group_num update (DB)
         let rc = self.db_accessor.insert_new_infra_group(g).await;
-        if let Err(e) = rc {
-            return Err(e);
-        }
+        rc?;
 
         let shard_id: i32 = match self.assign_infra_group_to_cgw(g.id).await {
             Ok(v) => v,
@@ -539,9 +542,7 @@ impl CGWRemoteDiscovery {
         };
 
         let rc = self.increment_cgw_assigned_groups_num(shard_id).await;
-        if let Err(e) = rc {
-            return Err(e);
-        }
+        rc?;
 
         Ok(shard_id)
     }
@@ -570,7 +571,7 @@ impl CGWRemoteDiscovery {
                         device.set_device_remains_in_db(false);
                         device.set_device_group_id(0);
                     } else {
-                        devices_to_remove.push(key.clone());
+                        devices_to_remove.push(*key);
                     }
                 }
             }
@@ -603,7 +604,7 @@ impl CGWRemoteDiscovery {
             };
 
             futures.push(tokio::spawn(async move {
-                if let Err(_) = db_accessor_clone.insert_new_infra(&infra).await {
+                if (db_accessor_clone.insert_new_infra(&infra).await).is_err() {
                     Err(infra.mac)
                 } else {
                     Ok(())
@@ -639,12 +640,12 @@ impl CGWRemoteDiscovery {
                     }
                 }
                 Err(_) => {
-                    failed_infras.push(infras[i].clone());
+                    failed_infras.push(infras[i]);
                 }
             }
         }
 
-        if failed_infras.len() > 0 {
+        if !failed_infras.is_empty() {
             return Err(failed_infras);
         }
 
@@ -665,7 +666,7 @@ impl CGWRemoteDiscovery {
             let mac = *x;
 
             futures.push(tokio::spawn(async move {
-                if let Err(_) = db_accessor_clone.delete_infra(mac).await {
+                if (db_accessor_clone.delete_infra(mac).await).is_err() {
                     Err(mac)
                 } else {
                     Ok(())
@@ -695,12 +696,12 @@ impl CGWRemoteDiscovery {
                     }
                 }
                 Err(_) => {
-                    failed_infras.push(infras[i].clone());
+                    failed_infras.push(infras[i]);
                 }
             }
         }
 
-        if failed_infras.len() > 0 {
+        if !failed_infras.is_empty() {
             return Err(failed_infras);
         }
 
@@ -732,7 +733,7 @@ impl CGWRemoteDiscovery {
         }
 
         error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");
-        return Err(());
+        Err(())
     }
 
     pub async fn rebalance_all_groups(&self) -> Result<u32, &'static str> {

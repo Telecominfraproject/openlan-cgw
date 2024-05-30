@@ -1,10 +1,11 @@
 use crate::cgw_device::CGWDevice;
+use eui48::MacAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map;
 use std::fs::File;
 use std::{collections::HashMap, io::Write};
 
-type DevicesCacheType = HashMap<String, CGWDevice>;
+type DevicesCacheType = HashMap<MacAddress, CGWDevice>;
 
 #[derive(Serialize, Deserialize)]
 pub struct CGWDevicesCache {
@@ -12,15 +13,15 @@ pub struct CGWDevicesCache {
 }
 
 pub struct CGWDevicesCacheIterMutable<'a> {
-    iter: hash_map::IterMut<'a, String, CGWDevice>,
+    iter: hash_map::IterMut<'a, MacAddress, CGWDevice>,
 }
 
 pub struct CGWDevicesCacheIterImmutable<'a> {
-    iter: hash_map::Iter<'a, String, CGWDevice>,
+    iter: hash_map::Iter<'a, MacAddress, CGWDevice>,
 }
 
 impl<'a> Iterator for CGWDevicesCacheIterMutable<'a> {
-    type Item = (&'a String, &'a mut CGWDevice);
+    type Item = (&'a MacAddress, &'a mut CGWDevice);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|(k, v)| (k, v))
@@ -28,7 +29,7 @@ impl<'a> Iterator for CGWDevicesCacheIterMutable<'a> {
 }
 
 impl<'a> Iterator for CGWDevicesCacheIterImmutable<'a> {
-    type Item = (&'a String, &'a CGWDevice);
+    type Item = (&'a MacAddress, &'a CGWDevice);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|(k, v)| (k, v))
@@ -41,7 +42,7 @@ impl CGWDevicesCache {
         CGWDevicesCache { cache }
     }
 
-    pub fn add_device(&mut self, key: &String, value: &CGWDevice) -> bool {
+    pub fn add_device(&mut self, key: &MacAddress, value: &CGWDevice) -> bool {
         let status: bool;
 
         if self.check_device_exists(key) {
@@ -58,7 +59,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn del_device(&mut self, key: &String) -> bool {
+    pub fn del_device(&mut self, key: &MacAddress) -> bool {
         let status: bool;
 
         if self.check_device_exists(key) {
@@ -75,7 +76,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn check_device_exists(&self, key: &String) -> bool {
+    pub fn check_device_exists(&self, key: &MacAddress) -> bool {
         let status: bool;
         match self.cache.get(key) {
             Some(_) => status = true,
@@ -85,7 +86,7 @@ impl CGWDevicesCache {
         status
     }
 
-    pub fn get_device(&mut self, key: &String) -> Option<&mut CGWDevice> {
+    pub fn get_device(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
         if let Some(value) = self.cache.get_mut(key) {
             Some(value)
         } else {
@@ -93,7 +94,7 @@ impl CGWDevicesCache {
         }
     }
 
-    pub fn get_device_id(&self, key: &String) -> Option<i32> {
+    pub fn get_device_id(&self, key: &MacAddress) -> Option<i32> {
         if let Some(value) = self.cache.get(key) {
             Some(value.get_device_group_id())
         } else {
@@ -120,7 +121,7 @@ impl CGWDevicesCache {
         debug!("Cache: {}", json_output);
 
         let mut fd = File::create(file_path).expect("Failed to create dump file!");
-        fd.write(json_output.as_bytes())
+        fd.write_all(json_output.as_bytes())
             .expect("Failed to write dump!");
     }
 }

@@ -10,6 +10,7 @@ use crate::{
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -288,7 +289,7 @@ impl CGWRemoteDiscovery {
             let mut devices_cache = cache.write().await;
             for item in groups_infra.iter() {
                 devices_cache.add_device(
-                    &item.mac.to_string(eui48::MacAddressFormat::HexString),
+                    &item.mac,
                     &CGWDevice::new(
                         CGWDeviceState::CGWDeviceDisconnected,
                         item.infra_group_id,
@@ -561,7 +562,7 @@ impl CGWRemoteDiscovery {
         if let Err(e) = rc {
             return Err(e);
         } else {
-            let mut devices_to_remove: Vec<String> = Vec::new();
+            let mut devices_to_remove: Vec<MacAddress> = Vec::new();
             let mut device_cache = cache.write().await;
             for (key, device) in device_cache.iter_mut() {
                 if device.get_device_group_id() == gid {
@@ -617,7 +618,7 @@ impl CGWRemoteDiscovery {
                         failed_infras.push(mac);
                     } else {
                         let mut devices_cache = cache.write().await;
-                        let device_mac = infras[i].clone();
+                        let device_mac = MacAddress::from_str(&infras[i].clone()).unwrap();
 
                         if devices_cache.check_device_exists(&device_mac) {
                             let device = devices_cache.get_device(&device_mac).unwrap();
@@ -679,7 +680,7 @@ impl CGWRemoteDiscovery {
                         failed_infras.push(mac);
                     } else {
                         let mut devices_cache = cache.write().await;
-                        let device_mac = infras[i].clone();
+                        let device_mac = MacAddress::from_str(&infras[i].clone()).unwrap();
                         if devices_cache.check_device_exists(&device_mac) {
                             let device = devices_cache.get_device(&device_mac).unwrap();
 

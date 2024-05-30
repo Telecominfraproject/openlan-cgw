@@ -19,6 +19,7 @@ use crate::{
     cgw_remote_discovery::CGWRemoteDiscovery,
 };
 
+use std::str::FromStr;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -288,7 +289,7 @@ impl CGWConnectionServer {
             .devices_cache
             .try_read()
             .unwrap()
-            .get_device_id(&mac.to_string())
+            .get_device_id(&MacAddress::from_str(&mac).unwrap())
             .unwrap();
 
         let key = device_id.to_string();
@@ -972,9 +973,10 @@ impl CGWConnectionServer {
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group
                     // If not - simply add to cache - set gid == 0, devices should't remain in DB
+                    let device_mac = MacAddress::from_str(&serial).unwrap();
                     let mut devices_cache = self.devices_cache.write().await;
-                    if devices_cache.check_device_exists(&serial) {
-                        let device = devices_cache.get_device(&serial).unwrap();
+                    if devices_cache.check_device_exists(&device_mac) {
+                        let device = devices_cache.get_device(&device_mac).unwrap();
                         device.set_device_state(CGWDeviceState::CGWDeviceConnected);
 
                         let changes =
@@ -1021,7 +1023,7 @@ impl CGWConnectionServer {
                         }
 
                         devices_cache.add_device(
-                            &serial,
+                            &MacAddress::from_str(&serial).unwrap(),
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
                         );
                     }
@@ -1053,13 +1055,14 @@ impl CGWConnectionServer {
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
                     queue_lock.device_disconnected(&serial).await;
 
+                    let device_mac = MacAddress::from_str(&serial).unwrap();
                     let mut devices_cache = self.devices_cache.write().await;
-                    if devices_cache.check_device_exists(&serial) {
-                        let device = devices_cache.get_device(&serial).unwrap();
+                    if devices_cache.check_device_exists(&device_mac) {
+                        let device = devices_cache.get_device(&device_mac).unwrap();
                         if device.get_device_remains_in_db() {
                             device.set_device_state(CGWDeviceState::CGWDeviceDisconnected);
                         } else {
-                            devices_cache.del_device(&serial);
+                            devices_cache.del_device(&device_mac);
                         }
                         devices_cache.dump_devices_cache();
                     }

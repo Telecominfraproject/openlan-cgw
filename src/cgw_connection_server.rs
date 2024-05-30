@@ -41,8 +41,8 @@ use uuid::Uuid;
 
 use eui48::MacAddress;
 
-type DeviceSerial = String;
-type CGWConnmapType = Arc<RwLock<HashMap<String, UnboundedSender<CGWConnectionProcessorReqMsg>>>>;
+type CGWConnmapType =
+    Arc<RwLock<HashMap<MacAddress, UnboundedSender<CGWConnectionProcessorReqMsg>>>>;
 
 #[derive(Debug)]
 struct CGWConnMap {
@@ -51,11 +51,11 @@ struct CGWConnMap {
 
 impl CGWConnMap {
     pub fn new() -> Self {
-        let hash_map: HashMap<String, UnboundedSender<CGWConnectionProcessorReqMsg>> =
+        let hash_map: HashMap<MacAddress, UnboundedSender<CGWConnectionProcessorReqMsg>> =
             HashMap::new();
-        let map: Arc<RwLock<HashMap<String, UnboundedSender<CGWConnectionProcessorReqMsg>>>> =
+        let map: Arc<RwLock<HashMap<MacAddress, UnboundedSender<CGWConnectionProcessorReqMsg>>>> =
             Arc::new(RwLock::new(hash_map));
-        let connmap = CGWConnMap { map: map };
+        let connmap = CGWConnMap { map };
         connmap
     }
 }
@@ -71,11 +71,11 @@ type CGWConnectionServerNBAPIMboxRx = UnboundedReceiver<CGWConnectionNBAPIReqMsg
 pub enum CGWConnectionServerReqMsg {
     // Connection-related messages
     AddNewConnection(
-        DeviceSerial,
+        MacAddress,
         CGWDeviceCapabilities,
         UnboundedSender<CGWConnectionProcessorReqMsg>,
     ),
-    ConnectionClosed(DeviceSerial),
+    ConnectionClosed(MacAddress),
 }
 
 #[derive(Debug)]
@@ -147,9 +147,9 @@ pub struct CGWConnectionServer {
 enum CGWNBApiParsedMsgType {
     InfrastructureGroupCreate,
     InfrastructureGroupDelete,
-    InfrastructureGroupInfraAdd(Vec<DeviceSerial>),
-    InfrastructureGroupInfraDel(Vec<DeviceSerial>),
-    InfrastructureGroupInfraMsg(DeviceSerial, String),
+    InfrastructureGroupInfraAdd(Vec<MacAddress>),
+    InfrastructureGroupInfraDel(Vec<MacAddress>),
+    InfrastructureGroupInfraMsg(MacAddress, String),
     RebalanceGroups,
 }
 
@@ -284,12 +284,16 @@ impl CGWConnectionServer {
         let _ = self.mbox_internal_tx.send(req);
     }
 
-    pub fn enqueue_mbox_message_from_device_to_nb_api_c(&self, mac: DeviceSerial, req: String) {
+    pub fn enqueue_mbox_message_from_device_to_nb_api_c(
+        &self,
+        device_mac: MacAddress,
+        req: String,
+    ) {
         let device_id = self
             .devices_cache
             .try_read()
             .unwrap()
-            .get_device_id(&MacAddress::from_str(&mac).unwrap())
+            .get_device_id(&device_mac)
             .unwrap();
 
         let key = device_id.to_string();
@@ -322,7 +326,7 @@ impl CGWConnectionServer {
     // TODO: rename to something like: cgw_construct_device_caps_change_msg
     fn cgw_create_device_update_msg_to_nb(
         &self,
-        mac: &String,
+        mac: &MacAddress,
         group_id: i32,
         diff: &HashMap<String, OldNew>,
     ) -> String {
@@ -368,7 +372,7 @@ impl CGWConnectionServer {
         struct InfraGroupInfraAdd {
             r#type: String,
             infra_group_id: String,
-            infra_group_infra_devices: Vec<String>,
+            infra_group_infra_devices: Vec<MacAddress>,
             uuid: Uuid,
         }
 
@@ -376,7 +380,7 @@ impl CGWConnectionServer {
         struct InfraGroupInfraDel {
             r#type: String,
             infra_group_id: String,
-            infra_group_infra_devices: Vec<String>,
+            infra_group_infra_devices: Vec<MacAddress>,
             uuid: Uuid,
         }
 
@@ -384,7 +388,7 @@ impl CGWConnectionServer {
         struct InfraGroupMsgJSON {
             r#type: String,
             infra_group_id: String,
-            mac: String,
+            mac: MacAddress,
             msg: Map<String, Value>,
             uuid: Uuid,
         }
@@ -780,7 +784,7 @@ impl CGWConnectionServer {
                                     self.enqueue_mbox_message_from_cgw_to_nb_api(
                                         gid,
                                         format!("Failed to insert few  MACs from infra list, gid {gid}, uuid {uuid}; List of failed MACs:{}",
-                                                macs.iter().map(|x| x.to_string() + ",").collect::<String>()));
+                                                macs.iter().map(|x| x.to_hex_string() + ",").collect::<String>()));
                                     warn!("Failed to create few MACs from infras list (partial create)");
                                     continue;
                                 }
@@ -817,7 +821,7 @@ impl CGWConnectionServer {
                                     self.enqueue_mbox_message_from_cgw_to_nb_api(
                                         gid,
                                         format!("Failed to destroy few MACs from infra list (not created?), gid {gid}, uuid {uuid}; List of failed MACs:{}",
-                                                macs.iter().map(|x| x.to_string() + ",").collect::<String>()));
+                                                macs.iter().map(|x| x.to_hex_string() + ",").collect::<String>()));
                                     warn!("Failed to destroy few MACs from infras list (partial delete)");
                                     continue;
                                 }
@@ -826,7 +830,8 @@ impl CGWConnectionServer {
                         CGWNBApiParsedMsg {
                             uuid,
                             gid,
-                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(mac, msg),
+                            msg_type:
+                                CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(device_mac, msg),
                         } => {
                             if let None = self
                                 .cgw_remote_discovery
@@ -847,7 +852,7 @@ impl CGWConnectionServer {
 
                             // 2. Add message to queue
                             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                            queue_lock.push_device_message(mac, queue_msg).await;
+                            queue_lock.push_device_message(device_mac, queue_msg).await;
                         }
                         CGWNBApiParsedMsg {
                             uuid,
@@ -929,14 +934,14 @@ impl CGWConnectionServer {
                 let msg = buf.remove(0);
 
                 if let CGWConnectionServerReqMsg::AddNewConnection(
-                    serial,
+                    device_mac,
                     caps,
                     conn_processor_mbox_tx,
                 ) = msg
                 {
                     // Remove device from disconnected device list
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.device_connected(&serial).await;
+                    queue_lock.device_connected(&device_mac).await;
 
                     // if connection is unique: simply insert new conn
                     //
@@ -945,10 +950,9 @@ impl CGWConnectionServer {
                     // drop the connection.
                     // from now on simply insert new connection into hashmap and proceed on
                     // processing it.
-                    let serial_clone: DeviceSerial = serial.clone();
-                    if let Some(c) = connmap_w_lock.remove(&serial_clone) {
+                    if let Some(c) = connmap_w_lock.remove(&device_mac) {
                         tokio::spawn(async move {
-                            warn!("Duplicate connection (mac:{}) detected, closing OLD connection in favor of NEW", serial_clone);
+                            warn!("Duplicate connection (mac:{}) detected, closing OLD connection in favor of NEW", device_mac);
                             let msg: CGWConnectionProcessorReqMsg =
                                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose;
                             let _ = c.send(msg);
@@ -966,14 +970,13 @@ impl CGWConnectionServer {
 
                     info!(
                         "connmap: connection with {} established, new num_of_connections:{}",
-                        serial,
+                        device_mac,
                         connmap_w_lock.len() + 1
                     );
 
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group
                     // If not - simply add to cache - set gid == 0, devices should't remain in DB
-                    let device_mac = MacAddress::from_str(&serial).unwrap();
                     let mut devices_cache = self.devices_cache.write().await;
                     if devices_cache.check_device_exists(&device_mac) {
                         let device = devices_cache.get_device(&device_mac).unwrap();
@@ -984,7 +987,7 @@ impl CGWConnectionServer {
                         match changes {
                             Some(diff) => {
                                 let new_msg = self.cgw_create_device_update_msg_to_nb(
-                                    &serial,
+                                    &device_mac,
                                     device.get_device_group_id(),
                                     &diff,
                                 );
@@ -998,7 +1001,7 @@ impl CGWConnectionServer {
                             None => {
                                 debug!(
                                     "Capabilities for device: {} was not changed!",
-                                    serial.clone()
+                                    device_mac.to_hex_string()
                                 )
                             }
                         }
@@ -1009,7 +1012,7 @@ impl CGWConnectionServer {
                         match changes {
                             Some(diff) => {
                                 let new_msg =
-                                    self.cgw_create_device_update_msg_to_nb(&serial, 0, &diff);
+                                    self.cgw_create_device_update_msg_to_nb(&device_mac, 0, &diff);
                                 debug!("CGW to NB msg: {}", new_msg.clone());
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(0, new_msg);
                                 debug!("CGW to NB msg: Done!");
@@ -1017,45 +1020,42 @@ impl CGWConnectionServer {
                             None => {
                                 debug!(
                                     "Capabilities for device: {} was not changed!",
-                                    serial.clone()
+                                    device_mac.to_hex_string()
                                 )
                             }
                         }
 
                         devices_cache.add_device(
-                            &MacAddress::from_str(&serial).unwrap(),
+                            &device_mac,
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
                         );
                     }
 
                     let topo_map = CGWUcentralTopologyMap::get_ref();
-                    topo_map
-                        .insert_device(&MacAddress::parse_str(&serial).unwrap())
-                        .await;
+                    topo_map.insert_device(&device_mac).await;
                     topo_map.debug_dump_map().await;
 
                     devices_cache.dump_devices_cache();
 
-                    connmap_w_lock.insert(serial, conn_processor_mbox_tx);
+                    connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
 
                     tokio::spawn(async move {
                         let msg: CGWConnectionProcessorReqMsg =
                             CGWConnectionProcessorReqMsg::AddNewConnectionAck;
                         conn_processor_mbox_tx_clone.send(msg).unwrap();
                     });
-                } else if let CGWConnectionServerReqMsg::ConnectionClosed(serial) = msg {
+                } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
                     info!(
                         "connmap: removed {} serial from connmap, new num_of_connections:{}",
-                        serial,
+                        device_mac,
                         connmap_w_lock.len() - 1
                     );
-                    connmap_w_lock.remove(&serial);
+                    connmap_w_lock.remove(&device_mac);
 
                     // Insert device to disconnected device list
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.device_disconnected(&serial).await;
+                    queue_lock.device_disconnected(&device_mac).await;
 
-                    let device_mac = MacAddress::from_str(&serial).unwrap();
                     let mut devices_cache = self.devices_cache.write().await;
                     if devices_cache.check_device_exists(&device_mac) {
                         let device = devices_cache.get_device(&device_mac).unwrap();
@@ -1068,9 +1068,7 @@ impl CGWConnectionServer {
                     }
 
                     let topo_map = CGWUcentralTopologyMap::get_ref();
-                    topo_map
-                        .remove_device(&MacAddress::parse_str(&serial).unwrap())
-                        .await;
+                    topo_map.remove_device(&device_mac).await;
                     topo_map.debug_dump_map().await;
 
                     CGWMetrics::get_ref().change_counter(
@@ -1097,7 +1095,7 @@ impl CGWConnectionServer {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)
         let server_clone = self.clone();
-        let mut client_cn: String = String::new();
+        let mut client_cn: MacAddress = MacAddress::default();
 
         self.wss_rx_tx_runtime.spawn(async move {
             // Accept the TLS connection.

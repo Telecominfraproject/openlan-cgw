@@ -12,6 +12,7 @@ use crate::{
     cgw_ucentral_topology_map::CGWUcentralTopologyMap,
 };
 
+use eui48::MacAddress;
 use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
@@ -54,7 +55,7 @@ enum CGWUCentralMessageProcessorState {
 
 pub struct CGWConnectionProcessor {
     cgw_server: Arc<CGWConnectionServer>,
-    pub serial: Option<String>,
+    pub serial: Option<MacAddress>,
     pub addr: SocketAddr,
     pub idx: i64,
 }
@@ -64,7 +65,7 @@ impl CGWConnectionProcessor {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server,
             serial: None,
-            addr: addr,
+            addr,
             idx: conn_idx,
         };
 
@@ -74,7 +75,7 @@ impl CGWConnectionProcessor {
     pub async fn start(
         mut self,
         tls_stream: TlsStream<TcpStream>,
-        client_cn: String,
+        client_cn: MacAddress,
         allow_mismatch: bool,
     ) {
         let ws_stream = tokio_tungstenite::accept_async(tls_stream)
@@ -131,22 +132,19 @@ impl CGWConnectionProcessor {
             }
         };
 
-        let device_serial = eui48::MacAddress::parse_str(&evt.serial).unwrap();
-        let device_cn = eui48::MacAddress::parse_str(client_cn.as_str()).unwrap();
-
         if !allow_mismatch {
-            if device_serial != device_cn {
+            if evt.serial != client_cn {
                 error!(
                     "The client MAC address {} and clinet certificate CN {} check failed!",
-                    device_serial.to_hex_string(),
-                    device_cn.to_hex_string()
+                    evt.serial.to_hex_string(),
+                    client_cn.to_hex_string()
                 );
                 return;
             } else {
                 debug!(
                     "The client MAC address {} and clinet certificate CN {} chech passed!",
-                    device_serial.to_hex_string(),
-                    device_cn.to_hex_string()
+                    evt.serial.to_hex_string(),
+                    client_cn.to_hex_string()
                 );
             }
         }
@@ -169,7 +167,7 @@ impl CGWConnectionProcessor {
             ),
         }
 
-        self.serial = Some(evt.serial.clone());
+        self.serial = Some(evt.serial);
         let device_type = CGWDeviceType::from_str(caps.platform.as_str()).unwrap();
 
         // Check if device queue already exist
@@ -194,7 +192,7 @@ impl CGWConnectionProcessor {
         // cgw_connection_server has an authorative decision whether
         // we can proceed.
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
-        let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial.clone(), caps, mbox_tx);
+        let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial, caps, mbox_tx);
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;
@@ -248,7 +246,7 @@ impl CGWConnectionProcessor {
 
                     self.cgw_server
                         .enqueue_mbox_message_from_device_to_nb_api_c(
-                            self.serial.clone().unwrap(),
+                            self.serial.unwrap(),
                             payload,
                         );
                     return Ok(CGWConnectionState::IsActive);
@@ -275,7 +273,7 @@ impl CGWConnectionProcessor {
         val: Option<CGWConnectionProcessorReqMsg>,
     ) -> Result<CGWConnectionState, &str> {
         if let Some(msg) = val {
-            let processor_mac = self.serial.clone().unwrap();
+            let processor_mac = self.serial.unwrap();
             match msg {
                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose => {
                     debug!("MBOX_IN: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
@@ -296,7 +294,7 @@ impl CGWConnectionProcessor {
 
     async fn process_stale_connection_msg(
         &self,
-        last_contact: Instant,
+        _last_contact: Instant,
     ) -> Result<CGWConnectionState, &str> {
         // TODO: configurable duration (upon server creation)
         /*
@@ -328,7 +326,7 @@ impl CGWConnectionProcessor {
             Stale,
         }
 
-        let device_mac = self.serial.clone().unwrap();
+        let device_mac = self.serial.unwrap();
         let mut pending_req_id: u64 = 0;
         let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
@@ -449,15 +447,13 @@ impl CGWConnectionProcessor {
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await
                 }
-                WakeupReason::Stale => {
-                    self.process_stale_connection_msg(last_contact.clone())
-                        .await
-                }
+                WakeupReason::Stale => self.process_stale_connection_msg(last_contact).await,
                 _ => {
                     panic!("Failed to get wakeup reason for {} conn", self.addr);
                 }
             };
 
+            let device_mac = self.serial.unwrap();
             match rc {
                 Err(e) => {
                     warn!("{}", e);
@@ -474,13 +470,13 @@ impl CGWConnectionProcessor {
                     } else if let CGWConnectionState::ClosedGracefully = state {
                         warn!(
                             "Remote client {} closed connection gracefully",
-                            self.serial.clone().unwrap()
+                            device_mac.to_hex_string()
                         );
                         break;
                     } else if let CGWConnectionState::IsStale = state {
                         warn!(
                             "Remote client {} closed due to inactivity",
-                            self.serial.clone().unwrap()
+                            device_mac.to_hex_string()
                         );
                         break;
                     }
@@ -488,11 +484,13 @@ impl CGWConnectionProcessor {
             }
         }
 
-        let mac = self.serial.clone().unwrap();
-        let msg = CGWConnectionServerReqMsg::ConnectionClosed(self.serial.unwrap());
+        let msg = CGWConnectionServerReqMsg::ConnectionClosed(device_mac);
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;
-        debug!("MBOX_OUT: ConnectionClosed, processor (mac:{})", mac);
+        debug!(
+            "MBOX_OUT: ConnectionClosed, processor (mac:{})",
+            device_mac.to_hex_string()
+        );
     }
 }

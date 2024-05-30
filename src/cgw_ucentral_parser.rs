@@ -15,7 +15,7 @@ pub type CGWUcentralJRPCMessage = Map<String, Value>;
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventLog {
-    pub serial: String,
+    pub serial: MacAddress,
     pub log: String,
     pub severity: i64,
 }
@@ -30,7 +30,7 @@ pub struct CGWUCentralEventConnectParamsCaps {
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventConnect {
-    pub serial: String,
+    pub serial: MacAddress,
     pub firmware: String,
     pub uuid: u64,
     pub capabilities: CGWUCentralEventConnectParamsCaps,
@@ -88,7 +88,7 @@ pub enum CGWUCentralEventType {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CGWUCentralEvent {
-    pub serial: String,
+    pub serial: MacAddress,
     pub evt_type: CGWUCentralEventType,
 }
 
@@ -109,7 +109,7 @@ pub struct CGWDeviceChangedData {
     #[serde(rename = "type")]
     pub msg_type: CGWToNBMessageType,
     pub infra_group_id: String,
-    pub infra_group_infra_device: String,
+    pub infra_group_infra_device: MacAddress,
     pub changes: Vec<CGWDeviceChange>,
 }
 
@@ -166,7 +166,7 @@ impl FromStr for CGWUCentralCommandType {
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CGWUCentralCommand {
-    pub serial: String,
+    pub serial: MacAddress,
     pub cmd_type: CGWUCentralCommandType,
     pub id: u64,
 }
@@ -209,10 +209,7 @@ pub fn cgw_ucentral_parse_connect_event(
     }
 
     let params = map.get("params").unwrap();
-    let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-        .unwrap()
-        .to_hex_string()
-        .to_uppercase();
+    let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
     let firmware = params["firmware"].as_str().unwrap().to_string();
     let caps: CGWUCentralEventConnectParamsCaps =
         serde_json::from_value(params["capabilities"].clone()).unwrap();
@@ -266,10 +263,7 @@ pub fn cgw_ucentral_parse_command_message(
     match command_type {
         Ok(cmd_type) => {
             let params = map.get("params").unwrap();
-            let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-                .unwrap()
-                .to_hex_string()
-                .to_uppercase();
+            let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
             let id = map.get("id").unwrap().as_u64().unwrap();
             let command = CGWUCentralCommand {
                 cmd_type,

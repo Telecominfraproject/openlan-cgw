@@ -588,23 +588,23 @@ impl CGWRemoteDiscovery {
     pub async fn create_ifras_list(
         &self,
         gid: i32,
-        infras: Vec<String>,
+        infras: Vec<MacAddress>,
         cache: Arc<RwLock<CGWDevicesCache>>,
-    ) -> Result<(), Vec<String>> {
+    ) -> Result<(), Vec<MacAddress>> {
         // TODO: assign list to shards; currently - only created bulk, no assignment
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
-        let mut failed_infras: Vec<String> = Vec::with_capacity(futures.len());
+        let mut failed_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
             let infra = CGWDBInfra {
-                mac: MacAddress::parse_str(&x).unwrap(),
+                mac: *x,
                 infra_group_id: gid,
             };
 
             futures.push(tokio::spawn(async move {
                 if let Err(_) = db_accessor_clone.insert_new_infra(&infra).await {
-                    Err(infra.mac.to_string(eui48::MacAddressFormat::HexString))
+                    Err(infra.mac)
                 } else {
                     Ok(())
                 }
@@ -618,7 +618,7 @@ impl CGWRemoteDiscovery {
                         failed_infras.push(mac);
                     } else {
                         let mut devices_cache = cache.write().await;
-                        let device_mac = MacAddress::from_str(&infras[i].clone()).unwrap();
+                        let device_mac = infras[i];
 
                         if devices_cache.check_device_exists(&device_mac) {
                             let device = devices_cache.get_device(&device_mac).unwrap();
@@ -654,19 +654,19 @@ impl CGWRemoteDiscovery {
     pub async fn destroy_ifras_list(
         &self,
         _gid: i32,
-        infras: Vec<String>,
+        infras: Vec<MacAddress>,
         cache: Arc<RwLock<CGWDevicesCache>>,
-    ) -> Result<(), Vec<String>> {
+    ) -> Result<(), Vec<MacAddress>> {
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
-        let mut failed_infras: Vec<String> = Vec::with_capacity(futures.len());
+        let mut failed_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
-            let mac = MacAddress::parse_str(&x).unwrap();
+            let mac = *x;
 
             futures.push(tokio::spawn(async move {
                 if let Err(_) = db_accessor_clone.delete_infra(mac).await {
-                    Err(mac.to_string(eui48::MacAddressFormat::HexString))
+                    Err(mac)
                 } else {
                     Ok(())
                 }
@@ -680,7 +680,7 @@ impl CGWRemoteDiscovery {
                         failed_infras.push(mac);
                     } else {
                         let mut devices_cache = cache.write().await;
-                        let device_mac = MacAddress::from_str(&infras[i].clone()).unwrap();
+                        let device_mac = infras[i];
                         if devices_cache.check_device_exists(&device_mac) {
                             let device = devices_cache.get_device(&device_mac).unwrap();
 

@@ -65,12 +65,12 @@ pub fn cgw_ucentral_ap_parse_message(message: &String) -> Result<CGWUCentralEven
         let method = map["method"].as_str().unwrap();
         if method == "log" {
             let params = map.get("params").expect("Params are missing");
-            let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
+            let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
 
             let log_event = CGWUCentralEvent {
-                serial: mac_serial.to_hex_string().to_uppercase(),
+                serial,
                 evt_type: CGWUCentralEventType::Log(CGWUCentralEventLog {
-                    serial: mac_serial.to_hex_string().to_uppercase(),
+                    serial,
                     log: params["log"].to_string(),
                     severity: serde_json::from_value(params["severity"].clone()).unwrap(),
                 }),
@@ -79,16 +79,13 @@ pub fn cgw_ucentral_ap_parse_message(message: &String) -> Result<CGWUCentralEven
             return Ok(log_event);
         } else if method == "connect" {
             let params = map.get("params").expect("Params are missing");
-            let serial = MacAddress::from_str(params["serial"].as_str().unwrap())
-                .unwrap()
-                .to_hex_string()
-                .to_uppercase();
+            let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
             let firmware = params["firmware"].as_str().unwrap().to_string();
             let caps: CGWUCentralEventConnectParamsCaps =
                 serde_json::from_value(params["capabilities"].clone()).unwrap();
 
             let connect_event = CGWUCentralEvent {
-                serial: serial.clone(),
+                serial,
                 evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
                     serial,
                     firmware,
@@ -128,7 +125,7 @@ pub fn cgw_ucentral_ap_parse_message(message: &String) -> Result<CGWUCentralEven
 
                 if let Value::Object(state_map) = &state_map["state"] {
                     let state_event = CGWUCentralEvent {
-                        serial: serial.to_hex_string().to_uppercase(),
+                        serial,
                         evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
                             lldp_data: CGWUCentralEventStateLLDPData {
                                 local_mac: serial,
@@ -145,7 +142,7 @@ pub fn cgw_ucentral_ap_parse_message(message: &String) -> Result<CGWUCentralEven
                 let serial = MacAddress::from_str(state_map["serial"].as_str().unwrap()).unwrap();
 
                 let state_event = CGWUCentralEvent {
-                    serial: serial.to_hex_string().to_uppercase(),
+                    serial,
                     evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
                         lldp_data: CGWUCentralEventStateLLDPData {
                             local_mac: serial,

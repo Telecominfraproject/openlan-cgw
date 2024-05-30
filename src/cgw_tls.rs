@@ -1,7 +1,9 @@
+use eui48::MacAddress;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     fs::File,
     io::{BufReader, Error, ErrorKind},
+    str::FromStr,
 };
 use tokio::net::TcpStream;
 use tokio_rustls::server::TlsStream;
@@ -27,20 +29,20 @@ pub async fn cgw_tls_read_private_key(
 
     let mut reader = BufReader::new(file);
     match rustls_pemfile::private_key(&mut reader) {
-        Ok(key) => return key.ok_or_else(|| Error::new(ErrorKind::Other, "Option is None")),
-        Err(err) => return Err(err),
-    };
+        Ok(key) => key.ok_or_else(|| Error::new(ErrorKind::Other, "Option is None")),
+        Err(err) => Err(err),
+    }
 }
 
-pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Option<String> {
+pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Option<MacAddress> {
     if let Some(certs) = stream.get_ref().1.peer_certificates() {
-        let first_cert = certs.get(0).unwrap();
+        let first_cert = certs.first().unwrap();
 
         match parse_x509_certificate(first_cert.as_ref()) {
             Ok(parsed_cert) => {
                 for rdn in parsed_cert.1.subject().iter_common_name() {
                     if let Ok(cn) = rdn.as_str() {
-                        return Some(cn.to_owned());
+                        return Some(MacAddress::from_str(cn).unwrap());
                     }
                 }
             }

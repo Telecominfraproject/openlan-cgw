@@ -27,7 +27,7 @@ struct CustomContext;
 impl ClientContext for CustomContext {}
 
 impl ConsumerContext for CustomContext {
-    fn pre_rebalance(&self, rebalance: &Rebalance) {
+    fn pre_rebalance(&self, rebalance: &Rebalance<'_>) {
         let mut part_list = String::new();
         if let rdkafka::consumer::Rebalance::Assign(partitions) = rebalance {
             for x in partitions.elements() {
@@ -46,7 +46,7 @@ impl ConsumerContext for CustomContext {
         }
     }
 
-    fn post_rebalance(&self, rebalance: &Rebalance) {
+    fn post_rebalance(&self, rebalance: &Rebalance<'_>) {
         let mut part_list = String::new();
 
         if let rdkafka::consumer::Rebalance::Assign(partitions) = rebalance {
@@ -76,9 +76,9 @@ impl ConsumerContext for CustomContext {
     }
 }
 
-static GROUP_ID: &'static str = "CGW";
-const CONSUMER_TOPICS: [&'static str; 1] = ["CnC"];
-const PRODUCER_TOPICS: &'static str = "CnC_Res";
+static GROUP_ID: &str = "CGW";
+const CONSUMER_TOPICS: [&str; 1] = ["CnC"];
+const PRODUCER_TOPICS: &str = "CnC_Res";
 
 struct CGWCNCProducer {
     p: CGWCNCProducerType,
@@ -135,7 +135,7 @@ impl CGWCNCConsumer {
 
 impl CGWCNCProducer {
     pub fn new(app_args: &AppArgs) -> Self {
-        let prod: CGWCNCProducerType = Self::create_producer(&app_args);
+        let prod: CGWCNCProducerType = Self::create_producer(app_args);
         CGWCNCProducer { p: prod }
     }
 
@@ -178,7 +178,7 @@ impl CGWNBApiClient {
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(&app_args),
+            prod: CGWCNCProducer::new(app_args),
         });
 
         let cl_clone = cl.clone();
@@ -230,14 +230,14 @@ impl CGWNBApiClient {
 
     pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {
         let produce_future = self.prod.p.send(
-            FutureRecord::to(&PRODUCER_TOPICS)
+            FutureRecord::to(PRODUCER_TOPICS)
                 .key(&key)
                 .payload(&payload),
             Duration::from_secs(0),
         );
-        match produce_future.await {
-            Err((e, _)) => println!("Error: {:?}", e),
-            _ => {}
+
+        if let Err((e, _)) = produce_future.await {
+            println!("Error: {:?}", e)
         }
     }
 

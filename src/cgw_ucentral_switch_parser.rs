@@ -72,12 +72,12 @@ pub fn cgw_ucentral_switch_parse_message(
         let method = map["method"].as_str().unwrap();
         if method == "log" {
             let params = map.get("params").expect("Params are missing");
-            let mac_serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
+            let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
 
             let log_event = CGWUCentralEvent {
-                serial: mac_serial.to_hex_string().to_uppercase(),
+                serial,
                 evt_type: CGWUCentralEventType::Log(CGWUCentralEventLog {
-                    serial: mac_serial.to_hex_string().to_uppercase(),
+                    serial,
                     log: params["log"].to_string(),
                     severity: serde_json::from_value(params["severity"].clone()).unwrap(),
                 }),
@@ -99,7 +99,7 @@ pub fn cgw_ucentral_switch_parse_message(
                 }
 
                 let state_event = CGWUCentralEvent {
-                    serial: serial.to_hex_string().to_uppercase(),
+                    serial,
                     evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
                         lldp_data: CGWUCentralEventStateLLDPData {
                             local_mac: serial,

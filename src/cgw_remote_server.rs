@@ -55,8 +55,7 @@ impl CGWRemoteServer {
     pub fn new(app_args: &AppArgs) -> Self {
         let remote_cfg =
             CGWRemoteConfig::new(app_args.cgw_id, app_args.grpc_ip, app_args.grpc_port);
-        let remote_server = CGWRemoteServer { cfg: remote_cfg };
-        remote_server
+        CGWRemoteServer { cfg: remote_cfg }
     }
     pub async fn start(&self, srv: Arc<CGWConnectionServer>) {
         // GRPC server

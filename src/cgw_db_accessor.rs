@@ -19,10 +19,10 @@ pub struct CGWDBInfrastructureGroup {
 
 impl From<Row> for CGWDBInfra {
     fn from(row: Row) -> Self {
-        let serial: MacAddress = row.get("mac");
+        let mac: MacAddress = row.get("mac");
         let gid: i32 = row.get("infra_group_id");
         Self {
-            mac: serial,
+            mac,
             infra_group_id: gid,
         }
     }
@@ -96,14 +96,14 @@ impl CGWDBAccessor {
             .await;
 
         match res {
-            Ok(_n) => return Ok(()),
+            Ok(_n) => Ok(()),
             Err(e) => {
                 error!(
                     "Failed to insert a new infra group {}: {:?}",
                     g.id,
                     e.to_string()
                 );
-                return Err("Insert new infra group failed");
+                Err("Insert new infra group failed")
             }
         }
     }
@@ -120,14 +120,14 @@ impl CGWDBAccessor {
         match res {
             Ok(n) => {
                 if n > 0 {
-                    return Ok(());
+                    Ok(())
                 } else {
-                    return Err("Failed to delete group from DB: gid does not exist");
+                    Err("Failed to delete group from DB: gid does not exist")
                 }
             }
             Err(e) => {
                 error!("Failed to delete an infra group {gid}: {:?}", e.to_string());
-                return Err("Delete infra group failed");
+                Err("Delete infra group failed")
             }
         }
     }
@@ -146,14 +146,13 @@ impl CGWDBAccessor {
                     let infra_group = CGWDBInfrastructureGroup::from(x);
                     list.push(infra_group);
                 }
-                return Some(list);
+                Some(list)
             }
-            Err(_e) => {
-                return None;
-            }
+            Err(_e) => None,
         }
     }
 
+    #[allow(dead_code)]
     pub async fn get_infra_group(&self, gid: i32) -> Option<CGWDBInfrastructureGroup> {
         let q = self
             .cl
@@ -163,10 +162,8 @@ impl CGWDBAccessor {
         let row = self.cl.query_one(&q, &[&gid]).await;
 
         match row {
-            Ok(r) => return Some(CGWDBInfrastructureGroup::from(r)),
-            Err(_e) => {
-                return None;
-            }
+            Ok(r) => Some(CGWDBInfrastructureGroup::from(r)),
+            Err(_e) => None,
         }
     }
 
@@ -191,10 +188,10 @@ impl CGWDBAccessor {
             .await;
 
         match res {
-            Ok(_n) => return Ok(()),
+            Ok(_n) => Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra: {:?}", e.to_string());
-                return Err("Insert new infra failed");
+                Err("Insert new infra failed")
             }
         }
     }
@@ -210,14 +207,14 @@ impl CGWDBAccessor {
         match res {
             Ok(n) => {
                 if n > 0 {
-                    return Ok(());
+                    Ok(())
                 } else {
-                    return Err("Failed to delete infra from DB: MAC does not exist");
+                    Err("Failed to delete infra from DB: MAC does not exist")
                 }
             }
             Err(e) => {
                 error!("Failed to delete infra: {:?}", e.to_string());
-                return Err("Delete infra failed");
+                Err("Delete infra failed")
             }
         }
     }
@@ -233,11 +230,9 @@ impl CGWDBAccessor {
                     let infra = CGWDBInfra::from(x);
                     list.push(infra);
                 }
-                return Some(list);
+                Some(list)
             }
-            Err(_e) => {
-                return None;
-            }
+            Err(_e) => None,
         }
     }
 }

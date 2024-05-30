@@ -16,23 +16,11 @@ pub struct CGWDevicesCacheIterMutable<'a> {
     iter: hash_map::IterMut<'a, MacAddress, CGWDevice>,
 }
 
-pub struct CGWDevicesCacheIterImmutable<'a> {
-    iter: hash_map::Iter<'a, MacAddress, CGWDevice>,
-}
-
 impl<'a> Iterator for CGWDevicesCacheIterMutable<'a> {
     type Item = (&'a MacAddress, &'a mut CGWDevice);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(k, v)| (k, v))
-    }
-}
-
-impl<'a> Iterator for CGWDevicesCacheIterImmutable<'a> {
-    type Item = (&'a MacAddress, &'a CGWDevice);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(k, v)| (k, v))
+        self.iter.next()
     }
 }
 
@@ -43,47 +31,37 @@ impl CGWDevicesCache {
     }
 
     pub fn add_device(&mut self, key: &MacAddress, value: &CGWDevice) -> bool {
-        let status: bool;
-
-        if self.check_device_exists(key) {
+        let status: bool = if self.check_device_exists(key) {
             debug!(
                 "Failed to add device {}. Requested item already exist.",
                 key
             );
-            status = false;
+            false
         } else {
-            self.cache.insert(key.clone(), value.clone());
-            status = true;
-        }
+            self.cache.insert(*key, value.clone());
+            true
+        };
 
         status
     }
 
     pub fn del_device(&mut self, key: &MacAddress) -> bool {
-        let status: bool;
-
-        if self.check_device_exists(key) {
+        let status: bool = if self.check_device_exists(key) {
             self.cache.remove(key);
-            status = true;
+            true
         } else {
             debug!(
                 "Failed to del device {}. Requested item does not exist.",
                 key
             );
-            status = false;
-        }
+            false
+        };
 
         status
     }
 
     pub fn check_device_exists(&self, key: &MacAddress) -> bool {
-        let status: bool;
-        match self.cache.get(key) {
-            Some(_) => status = true,
-            None => status = false,
-        }
-
-        status
+        self.cache.get(key).is_some()
     }
 
     pub fn get_device(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
@@ -95,22 +73,12 @@ impl CGWDevicesCache {
     }
 
     pub fn get_device_id(&self, key: &MacAddress) -> Option<i32> {
-        if let Some(value) = self.cache.get(key) {
-            Some(value.get_device_group_id())
-        } else {
-            None
-        }
+        self.cache.get(key).map(|value| value.get_device_group_id())
     }
 
     pub fn iter_mut(&mut self) -> CGWDevicesCacheIterMutable<'_> {
         CGWDevicesCacheIterMutable {
             iter: self.cache.iter_mut(),
-        }
-    }
-
-    pub fn iter(&mut self) -> CGWDevicesCacheIterImmutable<'_> {
-        CGWDevicesCacheIterImmutable {
-            iter: self.cache.iter(),
         }
     }
 

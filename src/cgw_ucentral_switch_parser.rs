@@ -3,15 +3,13 @@ use serde_json::Value;
 use std::str::FromStr;
 
 use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateLLDPData,
-    CGWUCentralEventStateLLDPDataLinks, CGWUCentralEventType, CGWUcentralJRPCMessage,
+    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClientsData,
+    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventType,
+    CGWUCentralJRPCMessage,
 };
 
-fn parse_lldp_data(
-    data: &Value,
-    upstream_port: Option<String>,
-) -> Vec<CGWUCentralEventStateLLDPDataLinks> {
-    let mut links: Vec<CGWUCentralEventStateLLDPDataLinks> = Vec::new();
+fn parse_lldp_data(data: &Value, upstream_port: Option<String>) -> Vec<CGWUCentralEventStateLinks> {
+    let mut links: Vec<CGWUCentralEventStateLinks> = Vec::new();
 
     if let Value::Object(map) = data {
         let directions = [
@@ -24,7 +22,7 @@ fn parse_lldp_data(
                 let data = value.as_array().unwrap()[0].as_object().unwrap();
 
                 let local_port = key.to_string();
-                let remote_mac = MacAddress::from_str(data["mac"].as_str().unwrap()).unwrap();
+                let remote_serial = MacAddress::from_str(data["mac"].as_str().unwrap()).unwrap();
                 let remote_port = data["port"].as_str().unwrap().to_string();
                 let is_downstream: bool = {
                     if let Some(ref port) = upstream_port {
@@ -34,9 +32,9 @@ fn parse_lldp_data(
                     }
                 };
 
-                links.push(CGWUCentralEventStateLLDPDataLinks {
+                links.push(CGWUCentralEventStateLinks {
                     local_port,
-                    remote_mac,
+                    remote_serial,
                     remote_port,
                     is_downstream,
                 });
@@ -49,8 +47,9 @@ fn parse_lldp_data(
 
 pub fn cgw_ucentral_switch_parse_message(
     message: &String,
+    timestamp: i64,
 ) -> Result<CGWUCentralEvent, &'static str> {
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(message) {
+    let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");
@@ -90,10 +89,12 @@ pub fn cgw_ucentral_switch_parse_message(
             if let Value::Object(state_map) = &params["state"] {
                 let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
                 let mut upstream_port: Option<String> = None;
-                if let Value::Array(default_gw) = &state_map["default-gateway"] {
-                    if let Some(gw) = default_gw.get(0) {
-                        if let Value::String(port) = &gw["out-port"] {
-                            upstream_port = Some(port.as_str().to_string());
+                if state_map.contains_key("default-gateway") {
+                    if let Value::Array(default_gw) = &state_map["default-gateway"] {
+                        if let Some(gw) = default_gw.get(0) {
+                            if let Value::String(port) = &gw["out-port"] {
+                                upstream_port = Some(port.as_str().to_string());
+                            }
                         }
                     }
                 }
@@ -101,10 +102,12 @@ pub fn cgw_ucentral_switch_parse_message(
                 let state_event = CGWUCentralEvent {
                     serial,
                     evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
+                        timestamp,
+                        local_mac: serial,
                         lldp_data: CGWUCentralEventStateLLDPData {
-                            local_mac: serial,
                             links: parse_lldp_data(&state_map["lldp-peers"], upstream_port),
                         },
+                        clients_data: CGWUCentralEventStateClientsData { links: Vec::new() },
                     }),
                 };
 

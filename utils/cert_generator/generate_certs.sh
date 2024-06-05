@@ -50,10 +50,10 @@ gen_cert()
 	local key=$3
 	local cert=$4
 	# generate key and request to sign
-	openssl req -config $CONF_FILE -x509 -nodes -newkey rsa:4096 -sha512 -days 365 \
+	openssl req -config $CONF_FILE -x509 -nodes -newkey rsa:4096 -sha256 -days 365 \
 		-extensions $type -subj "/CN=$cn" -out $req_file -keyout $key &> /dev/null
 	# sign certificate
-	openssl x509 -extfile $CONF_FILE -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -sha512 -days 365 \
+	openssl x509 -extfile $CONF_FILE -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -sha256 -days 365 \
 		-in $req_file -out $pem
 	if [ $? == "0" ]
 	then
@@ -133,7 +133,7 @@ if [ "$GEN_CA" == "y" ]
 then
 	echo Generating root CA certificate
 	mkdir -p $CA_DIR
-	openssl req -config $CONF_FILE -x509 -nodes -newkey rsa:4096 -sha512 -days 365 \
+	openssl req -config $CONF_FILE -x509 -nodes -newkey rsa:4096 -sha256 -days 365 \
 		-extensions ca -subj "/CN=CA" -out $CA_CERT -keyout $CA_KEY &> /dev/null
 fi
 

@@ -11,7 +11,7 @@ use crate::{
     cgw_ucentral_switch_parser::cgw_ucentral_switch_parse_message,
 };
 
-pub type CGWUcentralJRPCMessage = Map<String, Value>;
+pub type CGWUCentralJRPCMessage = Map<String, Value>;
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventLog {
@@ -37,34 +37,84 @@ pub struct CGWUCentralEventConnect {
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
-pub struct CGWUCentralEventStateLLDPDataLinks {
+pub struct CGWUCentralEventStateLinks {
     pub local_port: String,
     #[serde(skip)]
-    pub remote_mac: MacAddress,
+    pub remote_serial: MacAddress,
+    pub remote_port: String,
+    pub is_downstream: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum CGWUCentralEventStateClientsType {
+    Wired(i64),
+    // Ssid, Band
+    Wireless(i64, String, String),
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct CGWUCentralEventStateClients {
+    pub client_type: CGWUCentralEventStateClientsType,
+    pub local_port: String,
+    #[serde(skip)]
+    pub remote_serial: MacAddress,
     pub remote_port: String,
     pub is_downstream: bool,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLLDPData {
-    // Parsed State LLDP data:
-    // mac address of the device reporting the LLDP data
-    #[serde(skip)]
-    pub local_mac: MacAddress,
-
     // links reported by the device:
-    // local port, remote mac, remote port
-    pub links: Vec<CGWUCentralEventStateLLDPDataLinks>,
+    pub links: Vec<CGWUCentralEventStateLinks>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct CGWUCentralEventStateClientsData {
+    // links reported by the device (wired and wireless):
+    pub links: Vec<CGWUCentralEventStateClients>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventState {
+    // mac address of the device reporting the state evt
+    pub local_mac: MacAddress,
+    pub timestamp: i64,
     pub lldp_data: CGWUCentralEventStateLLDPData,
+    pub clients_data: CGWUCentralEventStateClientsData,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventReply {
     pub id: u64,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct CGWUCentralEventRealtimeEventWClientJoin {
+    pub client: MacAddress,
+    pub band: String,
+    pub ssid: String,
+    pub rssi: i64,
+    pub channel: u64,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct CGWUCentralEventRealtimeEventWClientLeave {
+    pub client: MacAddress,
+    pub band: String,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+pub enum CGWUCentralEventRealtimeEventType {
+    WirelessClientJoin(CGWUCentralEventRealtimeEventWClientJoin),
+    WirelessClientLeave(CGWUCentralEventRealtimeEventWClientLeave),
+    #[default]
+    None,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct CGWUCentralEventRealtimeEvent {
+    pub evt_type: CGWUCentralEventRealtimeEventType,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -83,6 +133,7 @@ pub enum CGWUCentralEventType {
     Ping,
     Recovery,
     VenueBroadcast,
+    RealtimeEvent(CGWUCentralEventRealtimeEvent),
     Reply(CGWUCentralEventReply),
 }
 
@@ -180,7 +231,7 @@ pub fn cgw_ucentral_parse_connect_event(
         return Err("Message to string cast failed");
     };
 
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(&msg) {
+    let map: CGWUCentralJRPCMessage = match serde_json::from_str(&msg) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");
@@ -230,7 +281,7 @@ pub fn cgw_ucentral_parse_connect_event(
 pub fn cgw_ucentral_parse_command_message(
     message: &String,
 ) -> Result<CGWUCentralCommand, &'static str> {
-    let map: CGWUcentralJRPCMessage = match serde_json::from_str(message) {
+    let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");
@@ -282,9 +333,10 @@ pub fn cgw_ucentral_parse_command_message(
 pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
     message: &String,
+    timestamp: i64,
 ) -> Result<CGWUCentralEvent, &'static str> {
     match device_type {
-        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(&message),
-        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(&message),
+        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(&message, timestamp),
+        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(&message, timestamp),
     }
 }

@@ -7,7 +7,7 @@ use crate::cgw_ucentral_messages_queue_manager::{
 };
 use crate::cgw_ucentral_parser::{cgw_ucentral_parse_command_message, CGWUCentralCommand};
 use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
-use crate::cgw_ucentral_topology_map::CGWUcentralTopologyMap;
+use crate::cgw_ucentral_topology_map::CGWUCentralTopologyMap;
 use crate::AppArgs;
 
 use crate::{
@@ -1025,7 +1025,7 @@ impl CGWConnectionServer {
                         );
                     }
 
-                    let topo_map = CGWUcentralTopologyMap::get_ref();
+                    let topo_map = CGWUCentralTopologyMap::get_ref();
                     topo_map.insert_device(&device_mac).await;
                     topo_map.debug_dump_map().await;
 
@@ -1061,7 +1061,7 @@ impl CGWConnectionServer {
                         devices_cache.dump_devices_cache();
                     }
 
-                    let topo_map = CGWUcentralTopologyMap::get_ref();
+                    let topo_map = CGWUCentralTopologyMap::get_ref();
                     topo_map.remove_device(&device_mac).await;
                     topo_map.debug_dump_map().await;
 

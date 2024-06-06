@@ -1,6 +1,7 @@
 use crate::AppArgs;
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
+use crate::cgw_errors::Result;
 
 use futures::stream::TryStreamExt;
 use rdkafka::client::ClientContext;
@@ -89,12 +90,12 @@ struct CGWCNCConsumer {
 }
 
 impl CGWCNCConsumer {
-    pub fn new(app_args: &AppArgs) -> Self {
-        let consum: CGWCNCConsumerType = Self::create_consumer(app_args);
-        CGWCNCConsumer { c: consum }
+    pub fn new(app_args: &AppArgs) -> Result<Self> {
+        let consum: CGWCNCConsumerType = Self::create_consumer(app_args)?;
+        Ok(CGWCNCConsumer { c: consum })
     }
 
-    fn create_consumer(app_args: &AppArgs) -> CGWCNCConsumerType {
+    fn create_consumer(app_args: &AppArgs) -> Result<CGWCNCConsumerType> {
         let context = CustomContext;
 
         debug!(
@@ -120,41 +121,38 @@ impl CGWCNCConsumer {
             //.set("statistics.interval.ms", "30000")
             //.set("auto.offset.reset", "smallest")
             .set_log_level(RDKafkaLogLevel::Debug)
-            .create_with_context(context)
-            .expect("Consumer creation failed");
+            .create_with_context(context)?;
 
-        consumer
-            .subscribe(&CONSUMER_TOPICS)
-            .expect("Failed to subscribe to {CONSUMER_TOPICS} topics");
+        consumer.subscribe(&CONSUMER_TOPICS)?;
 
         info!("Connected to kafka broker");
 
-        consumer
+        Ok(consumer)
     }
 }
 
 impl CGWCNCProducer {
-    pub fn new(app_args: &AppArgs) -> Self {
-        let prod: CGWCNCProducerType = Self::create_producer(app_args);
-        CGWCNCProducer { p: prod }
+    pub fn new(app_args: &AppArgs) -> Result<Self> {
+        let prod: CGWCNCProducerType = Self::create_producer(app_args)?;
+        Ok(CGWCNCProducer { p: prod })
     }
 
-    fn create_producer(app_args: &AppArgs) -> CGWCNCProducerType {
+    fn create_producer(app_args: &AppArgs) -> Result<CGWCNCProducerType> {
         let producer: FutureProducer = ClientConfig::new()
             .set(
                 "bootstrap.servers",
                 app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
             )
             .set("message.timeout.ms", "5000")
-            .create()
-            .expect("Producer creation error");
+            .create()?;
 
         debug!(
             "(producer) Trying to connect to kafka broker ({}:{})...",
             app_args.kafka_ip.to_string(),
             app_args.kafka_port.to_string()
         );
-        producer
+
+        Ok(producer)
     }
 }
 
@@ -167,22 +165,22 @@ pub struct CGWNBApiClient {
 }
 
 impl CGWNBApiClient {
-    pub fn new(app_args: &AppArgs, cgw_tx: &CGWConnectionServerMboxTx) -> Arc<Self> {
+    pub fn new(app_args: &AppArgs, cgw_tx: &CGWConnectionServerMboxTx) -> Result<Arc<Self>> {
         let working_runtime_h = Builder::new_multi_thread()
             .worker_threads(1)
             .thread_name("cgw-nb-api-l")
-            .thread_stack_size(1 * 1024 * 1024)
+            .thread_stack_size(1024 * 1024)
             .enable_all()
-            .build()
-            .unwrap();
+            .build()?;
+
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(app_args),
+            prod: CGWCNCProducer::new(app_args)?,
         });
 
         let cl_clone = cl.clone();
-        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(app_args);
+        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(app_args)?;
         cl.working_runtime_handle.spawn(async move {
             loop {
                 let cl_clone = cl_clone.clone();
@@ -225,7 +223,7 @@ impl CGWNBApiClient {
             }
         });
 
-        cl
+        Ok(cl)
     }
 
     pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {

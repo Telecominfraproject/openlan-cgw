@@ -1,6 +1,7 @@
 use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
+    cgw_errors::{Error, Result},
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
         MESSAGE_TIMEOUT_DURATION,
@@ -43,7 +44,9 @@ pub enum CGWConnectionProcessorReqMsg {
 enum CGWConnectionState {
     IsActive,
     IsForcedToClose,
+    #[allow(dead_code)]
     IsDead,
+    #[allow(dead_code)]
     IsStale,
     ClosedGracefully,
 }
@@ -56,7 +59,7 @@ enum CGWUCentralMessageProcessorState {
 
 pub struct CGWConnectionProcessor {
     cgw_server: Arc<CGWConnectionServer>,
-    pub serial: Option<MacAddress>,
+    pub serial: MacAddress,
     pub addr: SocketAddr,
     pub idx: i64,
 }
@@ -65,7 +68,7 @@ impl CGWConnectionProcessor {
     pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server,
-            serial: None,
+            serial: MacAddress::default(),
             addr,
             idx: conn_idx,
         };
@@ -78,10 +81,8 @@ impl CGWConnectionProcessor {
         tls_stream: TlsStream<TcpStream>,
         client_cn: MacAddress,
         allow_mismatch: bool,
-    ) {
-        let ws_stream = tokio_tungstenite::accept_async(tls_stream)
-            .await
-            .expect("error during the websocket handshake occurred");
+    ) -> Result<()> {
+        let ws_stream = tokio_tungstenite::accept_async(tls_stream).await?;
 
         let (sink, mut stream) = ws_stream.split();
 
@@ -95,14 +96,14 @@ impl CGWConnectionProcessor {
                     Some(m) => m,
                     None => {
                         error!("no connect message received from {}, closing connection", self.addr);
-                        return;
+                        return Err(Error::ConnectionProcessor("No connect message received"));
                     }
                 }
             }
             // TODO: configurable duration (upon server creation)
             _val = sleep(Duration::from_millis(30000)) => {
                 error!("no message received from {}, closing connection", self.addr);
-                return;
+                return Err(Error::ConnectionProcessor("No message receive for too long"));
             }
         };
 
@@ -114,7 +115,9 @@ impl CGWConnectionProcessor {
                 error!(
                     "established connection with device, but failed to receive any messages\n{e}"
                 );
-                return;
+                return Err(Error::ConnectionProcessor(
+                    "Established connection with device, but failed to receive any messages",
+                ));
             }
         };
 
@@ -129,7 +132,9 @@ impl CGWConnectionProcessor {
                     "failed to recv connect message from {}, closing connection",
                     self.addr
                 );
-                return;
+                return Err(Error::ConnectionProcessor(
+                    "Failed to receive connect message",
+                ));
             }
         };
 
@@ -140,7 +145,9 @@ impl CGWConnectionProcessor {
                     evt.serial.to_hex_string(),
                     client_cn.to_hex_string()
                 );
-                return;
+                return Err(Error::ConnectionProcessor(
+                    "Client certificate CN check failed",
+                ));
             } else {
                 debug!(
                     "The client MAC address {} and clinet certificate CN {} chech passed!",
@@ -168,8 +175,8 @@ impl CGWConnectionProcessor {
             ),
         }
 
-        self.serial = Some(evt.serial);
-        let device_type = CGWDeviceType::from_str(caps.platform.as_str()).unwrap();
+        self.serial = evt.serial;
+        let device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
 
         // Check if device queue already exist
         // If yes - it could mean that we have device reconnection event
@@ -207,25 +214,31 @@ impl CGWConnectionProcessor {
                         self.addr, evt.serial
                     );
                 }
-                _ => panic!("Unexpected response from server, expected ACK/NOT ACK)"),
+                _ => {
+                    return Err(Error::ConnectionProcessor(
+                        "Unexpected response from server, expected ACK/NOT ACK)",
+                    ));
+                }
             }
         } else {
             info!("connection server declined connection, websocket connection {} {} cannot be established",
                   self.addr, evt.serial);
-            return;
+            return Err(Error::ConnectionProcessor("Websocker connection declined"));
         }
 
         self.process_connection(stream, sink, mbox_rx, device_type)
             .await;
+
+        Ok(())
     }
 
     async fn process_wss_rx_msg(
         &self,
-        msg: Result<Message, tungstenite::error::Error>,
+        msg: std::result::Result<Message, tungstenite::error::Error>,
         device_type: CGWDeviceType,
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
-    ) -> Result<CGWConnectionState, &'static str> {
+    ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
         let timestamp = Local::now();
@@ -258,10 +271,7 @@ impl CGWConnectionProcessor {
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(
-                            self.serial.unwrap(),
-                            payload,
-                        );
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.serial, payload)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -269,12 +279,13 @@ impl CGWConnectionProcessor {
                 }
                 _ => {}
             },
-            Err(e) => match e {
-                tungstenite::error::Error::AlreadyClosed => {
-                    return Err("Underlying connection's been closed");
+            Err(e) => {
+                if let tungstenite::error::Error::AlreadyClosed = e {
+                    return Err(Error::ConnectionProcessor(
+                        "Underlying connection's been closed",
+                    ));
                 }
-                _ => {}
-            },
+            }
         }
 
         Ok(CGWConnectionState::IsActive)
@@ -284,9 +295,9 @@ impl CGWConnectionProcessor {
         &self,
         sink: &mut SSink,
         val: Option<CGWConnectionProcessorReqMsg>,
-    ) -> Result<CGWConnectionState, &str> {
+    ) -> Result<CGWConnectionState> {
         if let Some(msg) = val {
-            let processor_mac = self.serial.unwrap();
+            let processor_mac = self.serial;
             match msg {
                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose => {
                     debug!("MBOX_IN: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
@@ -299,7 +310,11 @@ impl CGWConnectionProcessor {
                     );
                     sink.send(Message::text(pload.message)).await.ok();
                 }
-                _ => panic!("Unexpected message received {:?}", msg),
+                _ => {
+                    return Err(Error::ConnectionProcessor(
+                        "Sink MBOX: received unexpected message",
+                    ));
+                }
             }
         }
         Ok(CGWConnectionState::IsActive)
@@ -308,7 +323,7 @@ impl CGWConnectionProcessor {
     async fn process_stale_connection_msg(
         &self,
         _last_contact: Instant,
-    ) -> Result<CGWConnectionState, &str> {
+    ) -> Result<CGWConnectionState> {
         // TODO: configurable duration (upon server creation)
         /*
         if Instant::now().duration_since(last_contact) > Duration::from_secs(70) {
@@ -334,12 +349,12 @@ impl CGWConnectionProcessor {
         #[derive(Debug)]
         enum WakeupReason {
             Unspecified,
-            WSSRxMsg(Result<Message, tungstenite::error::Error>),
+            WSSRxMsg(std::result::Result<Message, tungstenite::error::Error>),
             MboxRx(Option<CGWConnectionProcessorReqMsg>),
             Stale,
         }
 
-        let device_mac = self.serial.unwrap();
+        let device_mac = self.serial;
         let mut pending_req_id: u64 = 0;
         let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
@@ -349,7 +364,10 @@ impl CGWConnectionProcessor {
         // 2. Get last request id
         // 3. Update values
         let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-        let last_req_id = queue_lock.get_device_last_request_id(&device_mac).await;
+        let last_req_id = queue_lock
+            .get_device_last_request_id(&device_mac)
+            .await
+            .unwrap_or_default();
         if last_req_id != 0 {
             pending_req_id = last_req_id;
             fsm_state = CGWUCentralMessageProcessorState::ResultPending;
@@ -361,54 +379,49 @@ impl CGWConnectionProcessor {
 
             if let Some(val) = mbox_rx.recv().now_or_never() {
                 wakeup_reason = WakeupReason::MboxRx(val);
-            } else {
-                if fsm_state == CGWUCentralMessageProcessorState::Idle {
-                    match queue_lock.get_device_queue_state(&device_mac).await {
-                        CGWUCentralMessagesQueueState::RxTx => {
-                            // Check if message Queue is not empty
-                            if let Some(queue_msg) =
-                                queue_lock.dequeue_device_message(&device_mac).await
-                            {
-                                // Get message from queue, start measure requet processing time
-                                start_time = Instant::now();
-                                pending_req_id = queue_msg.command.id;
-                                pending_req_type = queue_msg.command.cmd_type.clone();
-                                wakeup_reason = WakeupReason::MboxRx(Some(
-                                    CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
-                                ));
+            } else if fsm_state == CGWUCentralMessageProcessorState::Idle {
+                if let CGWUCentralMessagesQueueState::RxTx =
+                    queue_lock.get_device_queue_state(&device_mac).await
+                {
+                    // Check if message Queue is not empty
+                    if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
+                        // Get message from queue, start measure requet processing time
+                        start_time = Instant::now();
+                        pending_req_id = queue_msg.command.id;
+                        pending_req_type = queue_msg.command.cmd_type.clone();
+                        wakeup_reason = WakeupReason::MboxRx(Some(
+                            CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
+                        ));
 
-                                // Set new pending request timeout value
-                                queue_lock
-                                    .set_device_last_req_info(
-                                        &device_mac,
-                                        pending_req_id,
-                                        MESSAGE_TIMEOUT_DURATION,
-                                    )
-                                    .await;
+                        // Set new pending request timeout value
+                        queue_lock
+                            .set_device_last_req_info(
+                                &device_mac,
+                                pending_req_id,
+                                MESSAGE_TIMEOUT_DURATION,
+                            )
+                            .await;
 
-                                debug!("Got pending request with id: {}", pending_req_id);
-                                if pending_req_type == CGWUCentralCommandType::Factory
-                                    || pending_req_type == CGWUCentralCommandType::Upgrade
-                                {
-                                    queue_lock
-                                        .set_device_queue_state(
-                                            &device_mac,
-                                            CGWUCentralMessagesQueueState::Discard,
-                                        )
-                                        .await;
-                                } else if pending_req_type == CGWUCentralCommandType::Reboot {
-                                    queue_lock
-                                        .set_device_queue_state(
-                                            &device_mac,
-                                            CGWUCentralMessagesQueueState::Rx,
-                                        )
-                                        .await;
-                                }
-
-                                fsm_state = CGWUCentralMessageProcessorState::ResultPending;
-                            }
+                        debug!("Got pending request with id: {}", pending_req_id);
+                        if pending_req_type == CGWUCentralCommandType::Factory
+                            || pending_req_type == CGWUCentralCommandType::Upgrade
+                        {
+                            queue_lock
+                                .set_device_queue_state(
+                                    &device_mac,
+                                    CGWUCentralMessagesQueueState::Discard,
+                                )
+                                .await;
+                        } else if pending_req_type == CGWUCentralCommandType::Reboot {
+                            queue_lock
+                                .set_device_queue_state(
+                                    &device_mac,
+                                    CGWUCentralMessagesQueueState::Rx,
+                                )
+                                .await;
                         }
-                        _ => {}
+
+                        fsm_state = CGWUCentralMessageProcessorState::ResultPending;
                     }
                 }
             }
@@ -419,7 +432,7 @@ impl CGWConnectionProcessor {
                         if let Ok(msg) = res {
                             wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
                         } else if let Err(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Result::Err(msg));
+                            wakeup_reason = WakeupReason::WSSRxMsg(std::result::Result::Err(msg));
                         }
                     }
                 } else {
@@ -462,14 +475,14 @@ impl CGWConnectionProcessor {
                 }
                 WakeupReason::Stale => self.process_stale_connection_msg(last_contact).await,
                 _ => {
-                    panic!("Failed to get wakeup reason for {} conn", self.addr);
+                    error!("Failed to get wakeup reason for {} conn", self.addr);
+                    return;
                 }
             };
 
-            let device_mac = self.serial.unwrap();
             match rc {
                 Err(e) => {
-                    warn!("{}", e);
+                    warn!("{:?}", e);
                     break;
                 }
                 Ok(state) => {
@@ -483,13 +496,13 @@ impl CGWConnectionProcessor {
                     } else if let CGWConnectionState::ClosedGracefully = state {
                         warn!(
                             "Remote client {} closed connection gracefully",
-                            device_mac.to_hex_string()
+                            self.serial.to_hex_string()
                         );
                         break;
                     } else if let CGWConnectionState::IsStale = state {
                         warn!(
                             "Remote client {} closed due to inactivity",
-                            device_mac.to_hex_string()
+                            self.serial.to_hex_string()
                         );
                         break;
                     }
@@ -497,13 +510,13 @@ impl CGWConnectionProcessor {
             }
         }
 
-        let msg = CGWConnectionServerReqMsg::ConnectionClosed(device_mac);
+        let msg = CGWConnectionServerReqMsg::ConnectionClosed(self.serial);
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;
         debug!(
             "MBOX_OUT: ConnectionClosed, processor (mac:{})",
-            device_mac.to_hex_string()
+            self.serial.to_hex_string()
         );
     }
 }

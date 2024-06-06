@@ -4,6 +4,7 @@ mod cgw_connection_server;
 mod cgw_db_accessor;
 mod cgw_device;
 mod cgw_devices_cache;
+mod cgw_errors;
 mod cgw_metrics;
 mod cgw_nb_api_listener;
 mod cgw_remote_client;
@@ -28,13 +29,8 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use tokio_rustls::{
-    rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
-    TlsAcceptor,
-};
-
 use std::{
-    env, io,
+    env,
     net::{Ipv4Addr, SocketAddr},
     str::FromStr,
     sync::Arc,
@@ -48,7 +44,9 @@ use cgw_remote_server::CGWRemoteServer;
 
 use cgw_metrics::CGWMetrics;
 
-use crate::cgw_tls::{cgw_tls_read_certs, cgw_tls_read_private_key};
+use cgw_tls::cgw_tls_create_acceptor;
+
+use crate::cgw_errors::{Error, Result};
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -61,7 +59,7 @@ enum AppCoreLogLevel {
 impl FromStr for AppCoreLogLevel {
     type Err = ();
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             "debug" => Ok(AppCoreLogLevel::Debug),
             "info" => Ok(AppCoreLogLevel::Info),
@@ -92,8 +90,6 @@ const CGW_DEFAULT_DB_PASSWORD: &str = "123";
 const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
-
-const CGW_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
 
 /// CGW server
 pub struct AppArgs {
@@ -274,44 +270,43 @@ pub struct AppCore {
 }
 
 impl AppCore {
-    async fn new(app_args: AppArgs) -> Self {
-        Self::setup_app(&app_args);
+    async fn new(app_args: AppArgs) -> Result<Self> {
+        Self::setup_app(&app_args)?;
         let current_runtime = Arc::new(Handle::current());
 
+        let stack_size: usize = 1024 * 1024;
         let c_ack_runtime_handle = Arc::new(
             Builder::new_multi_thread()
                 .worker_threads(1)
                 .thread_name("cgw-c-ack")
-                .thread_stack_size(1 * 1024 * 1024)
+                .thread_stack_size(stack_size)
                 .enable_all()
-                .build()
-                .unwrap(),
+                .build()?,
         );
         let rpc_runtime_handle = Arc::new(
             Builder::new_multi_thread()
                 .worker_threads(1)
                 .thread_name("grpc-recv-t")
-                .thread_stack_size(1 * 1024 * 1024)
+                .thread_stack_size(stack_size)
                 .enable_all()
-                .build()
-                .unwrap(),
+                .build()?,
         );
-        let app_core = AppCore {
-            cgw_server: CGWConnectionServer::new(&app_args).await,
+
+        Ok(AppCore {
+            cgw_server: CGWConnectionServer::new(&app_args).await?,
             main_runtime_handle: current_runtime,
             conn_ack_runtime_handle: c_ack_runtime_handle,
             args: app_args,
             grpc_server_runtime_handle: rpc_runtime_handle,
-        };
-        app_core
+        })
     }
 
-    fn setup_app(args: &AppArgs) {
-        let nofile_rlimit = Resource::NOFILE.get().unwrap();
+    fn setup_app(args: &AppArgs) -> Result<()> {
+        let nofile_rlimit = Resource::NOFILE.get()?;
         println!("{:?}", nofile_rlimit);
         let nofile_hard_limit = nofile_rlimit.1;
         assert!(setrlimit(Resource::NOFILE, nofile_hard_limit, nofile_hard_limit).is_ok());
-        let nofile_rlimit = Resource::NOFILE.get().unwrap();
+        let nofile_rlimit = Resource::NOFILE.get()?;
         println!("{:?}", nofile_rlimit);
 
         match args.log_level {
@@ -319,6 +314,8 @@ impl AppCore {
             AppCoreLogLevel::Info => ::std::env::set_var("RUST_LOG", "ucentral_cgw=info"),
         }
         env_logger::init();
+
+        Ok(())
     }
 
     async fn run(self: Arc<AppCore>) {
@@ -343,8 +340,7 @@ impl AppCore {
     }
 }
 
-// TODO: a method of an object (TlsAcceptor? CGWConnectionServer?), not a plain function
-async fn server_loop(app_core: Arc<AppCore>) -> () {
+async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     debug!("sever_loop entry");
 
     debug!(
@@ -358,43 +354,14 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
     );
     let listener: Arc<TcpListener> = match TcpListener::bind(sockaddraddr).await {
         Ok(listener) => Arc::new(listener),
-        Err(e) => panic!("listener bind failed {e}"),
+        Err(_) => return Err(Error::Other("listener bind failed")),
     };
 
     info!("Started WSS server.");
 
-    // Read root/issuer certs.
-    let cas_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cas);
-    let cas = cgw_tls_read_certs(cas_path.as_str()).await.unwrap();
+    let tls_acceptor = cgw_tls_create_acceptor(&app_core.args).await?;
 
-    // Read cert.
-    let cert_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_cert);
-    let mut cert = cgw_tls_read_certs(cert_path.as_str()).await.unwrap();
-    cert.extend(cas.clone());
-
-    // Read private key.
-    let key_path = format!("{}/{}", CGW_CERTIFICATES_PATH, app_core.args.wss_key);
-    let key = cgw_tls_read_private_key(key_path.as_str()).await.unwrap();
-
-    // Create the client certs verifier.
-    let mut roots = RootCertStore::empty();
-    roots.add_parsable_certificates(cas);
-
-    let client_verifier = WebPkiClientVerifier::builder(Arc::new(roots))
-        .build()
-        .unwrap();
-
-    // Create server config.
-    let config = ServerConfig::builder()
-        .with_client_cert_verifier(client_verifier)
-        .with_single_cert(cert, key)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))
-        .unwrap();
-
-    // Create the TLS acceptor.
-    let tls_acceptor = TlsAcceptor::from(Arc::new(config));
-
-    CGWMetrics::get_ref().start(&app_core.args).await;
+    CGWMetrics::get_ref().start(&app_core.args).await?;
 
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
@@ -417,9 +384,6 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
                     }
                 };
 
-                // TODO: we control tls_acceptor, thus at this stage it's our responsibility
-                // to provide underlying certificates common name inside the ack_connection func
-                // (CN == mac address of device)
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone
                         .ack_connection(socket, tls_acceptor_clone, remote_addr, conn_idx)
@@ -430,12 +394,16 @@ async fn server_loop(app_core: Arc<AppCore>) -> () {
             }
         })
         .await;
+
+    Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() {
+async fn main() -> Result<()> {
     let args = AppArgs::parse();
-    let app = Arc::new(AppCore::new(args).await);
+    let app = Arc::new(AppCore::new(args).await?);
 
     app.run().await;
+
+    Ok(())
 }

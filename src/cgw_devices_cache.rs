@@ -83,14 +83,14 @@ impl CGWDevicesCache {
     }
 
     pub fn dump_devices_cache(&self) {
-        let json_output = serde_json::to_string_pretty(&self).unwrap();
-        let file_path: String = "/var/devices_cache.json".to_string();
+        // Debug print - simply ignore errors if any!
+        if let Ok(json_output) = serde_json::to_string_pretty(&self) {
+            debug!("Cache: {}", json_output);
 
-        debug!("Cache: {}", json_output);
-
-        let mut fd = File::create(file_path).expect("Failed to create dump file!");
-        fd.write_all(json_output.as_bytes())
-            .expect("Failed to write dump!");
+            if let Ok(mut fd) = File::create("/var/devices_cache.json") {
+                let _ = fd.write_all(json_output.as_bytes());
+            }
+        };
     }
 }
 

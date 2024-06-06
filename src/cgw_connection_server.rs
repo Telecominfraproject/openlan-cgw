@@ -1,12 +1,17 @@
 use crate::cgw_device::{
-    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, OldNew,
+    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState,
+};
+use crate::cgw_nb_api_listener::{
+    cgw_construct_device_capabilities_changed_msg, cgw_construct_device_enqueue_response,
+    cgw_construct_infra_group_create_response, cgw_construct_infra_group_delete_response,
+    cgw_construct_infra_group_device_add_response, cgw_construct_infra_group_device_del_response,
+    cgw_construct_rebalance_group_response,
 };
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
     CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
 };
 use crate::cgw_ucentral_parser::{cgw_ucentral_parse_command_message, CGWUCentralCommand};
-use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWDeviceChangedData, CGWToNBMessageType};
 use crate::cgw_ucentral_topology_map::CGWUCentralTopologyMap;
 use crate::AppArgs;
 
@@ -319,33 +324,6 @@ impl CGWConnectionServer {
         let _ = self.mbox_relayed_messages_handle.send(msg);
     }
 
-    // TODO: rename to something like: cgw_construct_device_caps_change_msg
-    fn cgw_create_device_update_msg_to_nb(
-        &self,
-        device_mac: &MacAddress,
-        group_id: i32,
-        diff: &HashMap<String, OldNew>,
-    ) -> Result<String> {
-        let mut vec_changes: Vec<CGWDeviceChange> = Vec::new();
-
-        for (name, values) in diff.iter() {
-            vec_changes.push(CGWDeviceChange {
-                changed: name.clone(),
-                old: values.old_value.clone(),
-                new: values.new_value.clone(),
-            });
-        }
-
-        let msg_str = CGWDeviceChangedData {
-            msg_type: CGWToNBMessageType::InfrastructureDeviceCapabilitiesChanged,
-            infra_group_id: group_id.to_string(),
-            infra_group_infra_device: *device_mac,
-            changes: vec_changes,
-        };
-
-        Ok(serde_json::to_string(&msg_str)?)
-    }
-
     fn parse_nbapi_msg(&self, pload: &str) -> Option<CGWNBApiParsedMsg> {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreate {
@@ -579,20 +557,25 @@ impl CGWConnectionServer {
                     };
                     match self.cgw_remote_discovery.create_infra_group(&group).await {
                         Ok(_dst_cgw_id) => {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            let resp = cgw_construct_infra_group_create_response(
                                 gid,
-                                format!(
-                                    "Group has been created successfully gid {gid}, uuid {uuid}"
-                                ),
-                            );
+                                String::default(),
+                                uuid,
+                                true,
+                                None,
+                            )?;
+
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                         }
-                        Err(_e) => {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!(
-                                        "Failed to create new group (duplicate create?), gid {gid}, uuid {uuid}"
-                                    ),
-                                );
+                        Err(e) => {
+                            let resp = cgw_construct_infra_group_create_response(
+                                gid,
+                                String::default(),
+                                uuid,
+                                false,
+                                Some(format!("Failed to create new group: {:?}", e)),
+                            )?;
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                             warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
                         }
                     }
@@ -612,17 +595,19 @@ impl CGWConnectionServer {
                         .await
                     {
                         Ok(()) => {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                gid,
-                                format!(
-                                    "Group has been destroyed successfully gid {gid}, uuid {uuid}"
-                                ),
-                            );
+                            let resp =
+                                cgw_construct_infra_group_delete_response(gid, uuid, true, None)?;
+
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                         }
-                        Err(_e) => {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    gid,
-                                    format!("Failed to destroy group (doesn't exist?), gid {gid}, uuid {uuid}"));
+                        Err(e) => {
+                            let resp = cgw_construct_infra_group_delete_response(
+                                gid,
+                                uuid,
+                                false,
+                                Some(format!("Failed to delete group: {:?}", e)),
+                            )?;
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                             warn!("Destroy group gid {gid} received, but it does not exist");
                         }
                     }
@@ -661,13 +646,15 @@ impl CGWConnectionServer {
                         }
                     }
                     None => {
-                        warn!("Received msg for gid {gid_numeric}, while this group is unassigned to any of CGWs: rejecting");
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(
-                            gid_numeric,
-                            format!(
+                        let resp = cgw_construct_device_enqueue_response(
+                            Uuid::default(),
+                            false,
+                            Some(format!(
                                 "Received message for unknown group {gid_numeric} - unassigned?"
-                            ),
-                        );
+                            )),
+                        )?;
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid_numeric, resp);
+                        warn!("Received msg for gid {gid_numeric}, while this group is unassigned to any of CGWs: rejecting");
                     }
                 }
             }
@@ -677,19 +664,31 @@ impl CGWConnectionServer {
 
             // Future to Handle (relay) messages for remote CGW
             let relay_task_hdl = self.mbox_relay_msg_runtime_handle.spawn(async move {
-                let mut remote_cgws_map: HashMap<String, (i32, Vec<(String, String)>)> = HashMap::with_capacity(cgw_buf_prealloc_size);
+                let mut remote_cgws_map: HashMap<String, (i32, Vec<(String, String)>)> =
+                    HashMap::with_capacity(cgw_buf_prealloc_size);
 
-                while ! relayed_cgw_msg_buf.is_empty() {
+                while !relayed_cgw_msg_buf.is_empty() {
                     let msg = relayed_cgw_msg_buf.remove(0);
-                    let (dst_cgw_id, CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(key, payload, _origin)) = msg;
-                        debug!("Received MSG for remote CGW k:{}, local id {} relaying msg to remote...", key, self_clone.local_cgw_id);
-                        if let Some(v) = remote_cgws_map.get_mut(&key) {
-                            v.1.push((key, payload));
-                        } else {
-                            let mut tmp_vec: Vec<(String, String)> = Vec::with_capacity(num_of_msg_read);
-                            tmp_vec.push((key.clone(), payload));
-                            remote_cgws_map.insert(key, (dst_cgw_id, tmp_vec));
-                        }
+                    let (
+                        dst_cgw_id,
+                        CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
+                            key,
+                            payload,
+                            _origin,
+                        ),
+                    ) = msg;
+                    debug!(
+                        "Received MSG for remote CGW k:{}, local id {} relaying msg to remote...",
+                        key, self_clone.local_cgw_id
+                    );
+                    if let Some(v) = remote_cgws_map.get_mut(&key) {
+                        v.1.push((key, payload));
+                    } else {
+                        let mut tmp_vec: Vec<(String, String)> =
+                            Vec::with_capacity(num_of_msg_read);
+                        tmp_vec.push((key.clone(), payload));
+                        remote_cgws_map.insert(key, (dst_cgw_id, tmp_vec));
+                    }
                 }
 
                 for value in remote_cgws_map.into_values() {
@@ -698,10 +697,18 @@ impl CGWConnectionServer {
                     let msg_stream = value.1;
                     let self_clone = self_clone.clone();
                     tokio::spawn(async move {
-                        if (discovery_clone.relay_request_stream_to_remote_cgw(cgw_id, msg_stream).await).is_err() {
-                            self_clone.enqueue_mbox_message_from_cgw_to_nb_api(
-                                -1,
-                                format!("Failed to relay MSG stream to remote CGW{cgw_id}, UUIDs: not implemented (TODO)"));
+                        if (discovery_clone
+                            .relay_request_stream_to_remote_cgw(cgw_id, msg_stream)
+                            .await)
+                            .is_err()
+                        {
+                            let resp = cgw_construct_device_enqueue_response(
+                                Uuid::default(),
+                                false,
+                                Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
+                            )
+                            .unwrap_or_default();
+                            self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
                         }
                     });
                 }
@@ -739,30 +746,40 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
+                                let resp = cgw_construct_infra_group_device_add_response(
+                                    gid,
+                                    mac_list.clone(),
+                                    uuid,
+                                    false,
+                                    Some(format!("Failed to add infra list to nonexisting group, gid {gid}, uuid {uuid}")),
+                                )?;
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}");
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                        gid,
-                                        format!("Failed to insert MACs from infra list, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
                             let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_ifras_list(gid, mac_list, lock)
+                                .create_ifras_list(gid, mac_list.clone(), lock)
                                 .await
                             {
                                 Ok(()) => {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                            gid,
-                                            format!("Infra list has been created successfully gid {gid}, uuid {uuid}"));
+                                    let resp = cgw_construct_infra_group_device_add_response(
+                                        gid, mac_list, uuid, true, None,
+                                    )?;
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 }
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                                gid,
-                                                format!("Failed to insert few  MACs from infra list, gid {gid}, uuid {uuid}; List of failed MACs:{}",
-                                                mac_addresses.iter().map(|x| x.to_hex_string() + ",").collect::<String>()));
+                                        let resp = cgw_construct_infra_group_device_add_response(
+                                            gid,
+                                            mac_addresses,
+                                            uuid,
+                                            false,
+                                            Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
+                                        )?;
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                         warn!("Failed to create few MACs from infras list (partial create)");
                                         continue;
                                     }
@@ -780,30 +797,41 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
+                                let resp = cgw_construct_infra_group_device_del_response(
+                                    gid,
+                                    mac_list.clone(),
+                                    uuid,
+                                    false,
+                                    Some(format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist.")),
+                                )?;
+
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid}");
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                        gid,
-                                        format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
                             let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .destroy_ifras_list(gid, mac_list, lock)
+                                .destroy_ifras_list(gid, mac_list.clone(), lock)
                                 .await
                             {
                                 Ok(()) => {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                            gid,
-                                            format!("Infra list has been destroyed successfully gid {gid}, uuid {uuid}"));
+                                    let resp = cgw_construct_infra_group_device_del_response(
+                                        gid, mac_list, uuid, true, None,
+                                    )?;
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 }
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                                gid,
-                                                format!("Failed to destroy few MACs from infra list (not created?), gid {gid}, uuid {uuid}; List of failed MACs:{}",
-                                                mac_addresses.iter().map(|x| x.to_hex_string() + ",").collect::<String>()));
+                                        let resp = cgw_construct_infra_group_device_del_response(
+                                            gid,
+                                            mac_addresses,
+                                            uuid,
+                                            false,
+                                            Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
+                                        )?;
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                         warn!("Failed to destroy few MACs from infras list (partial delete)");
                                         continue;
                                     }
@@ -822,10 +850,13 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
+                                let resp = cgw_construct_device_enqueue_response(
+                                    uuid,
+                                    false,
+                                    Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist.")),
+                                )?;
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 warn!("Unexpected: tried to sink down msg to device of nonexisting group (gid {gid}, uuid {uuid}");
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                        gid,
-                                        format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist."));
                             }
 
                             // 1. Parse message from NB
@@ -849,9 +880,22 @@ impl CGWConnectionServer {
                             );
                             match self.cgw_remote_discovery.rebalance_all_groups().await {
                                 Ok(groups_res) => {
+                                    let resp = cgw_construct_rebalance_group_response(
+                                        gid, uuid, true, None,
+                                    )?;
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     debug!("Rebalancing groups completed successfully, # of rebalanced groups {groups_res}");
                                 }
-                                Err(_e) => {}
+                                Err(e) => {
+                                    let resp = cgw_construct_rebalance_group_response(
+                                        gid,
+                                        uuid,
+                                        false,
+                                        Some(format!("Failed to rebalance groups: {:?}", e)),
+                                    )?;
+
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                }
                             }
                         }
                         _ => {
@@ -972,17 +1016,15 @@ impl CGWConnectionServer {
                             cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                         match changes {
                             Some(diff) => {
-                                let new_msg = self.cgw_create_device_update_msg_to_nb(
-                                    &device_mac,
+                                let resp = cgw_construct_device_capabilities_changed_msg(
+                                    device_mac,
                                     device.get_device_group_id(),
                                     &diff,
                                 )?;
-                                debug!("CGW to NB msg: {}", new_msg.clone());
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(
                                     device.get_device_group_id(),
-                                    new_msg,
+                                    resp,
                                 );
-                                debug!("CGW to NB msg: Done!");
                             }
                             None => {
                                 debug!(
@@ -997,11 +1039,10 @@ impl CGWConnectionServer {
                         let changes = cgw_detect_device_chages(&default_caps, &caps);
                         match changes {
                             Some(diff) => {
-                                let new_msg =
-                                    self.cgw_create_device_update_msg_to_nb(&device_mac, 0, &diff)?;
-                                debug!("CGW to NB msg: {}", new_msg.clone());
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(0, new_msg);
-                                debug!("CGW to NB msg: Done!");
+                                let resp = cgw_construct_device_capabilities_changed_msg(
+                                    device_mac, 0, &diff,
+                                )?;
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
                             }
                             None => {
                                 debug!(

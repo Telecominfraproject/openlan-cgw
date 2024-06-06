@@ -1,8 +1,11 @@
+use crate::cgw_device::OldNew;
+use crate::cgw_ucentral_parser::CGWDeviceChange;
 use crate::AppArgs;
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 use crate::cgw_errors::Result;
 
+use eui48::MacAddress;
 use futures::stream::TryStreamExt;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
@@ -13,16 +16,214 @@ use rdkafka::{
     consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
     producer::{FutureProducer, FutureRecord},
 };
+use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::UnboundedSender,
     time::Duration,
 };
+use uuid::Uuid;
 
 type CGWConnectionServerMboxTx = UnboundedSender<CGWConnectionNBAPIReqMsg>;
 type CGWCNCConsumerType = StreamConsumer<CustomContext>;
 type CGWCNCProducerType = FutureProducer;
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupCreateResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_name: String,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupDeleteResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupDeviceAddResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra_devices: Vec<MacAddress>,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupDeviceDelResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra_devices: Vec<MacAddress>,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupDeviceMessageEnqueueResponse {
+    pub r#type: &'static str,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RebalanceGroupsResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupDeviceCapabilitiesChanged {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra_device: MacAddress,
+    pub changes: Vec<CGWDeviceChange>,
+}
+
+pub fn cgw_construct_infra_group_create_response(
+    infra_group_id: i32,
+    infra_name: String,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let group_create = InfraGroupCreateResponse {
+        r#type: "infrastructure_group_create",
+        infra_group_id,
+        infra_name,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&group_create)?)
+}
+
+pub fn cgw_construct_infra_group_delete_response(
+    infra_group_id: i32,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let group_delete = InfraGroupDeleteResponse {
+        r#type: "infrastructure_group_delete",
+        infra_group_id,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&group_delete)?)
+}
+
+pub fn cgw_construct_infra_group_device_add_response(
+    infra_group_id: i32,
+    infra_group_infra_devices: Vec<MacAddress>,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let dev_add = InfraGroupDeviceAddResponse {
+        r#type: "infrastructure_group_device_add_response",
+        infra_group_id,
+        infra_group_infra_devices,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&dev_add)?)
+}
+
+pub fn cgw_construct_infra_group_device_del_response(
+    infra_group_id: i32,
+    infra_group_infra_devices: Vec<MacAddress>,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let dev_del = InfraGroupDeviceDelResponse {
+        r#type: "infrastructure_group_device_del_response",
+        infra_group_id,
+        infra_group_infra_devices,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&dev_del)?)
+}
+
+pub fn cgw_construct_device_enqueue_response(
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let dev_enq_resp = InfraGroupDeviceMessageEnqueueResponse {
+        r#type: "infrastructure_group_device_message_enqueu_response",
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&dev_enq_resp)?)
+}
+
+pub fn cgw_construct_rebalance_group_response(
+    infra_group_id: i32,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let rebalanse_resp = RebalanceGroupsResponse {
+        r#type: "rebalance_groups_response",
+        infra_group_id,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&rebalanse_resp)?)
+}
+
+pub fn cgw_construct_device_capabilities_changed_msg(
+    infra_group_infra_device: MacAddress,
+    infra_group_id: i32,
+    diff: &HashMap<String, OldNew>,
+) -> Result<String> {
+    let mut changes: Vec<CGWDeviceChange> = Vec::new();
+
+    for (name, values) in diff.iter() {
+        changes.push(CGWDeviceChange {
+            changed: name.clone(),
+            old: values.old_value.clone(),
+            new: values.new_value.clone(),
+        });
+    }
+
+    let dev_cap_msg = InfraGroupDeviceCapabilitiesChanged {
+        r#type: "infrastructure_group_device_capabilities_changed",
+        infra_group_id,
+        infra_group_infra_device,
+        changes,
+    };
+
+    Ok(serde_json::to_string(&dev_cap_msg)?)
+}
 
 struct CustomContext;
 impl ClientContext for CustomContext {}

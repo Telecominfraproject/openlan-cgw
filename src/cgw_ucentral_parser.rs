@@ -152,20 +152,6 @@ pub struct CGWDeviceChange {
     pub new: String,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
-pub enum CGWToNBMessageType {
-    InfrastructureDeviceCapabilitiesChanged,
-}
-
-#[derive(Deserialize, Debug, Serialize)]
-pub struct CGWDeviceChangedData {
-    #[serde(rename = "type")]
-    pub msg_type: CGWToNBMessageType,
-    pub infra_group_id: String,
-    pub infra_group_infra_device: MacAddress,
-    pub changes: Vec<CGWDeviceChange>,
-}
-
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub enum CGWUCentralCommandType {
     Configure,

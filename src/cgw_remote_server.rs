@@ -33,7 +33,7 @@ impl Remote for CGWRemote {
     ) -> Result<Response<EnqueueResponse>, Status> {
         let mut rq_stream = request.into_inner();
         while let Some(rq) = rq_stream.next().await {
-            let rq = rq.unwrap();
+            let rq = rq?;
             self.cgw_srv
                 .enqueue_mbox_relayed_message_to_cgw_server(rq.key, rq.req)
                 .await;

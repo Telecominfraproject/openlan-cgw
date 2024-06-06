@@ -84,7 +84,6 @@ declare -x CGW_DB_IP="172.20.10.136"       # PSQL server is at xxx.136
 declare -x CGW_DB_PORT="5432"
 declare -x CGW_DB_USERNAME="cgw"           # PSQL login credentials (username) default 'cgw' will be used
 declare -x CGW_DB_PASS="123"               # PSQL login credentials (password) default '123' will be used
-declare -x CGW_DB_IP="172.20.10.136"       # PSQL server is at xxx.136
 declare -x CGW_GRPC_IP="172.20.10.153"     # local default subnet is 172.20.10.0/24
 declare -x CGW_GRPC_PORT="50051"
 declare -x CGW_ID="1"

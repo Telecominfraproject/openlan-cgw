@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+use crate::cgw_errors::{Error, Result};
+
 use crate::{
     cgw_device::CGWDeviceType, cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
     cgw_ucentral_switch_parser::cgw_ucentral_switch_parse_message,
@@ -190,7 +192,7 @@ pub enum CGWUCentralCommandType {
 impl FromStr for CGWUCentralCommandType {
     type Err = ();
 
-    fn from_str(command: &str) -> Result<Self, Self::Err> {
+    fn from_str(command: &str) -> std::result::Result<Self, Self::Err> {
         match command {
             "configure" => Ok(CGWUCentralCommandType::Configure),
             "reboot" => Ok(CGWUCentralCommandType::Reboot),
@@ -222,51 +224,49 @@ pub struct CGWUCentralCommand {
     pub id: u64,
 }
 
-pub fn cgw_ucentral_parse_connect_event(
-    message: Message,
-) -> Result<CGWUCentralEvent, &'static str> {
+pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralEvent> {
     let msg = if let Ok(s) = message.into_text() {
         s
     } else {
-        return Err("Message to string cast failed");
+        return Err(Error::UCentralParser("Message to string cast failed"));
     };
 
-    let map: CGWUCentralJRPCMessage = match serde_json::from_str(&msg) {
-        Ok(m) => m,
-        Err(e) => {
-            error!("Failed to parse input json {e}");
-            return Err("Failed to parse input json");
-        }
-    };
-
+    let map: CGWUCentralJRPCMessage = serde_json::from_str(&msg)?;
     if !map.contains_key("jsonrpc") {
         warn!("Received malformed JSONRPC msg");
-        return Err("JSONRPC field is missing in message");
+        return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
-    if !map.contains_key("method") {
-        warn!("Received malformed JSONRPC msg");
-        return Err("method field is missing in message");
-    }
+    let method = map["method"].as_str().ok_or_else(|| {
+        warn!("Received malformed JSONRPC msg.");
+        Error::UCentralParser("method field is missing in message")
+    })?;
 
-    if !map.contains_key("params") {
-        warn!("Received JRPC <method> without params.");
-        return Err("Received JRPC <method> without params");
-    }
-
-    let method = map["method"].as_str().unwrap();
     if method != "connect" {
-        return Err("Device is not abiding the protocol: first message - CONNECT - expected");
+        return Err(Error::UCentralParser(
+            "Device is not abiding the protocol: first message - CONNECT - expected",
+        ));
     }
 
-    let params = map.get("params").unwrap();
-    let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-    let firmware = params["firmware"].as_str().unwrap().to_string();
+    let params = map.get("params").ok_or_else(|| {
+        warn!("Received JSONRPC <method> without params");
+        Error::UCentralParser("Received JSONRPC <method> without params")
+    })?;
+
+    let serial = MacAddress::from_str(
+        params["serial"]
+            .as_str()
+            .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
+    )?;
+    let firmware = params["firmware"]
+        .as_str()
+        .ok_or_else(|| Error::UCentralParser("Failed to parse firmware from params"))?
+        .to_string();
     let caps: CGWUCentralEventConnectParamsCaps =
-        serde_json::from_value(params["capabilities"].clone()).unwrap();
+        serde_json::from_value(params["capabilities"].clone())?;
 
     let event: CGWUCentralEvent = CGWUCentralEvent {
-        serial: serial.clone(),
+        serial,
         evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
             serial,
             firmware,
@@ -275,47 +275,55 @@ pub fn cgw_ucentral_parse_connect_event(
         }),
     };
 
-    return Ok(event);
+    Ok(event)
 }
 
-pub fn cgw_ucentral_parse_command_message(
-    message: &String,
-) -> Result<CGWUCentralCommand, &'static str> {
+pub fn cgw_ucentral_parse_command_message(message: &str) -> Result<CGWUCentralCommand> {
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to parse input json {e}");
-            return Err("Failed to parse input json");
+            return Err(Error::UCentralParser("Failed to parse input json"));
         }
     };
 
     if !map.contains_key("jsonrpc") {
         warn!("Received malformed JSONRPC msg");
-        return Err("JSONRPC field is missing in message");
+        return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
     if !map.contains_key("method") {
         warn!("Received malformed JSONRPC msg");
-        return Err("method field is missing in message");
+        return Err(Error::UCentralParser("method field is missing in message"));
     }
 
     if !map.contains_key("params") {
         warn!("Received malformed JSONRPC msg");
-        return Err("params field is missing in message");
+        return Err(Error::UCentralParser("params field is missing in message"));
     }
 
     if !map.contains_key("id") {
         warn!("Received malformed JSONRPC msg");
-        return Err("id field is missing in message");
+        return Err(Error::UCentralParser("id field is missing in message"));
     }
 
-    let method = map["method"].as_str().unwrap();
+    let method = map["method"]
+        .as_str()
+        .ok_or_else(|| Error::UCentralParser("Failed to parse method"))?;
     let command_type = CGWUCentralCommandType::from_str(method);
     match command_type {
         Ok(cmd_type) => {
-            let params = map.get("params").unwrap();
-            let serial = MacAddress::from_str(params["serial"].as_str().unwrap()).unwrap();
-            let id = map.get("id").unwrap().as_u64().unwrap();
+            let params = map
+                .get("params")
+                .ok_or_else(|| Error::UCentralParser("Failed to parse params"))?;
+            let serial = MacAddress::from_str(
+                params["serial"]
+                    .as_str()
+                    .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
+            )?;
+            let id = map["id"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse id from params"))?;
             let command = CGWUCentralCommand {
                 cmd_type,
                 serial,
@@ -324,19 +332,17 @@ pub fn cgw_ucentral_parse_command_message(
 
             Ok(command)
         }
-        Err(_) => {
-            return Err("Failed to parse command/method");
-        }
+        Err(_) => Err(Error::UCentralParser("Failed to parse command/method")),
     }
 }
 
 pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
-    message: &String,
+    message: &str,
     timestamp: i64,
-) -> Result<CGWUCentralEvent, &'static str> {
+) -> Result<CGWUCentralEvent> {
     match device_type {
-        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(&message, timestamp),
-        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(&message, timestamp),
+        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(message, timestamp),
+        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(message, timestamp),
     }
 }

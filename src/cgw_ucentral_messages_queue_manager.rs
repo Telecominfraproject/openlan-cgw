@@ -5,6 +5,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time;
 
+use crate::cgw_errors::{Error, Result};
 use crate::cgw_ucentral_parser::{CGWUCentralCommand, CGWUCentralCommandType};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -13,6 +14,7 @@ pub enum CGWUCentralMessagesQueueState {
     #[default]
     RxTx,
     Discard,
+    Unknown,
 }
 
 struct CGWUCentralMessagesQueue {
@@ -116,7 +118,7 @@ lazy_static! {
 // All rest used to store other messages types
 impl CGWUCentralMessagesQueueManager {
     pub async fn create_device_messages_queue(&self, device_mac: &MacAddress) {
-        if !self.check_messages_queue_exists(&device_mac).await {
+        if !self.check_messages_queue_exists(device_mac).await {
             debug!("Create queue message for device: {}", device_mac);
             let new_queue: Arc<RwLock<CGWUCentralMessagesQueue>> =
                 Arc::new(RwLock::new(CGWUCentralMessagesQueue::new()));
@@ -131,7 +133,7 @@ impl CGWUCentralMessagesQueueManager {
             );
 
             let mut write_lock = self.queue.write().await;
-            write_lock.insert(device_mac.clone(), new_queue);
+            write_lock.insert(*device_mac, new_queue);
         }
     }
 
@@ -153,34 +155,41 @@ impl CGWUCentralMessagesQueueManager {
     pub async fn clear_device_message_queue(&self, device_mac: &MacAddress) {
         debug!("Flush device {} queue due to timeout!", device_mac);
         let container_lock = self.queue.read().await;
-        let mut device_msg_queue = container_lock.get(device_mac).unwrap().write().await;
-        device_msg_queue
-            .queue
-            .retain_mut(
-                |item: &mut CGWUCentralMessagesQueueItem| match item.command.cmd_type {
-                    CGWUCentralCommandType::Reboot
-                    | CGWUCentralCommandType::Configure
-                    | CGWUCentralCommandType::None => {
-                        *item = CGWUCentralMessagesQueueItem::default();
-                        true
+
+        if let Some(device_msg_queue) = container_lock.get(device_mac) {
+            let mut write_lock = device_msg_queue.write().await;
+            write_lock
+                .queue
+                .retain_mut(|item: &mut CGWUCentralMessagesQueueItem| {
+                    match item.command.cmd_type {
+                        CGWUCentralCommandType::Reboot
+                        | CGWUCentralCommandType::Configure
+                        | CGWUCentralCommandType::None => {
+                            *item = CGWUCentralMessagesQueueItem::default();
+                            true
+                        }
+                        _ => false,
                     }
-                    _ => false,
-                },
-            );
+                });
+        }
     }
 
     pub async fn push_device_message(
         &self,
         device_mac: MacAddress,
         value: CGWUCentralMessagesQueueItem,
-    ) {
+    ) -> Result<()> {
         // 1. Get current message type
         let new_cmd_type: CGWUCentralCommandType = value.command.cmd_type.clone();
 
         // 2. Message queue for device exist -> get mutable ref
         self.create_device_messages_queue(&device_mac).await;
         let container_lock = self.queue.read().await;
-        let mut device_msg_queue = container_lock.get(&device_mac).unwrap().write().await;
+        let mut device_msg_queue = container_lock
+            .get(&device_mac)
+            .ok_or_else(|| Error::UCentralMessagesQueue("Failed to get device message queue"))?
+            .write()
+            .await;
         let queue_state = device_msg_queue.get_state();
 
         debug!(
@@ -208,24 +217,21 @@ impl CGWUCentralMessagesQueueManager {
                     }
                 }
             }
-            CGWUCentralMessagesQueueState::Discard => {
+            CGWUCentralMessagesQueueState::Discard | CGWUCentralMessagesQueueState::Unknown => {
                 debug!(
-                    "Device {} queue is in discard state - drop request {}",
-                    device_mac, value.command.id
+                    "Device {} queue is in {:?} state - drop request {}",
+                    device_mac, queue_state, value.command.id
                 );
             }
         }
+
+        Ok(())
     }
 
     pub async fn check_messages_queue_exists(&self, device_mac: &MacAddress) -> bool {
-        let exist: bool;
         let container_lock = self.queue.read().await;
-        match container_lock.get(device_mac) {
-            Some(_) => exist = true,
-            None => exist = false,
-        }
 
-        exist
+        container_lock.get(device_mac).is_some()
     }
 
     pub async fn get_device_messages_queue_len(&self, device_mac: &MacAddress) -> usize {
@@ -233,25 +239,23 @@ impl CGWUCentralMessagesQueueManager {
 
         if self.check_messages_queue_exists(device_mac).await {
             let container_lock = self.queue.read().await;
-            let device_msg_queue = container_lock.get(device_mac).unwrap().read().await;
-            queue_size = device_msg_queue.queue_len();
 
-            let default_msg = CGWUCentralCommand::default();
-            if device_msg_queue
-                .get_item(MESSAGE_QUEUE_REBOOT_MSG_INDEX)
-                .unwrap()
-                .command
-                == default_msg
-            {
-                queue_size -= 1;
-            }
-            if device_msg_queue
-                .get_item(MESSAGE_QUEUE_CONFIGURE_MSG_INDEX)
-                .unwrap()
-                .command
-                == default_msg
-            {
-                queue_size -= 1;
+            if let Some(device_msg_queue) = container_lock.get(device_mac) {
+                let read_lock = device_msg_queue.read().await;
+                queue_size = read_lock.queue_len();
+
+                let default_msg = CGWUCentralCommand::default();
+                if let Some(message) = read_lock.get_item(MESSAGE_QUEUE_REBOOT_MSG_INDEX) {
+                    if message.command == default_msg {
+                        queue_size -= 1;
+                    }
+                }
+
+                if let Some(message) = read_lock.get_item(MESSAGE_QUEUE_CONFIGURE_MSG_INDEX) {
+                    if message.command == default_msg {
+                        queue_size -= 1;
+                    }
+                }
             }
         }
 
@@ -265,22 +269,25 @@ impl CGWUCentralMessagesQueueManager {
         req_timeout: Duration,
     ) {
         let container_lock = self.queue.read().await;
-        let mut device_msg_queue = container_lock.get(device_mac).unwrap().write().await;
+        if let Some(device_msg_queue) = container_lock.get(device_mac) {
+            let mut write_lock = device_msg_queue.write().await;
 
-        device_msg_queue.set_last_req_id(req_id);
-        device_msg_queue.set_last_req_timeout(req_timeout);
+            write_lock.set_last_req_id(req_id);
+            write_lock.set_last_req_timeout(req_timeout);
+        }
     }
 
-    pub async fn get_device_last_request_id(&self, device_mac: &MacAddress) -> u64 {
+    pub async fn get_device_last_request_id(&self, device_mac: &MacAddress) -> Option<u64> {
         let container_lock = self.queue.read().await;
-        let device_msg_queue = container_lock.get(device_mac).unwrap().read().await;
+        let device_msg_queue = container_lock.get(device_mac)?.read().await;
 
         debug!(
             "Last request id for device {}: {}",
             device_mac,
             device_msg_queue.get_last_req_id()
         );
-        device_msg_queue.get_last_req_id()
+
+        Some(device_msg_queue.get_last_req_id())
     }
 
     // Dequeue messages accoring to priority:
@@ -299,14 +306,12 @@ impl CGWUCentralMessagesQueueManager {
             return None;
         }
 
-        let mut device_msg_queue = container_lock.get(device_mac).unwrap().write().await;
+        let mut device_msg_queue = container_lock.get(device_mac)?.write().await;
         let reboot_msg = device_msg_queue
-            .get_item(MESSAGE_QUEUE_REBOOT_MSG_INDEX)
-            .unwrap()
+            .get_item(MESSAGE_QUEUE_REBOOT_MSG_INDEX)?
             .clone();
         let configure_msg = device_msg_queue
-            .get_item(MESSAGE_QUEUE_CONFIGURE_MSG_INDEX)
-            .unwrap()
+            .get_item(MESSAGE_QUEUE_CONFIGURE_MSG_INDEX)?
             .clone();
 
         if reboot_msg.command != default_msg {
@@ -324,9 +329,7 @@ impl CGWUCentralMessagesQueueManager {
                 CGWUCentralMessagesQueueItem::default(),
             );
         } else {
-            ret_msg = device_msg_queue
-                .remove_item(MESSAGE_QUEUE_OTHER_MSG_INDEX)
-                .unwrap();
+            ret_msg = device_msg_queue.remove_item(MESSAGE_QUEUE_OTHER_MSG_INDEX)?;
         }
 
         Some(ret_msg)
@@ -336,10 +339,14 @@ impl CGWUCentralMessagesQueueManager {
         &self,
         device_mac: &MacAddress,
     ) -> CGWUCentralMessagesQueueState {
-        let container_lock = self.queue.read().await;
-        let device_msg_queue = container_lock.get(device_mac).unwrap().read().await;
+        let mut queue_state: CGWUCentralMessagesQueueState = CGWUCentralMessagesQueueState::Unknown;
 
-        device_msg_queue.get_state()
+        let container_lock = self.queue.read().await;
+        if let Some(device_msg_queue) = container_lock.get(device_mac) {
+            queue_state = device_msg_queue.read().await.get_state();
+        }
+
+        queue_state
     }
 
     pub async fn set_device_queue_state(
@@ -348,14 +355,14 @@ impl CGWUCentralMessagesQueueManager {
         state: CGWUCentralMessagesQueueState,
     ) {
         let container_lock = self.queue.read().await;
-        let mut device_msg_queue = container_lock.get(device_mac).unwrap().write().await;
-
-        device_msg_queue.set_state(state);
+        if let Some(device_msg_queue) = container_lock.get(device_mac) {
+            device_msg_queue.write().await.set_state(state);
+        }
     }
 
     pub async fn device_disconnected(&self, device_mac: &MacAddress) {
         let mut disconnected_lock = self.disconnected_devices.write().await;
-        disconnected_lock.insert(device_mac.clone(), ());
+        disconnected_lock.insert(*device_mac, ());
     }
 
     pub async fn device_connected(&self, device_mac: &MacAddress) {
@@ -370,12 +377,14 @@ impl CGWUCentralMessagesQueueManager {
     pub async fn device_request_tick(&self, device_mac: &MacAddress, elapsed: Duration) -> bool {
         let mut expired: bool = false;
         let container_read_lock = self.queue.read().await;
-        let mut device_queue = container_read_lock.get(device_mac).unwrap().write().await;
 
-        device_queue.last_req_timeout = device_queue.last_req_timeout.saturating_sub(elapsed);
+        if let Some(device_queue) = container_read_lock.get(device_mac) {
+            let mut write_lock = device_queue.write().await;
+            write_lock.last_req_timeout = write_lock.last_req_timeout.saturating_sub(elapsed);
 
-        if device_queue.last_req_timeout == Duration::ZERO {
-            expired = true;
+            if write_lock.last_req_timeout == Duration::ZERO {
+                expired = true;
+            }
         }
 
         expired
@@ -396,10 +405,10 @@ impl CGWUCentralMessagesQueueManager {
                         .device_request_tick(device_mac, TIMEOUT_MANAGER_DURATION)
                         .await
                     {
-                        devices_to_flush.push(device_mac.clone());
+                        devices_to_flush.push(*device_mac);
                     }
                 } else {
-                    devices_to_flush.push(device_mac.clone());
+                    devices_to_flush.push(*device_mac);
                 }
             }
         }

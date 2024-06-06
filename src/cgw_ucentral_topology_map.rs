@@ -64,6 +64,7 @@ enum CGWUCentralTopologyMapNodeOrigin {
     UCentralDevice,
     StateLLDPPeer,
     StateWiredWireless,
+    #[allow(dead_code)]
     StateFDB,
 }
 
@@ -77,6 +78,7 @@ enum CGWUCentralTopologyMapNodeOrigin {
 enum CGWUCentralTopologyMapEdgeOrigin {
     StateLLDPPeer,
     StateWiredWireless(EdgeCreationTimestamp),
+    #[allow(dead_code)]
     StateFDB,
 }
 
@@ -107,7 +109,7 @@ impl CGWUCentralTopologyMap {
         &CGW_UCENTRAL_TOPOLOGY_MAP
     }
 
-    pub async fn insert_device(self: &Self, serial: &MacAddress) {
+    pub async fn insert_device(&self, serial: &MacAddress) {
         let mut lock = self.data.write().await;
         Self::add_node(
             &mut lock,
@@ -116,16 +118,12 @@ impl CGWUCentralTopologyMap {
         );
     }
 
-    pub async fn remove_device(self: &Self, serial: &MacAddress) {
+    pub async fn remove_device(&self, serial: &MacAddress) {
         let mut lock = self.data.write().await;
         Self::remove_node(&mut lock, serial);
     }
 
-    pub async fn process_state_message(
-        self: &Self,
-        _device_type: &CGWDeviceType,
-        evt: CGWUCentralEvent,
-    ) {
+    pub async fn process_state_message(&self, _device_type: &CGWDeviceType, evt: CGWUCentralEvent) {
         let mut lock = self.data.write().await;
 
         if let CGWUCentralEventType::State(s) = evt.evt_type {
@@ -278,7 +276,7 @@ impl CGWUCentralTopologyMap {
     }
 
     pub async fn process_device_topology_event(
-        self: &Self,
+        &self,
         _device_type: &CGWDeviceType,
         evt: CGWUCentralEvent,
     ) {
@@ -311,18 +309,19 @@ impl CGWUCentralTopologyMap {
                     if let CGWUCentralTopologySubEdgePort::WirelessClient(_, dst_band) = &key.1.port
                     {
                         if key.1.serial == rt_j.client && *dst_band == *rt_j.band {
-                            if let Some((edge_idx, edge_origin)) = lock.edge_idx_map.get(key) {
-                                if let CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
+                            if let Some((
+                                edge_idx,
+                                CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
                                     edge_timestamp,
-                                ) = edge_origin
-                                {
-                                    existing_edge = Some(ExistingEdge {
-                                        idx: *edge_idx,
-                                        timestamp: edge_timestamp.clone(),
-                                        key: key.to_owned(),
-                                    });
-                                    break;
-                                }
+                                ),
+                            )) = lock.edge_idx_map.get(key)
+                            {
+                                existing_edge = Some(ExistingEdge {
+                                    idx: *edge_idx,
+                                    timestamp: *edge_timestamp,
+                                    key: key.to_owned(),
+                                });
+                                break;
                             }
                         }
                     }
@@ -368,7 +367,7 @@ impl CGWUCentralTopologyMap {
                 let (subedge_src, subedge_dst) = {
                     (
                         CGWUCentralTopologySubEdge {
-                            serial: evt.serial.clone(),
+                            serial: evt.serial,
                             port: CGWUCentralTopologySubEdgePort::WirelessPort,
                         },
                         CGWUCentralTopologySubEdge {
@@ -402,18 +401,19 @@ impl CGWUCentralTopologyMap {
                            // If not - it's a 'late' leave event that can be ignored.
                            key.0.serial == evt.serial
                         {
-                            if let Some((edge_idx, edge_origin)) = lock.edge_idx_map.get(key) {
-                                if let CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
+                            if let Some((
+                                edge_idx,
+                                CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
                                     edge_timestamp,
-                                ) = edge_origin
-                                {
-                                    existing_edge = Some(ExistingEdge {
-                                        idx: *edge_idx,
-                                        timestamp: edge_timestamp.clone(),
-                                        key: key.to_owned(),
-                                    });
-                                    break;
-                                }
+                                ),
+                            )) = lock.edge_idx_map.get(key)
+                            {
+                                existing_edge = Some(ExistingEdge {
+                                    idx: *edge_idx,
+                                    timestamp: *edge_timestamp,
+                                    key: key.to_owned(),
+                                });
+                                break;
                             }
                         }
                     }
@@ -460,7 +460,7 @@ impl CGWUCentralTopologyMap {
         match data.node_idx_map.get_mut(node_mac) {
             None => {
                 let idx = data.graph.add_node(*node_mac);
-                let _ = data.node_idx_map.insert(node_mac.clone(), (idx, origin));
+                let _ = data.node_idx_map.insert(*node_mac, (idx, origin));
                 idx
             }
 
@@ -498,7 +498,7 @@ impl CGWUCentralTopologyMap {
                 .neighbors_directed(*node_idx, Direction::Incoming)
                 .detach();
 
-            if let None = edges.next_edge(&data.graph) {
+            if edges.next_edge(&data.graph).is_none() {
                 node_idx_to_remove = Some(*node_idx);
             }
         }
@@ -582,10 +582,10 @@ impl CGWUCentralTopologyMap {
                 // If it's an active WSS connection we have established,
                 // we should skip this node, as it's not our responsibility
                 // here to destroy it.
-                if let None = node_edges.next_edge(&data.graph) {
+                if node_edges.next_edge(&data.graph).is_none() {
                     let mut node_to_remove: Option<&MacAddress> = None;
                     if let Some(node_weight) = data.graph.node_weight(node_idx) {
-                        if let Some((_, origin)) = data.node_idx_map.get(&node_weight) {
+                        if let Some((_, origin)) = data.node_idx_map.get(node_weight) {
                             // Skip this node, as it's origin is known from
                             // uCentral connection, not state data.
                             if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice = origin {
@@ -677,7 +677,7 @@ impl CGWUCentralTopologyMap {
             }
         }
 
-        if let Some(key) = keys_to_remove.get(0) {
+        if let Some(key) = keys_to_remove.first() {
             if let Some((edge_idx, _)) = data.edge_idx_map.get(key) {
                 data.graph.remove_edge(*edge_idx);
             }
@@ -688,7 +688,7 @@ impl CGWUCentralTopologyMap {
         }
     }
 
-    pub async fn debug_dump_map(self: &Self) {
+    pub async fn debug_dump_map(&self) {
         let lock = self.data.read().await;
         let dotfmt = format!(
             "{:?}",

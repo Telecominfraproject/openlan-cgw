@@ -1,5 +1,7 @@
 use crate::AppArgs;
 
+use crate::cgw_errors::{Error, Result};
+
 use eui48::MacAddress;
 
 use tokio_postgres::{row::Row, Client, NoTls};
@@ -46,7 +48,7 @@ pub struct CGWDBAccessor {
 }
 
 impl CGWDBAccessor {
-    pub async fn new(app_args: &AppArgs) -> Self {
+    pub async fn new(app_args: &AppArgs) -> Result<Self> {
         let conn_str = format!(
             "host={host} port={port} user={user} dbname={db} password={pass}",
             host = app_args.db_ip,
@@ -56,12 +58,13 @@ impl CGWDBAccessor {
             pass = app_args.db_password
         );
         debug!(
-            "Trying to connect to remote db ({}:{})...",
+            "Trying to connect to remote db ({}:{})...\nConn args {}",
             app_args.db_ip.to_string(),
-            app_args.db_port.to_string()
+            app_args.db_port.to_string(),
+            conn_str
         );
-        debug!("Conn args {conn_str}");
-        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await.unwrap();
+
+        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await?;
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -71,7 +74,7 @@ impl CGWDBAccessor {
 
         info!("Connected to remote DB");
 
-        CGWDBAccessor { cl: client }
+        Ok(CGWDBAccessor { cl: client })
     }
 
     /*
@@ -85,11 +88,8 @@ impl CGWDBAccessor {
     *
     */
 
-    pub async fn insert_new_infra_group(
-        &self,
-        g: &CGWDBInfrastructureGroup,
-    ) -> Result<(), &'static str> {
-        let q = self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await.unwrap();
+    pub async fn insert_new_infra_group(&self, g: &CGWDBInfrastructureGroup) -> Result<()> {
+        let q = self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await?;
         let res = self
             .cl
             .execute(&q, &[&g.id, &g.reserved_size, &g.actual_size])
@@ -103,18 +103,17 @@ impl CGWDBAccessor {
                     g.id,
                     e.to_string()
                 );
-                Err("Insert new infra group failed")
+                Err(Error::DbAccessor("Insert new infra group failed"))
             }
         }
     }
 
-    pub async fn delete_infra_group(&self, gid: i32) -> Result<(), &'static str> {
+    pub async fn delete_infra_group(&self, gid: i32) -> Result<()> {
         // TODO: query-base approach instead of static string
         let req = self
             .cl
             .prepare("DELETE FROM infrastructure_groups WHERE id = $1")
-            .await
-            .unwrap();
+            .await?;
         let res = self.cl.execute(&req, &[&gid]).await;
 
         match res {
@@ -122,12 +121,14 @@ impl CGWDBAccessor {
                 if n > 0 {
                     Ok(())
                 } else {
-                    Err("Failed to delete group from DB: gid does not exist")
+                    Err(Error::DbAccessor(
+                        "Failed to delete group from DB: gid does not exist",
+                    ))
                 }
             }
             Err(e) => {
                 error!("Failed to delete an infra group {gid}: {:?}", e.to_string());
-                Err("Delete infra group failed")
+                Err(Error::DbAccessor("Delete infra group failed"))
             }
         }
     }
@@ -154,17 +155,20 @@ impl CGWDBAccessor {
 
     #[allow(dead_code)]
     pub async fn get_infra_group(&self, gid: i32) -> Option<CGWDBInfrastructureGroup> {
-        let q = self
+        if let Ok(q) = self
             .cl
             .prepare("SELECT * from infrastructure_groups WHERE id = $1")
             .await
-            .unwrap();
-        let row = self.cl.query_one(&q, &[&gid]).await;
+        {
+            let row = self.cl.query_one(&q, &[&gid]).await;
 
-        match row {
-            Ok(r) => Some(CGWDBInfrastructureGroup::from(r)),
-            Err(_e) => None,
+            match row {
+                Ok(r) => Some(CGWDBInfrastructureGroup::from(r)),
+                Err(_e) => return None,
+            };
         }
+
+        None
     }
 
     /*
@@ -176,12 +180,11 @@ impl CGWDBAccessor {
       );
     */
 
-    pub async fn insert_new_infra(&self, infra: &CGWDBInfra) -> Result<(), &'static str> {
+    pub async fn insert_new_infra(&self, infra: &CGWDBInfra) -> Result<()> {
         let q = self
             .cl
             .prepare("INSERT INTO infras (mac, infra_group_id) VALUES ($1, $2)")
-            .await
-            .unwrap();
+            .await?;
         let res = self
             .cl
             .execute(&q, &[&infra.mac, &infra.infra_group_id])
@@ -191,17 +194,13 @@ impl CGWDBAccessor {
             Ok(_n) => Ok(()),
             Err(e) => {
                 error!("Failed to insert a new infra: {:?}", e.to_string());
-                Err("Insert new infra failed")
+                Err(Error::DbAccessor("Insert new infra failed"))
             }
         }
     }
 
-    pub async fn delete_infra(&self, serial: MacAddress) -> Result<(), &'static str> {
-        let q = self
-            .cl
-            .prepare("DELETE FROM infras WHERE mac = $1")
-            .await
-            .unwrap();
+    pub async fn delete_infra(&self, serial: MacAddress) -> Result<()> {
+        let q = self.cl.prepare("DELETE FROM infras WHERE mac = $1").await?;
         let res = self.cl.execute(&q, &[&serial]).await;
 
         match res {
@@ -209,12 +208,14 @@ impl CGWDBAccessor {
                 if n > 0 {
                     Ok(())
                 } else {
-                    Err("Failed to delete infra from DB: MAC does not exist")
+                    Err(Error::DbAccessor(
+                        "Failed to delete infra from DB: MAC does not exist",
+                    ))
                 }
             }
             Err(e) => {
                 error!("Failed to delete infra: {:?}", e.to_string());
-                Err("Delete infra failed")
+                Err(Error::DbAccessor("Delete infra failed"))
             }
         }
     }

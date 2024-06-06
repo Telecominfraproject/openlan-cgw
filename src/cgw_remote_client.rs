@@ -4,6 +4,7 @@ pub mod cgw_remote {
 
 use tonic::transport::{channel::Channel, Uri};
 
+use crate::cgw_errors::Result;
 use cgw_remote::{remote_client::RemoteClient, EnqueueRequest};
 
 use tokio::time::Duration;
@@ -14,21 +15,19 @@ pub struct CGWRemoteClient {
 }
 
 impl CGWRemoteClient {
-    pub fn new(hostname: String) -> Self {
-        let uri = Uri::from_maybe_shared(hostname).unwrap();
+    pub fn new(hostname: String) -> Result<Self> {
+        let uri = Uri::from_maybe_shared(hostname)?;
         let r_channel = Channel::builder(uri)
             .timeout(Duration::from_secs(20))
             .connect_timeout(Duration::from_secs(20))
             .connect_lazy();
 
-        let client = RemoteClient::new(r_channel);
+        let remote_client = RemoteClient::new(r_channel);
 
-        CGWRemoteClient {
-            remote_client: client,
-        }
+        Ok(CGWRemoteClient { remote_client })
     }
 
-    pub async fn relay_request_stream(&self, stream: Vec<(String, String)>) -> Result<(), ()> {
+    pub async fn relay_request_stream(&self, stream: Vec<(String, String)>) -> Result<()> {
         let mut cl_clone = self.remote_client.clone();
         let mut messages: Vec<EnqueueRequest> = vec![];
 
@@ -37,12 +36,8 @@ impl CGWRemoteClient {
         }
 
         let rq = tonic::Request::new(tokio_stream::iter(messages.clone()));
-        match cl_clone.enqueue_nbapi_request_stream(rq).await {
-            Err(e) => {
-                error!("Failed to relay req: {:?}", e);
-                Err(())
-            }
-            Ok(_r) => Ok(()),
-        }
+        cl_clone.enqueue_nbapi_request_stream(rq).await?;
+
+        Ok(())
     }
 }

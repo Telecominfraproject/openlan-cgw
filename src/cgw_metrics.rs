@@ -1,7 +1,7 @@
+use crate::cgw_errors::{Error, Result};
 use crate::AppArgs;
 
 use prometheus::{IntGauge, Registry};
-use std::result::Result;
 use std::sync::Mutex;
 
 use warp::{Filter, Rejection, Reply};
@@ -41,15 +41,19 @@ lazy_static! {
 pub enum CGWMetricsCounterType {
     ActiveCGWNum,
     GroupsAssignedNum,
+    #[allow(dead_code)]
     GroupsCapacity,
+    #[allow(dead_code)]
     GroupsThreshold,
     ConnectionsNum,
 }
 
 pub enum CGWMetricsCounterOpType {
     Inc,
+    #[allow(dead_code)]
     IncBy(i64),
     Dec,
+    #[allow(dead_code)]
     DecBy(i64),
     Set(i64),
 }
@@ -63,11 +67,14 @@ impl CGWMetrics {
         &CGW_METRICS
     }
 
-    pub async fn start(self: &Self, _app_args: &AppArgs) {
-        let mut started = self.started.lock().unwrap();
+    pub async fn start(&self, _app_args: &AppArgs) -> Result<()> {
+        let mut started = match self.started.lock() {
+            Ok(guard) => guard,
+            Err(_) => return Err(Error::Metrics("Failed to get lock guard")),
+        };
 
-        if *started == true {
-            return;
+        if *started {
+            return Ok(());
         }
 
         *started = true;
@@ -78,26 +85,26 @@ impl CGWMetrics {
         GROUPS_THRESHOLD.set(50i64);
 
         tokio::spawn(async move {
-            register_custom_metrics();
+            if let Err(err) = register_custom_metrics() {
+                warn!("Failed to register CGW Metrics: {:?}", err);
+                return;
+            };
 
             let metrics_route = warp::path!("metrics").and_then(metrics_handler);
 
             warp::serve(metrics_route).run(([0, 0, 0, 0], 8080)).await;
         });
+
+        Ok(())
     }
 
-    pub fn change_counter(
-        self: &Self,
-        counter: CGWMetricsCounterType,
-        op: CGWMetricsCounterOpType,
-    ) {
+    pub fn change_counter(&self, counter: CGWMetricsCounterType, op: CGWMetricsCounterOpType) {
         match counter {
-            CGWMetricsCounterType::ActiveCGWNum => match op {
-                CGWMetricsCounterOpType::Set(v) => {
+            CGWMetricsCounterType::ActiveCGWNum => {
+                if let CGWMetricsCounterOpType::Set(v) = op {
                     ACTIVE_CGW_NUM.set(v);
                 }
-                _ => {}
-            },
+            }
             CGWMetricsCounterType::GroupsAssignedNum => match op {
                 CGWMetricsCounterOpType::Inc => {
                     GROUPS_ASSIGNED_NUM.inc();
@@ -110,18 +117,16 @@ impl CGWMetrics {
                 }
                 _ => {}
             },
-            CGWMetricsCounterType::GroupsCapacity => match op {
-                CGWMetricsCounterOpType::Set(v) => {
+            CGWMetricsCounterType::GroupsCapacity => {
+                if let CGWMetricsCounterOpType::Set(v) = op {
                     ACTIVE_CGW_NUM.set(v);
                 }
-                _ => {}
-            },
-            CGWMetricsCounterType::GroupsThreshold => match op {
-                CGWMetricsCounterOpType::Set(v) => {
+            }
+            CGWMetricsCounterType::GroupsThreshold => {
+                if let CGWMetricsCounterOpType::Set(v) = op {
                     ACTIVE_CGW_NUM.set(v);
                 }
-                _ => {}
-            },
+            }
             CGWMetricsCounterType::ConnectionsNum => match op {
                 CGWMetricsCounterOpType::Inc => {
                     CONNECTIONS_NUM.inc();
@@ -135,29 +140,21 @@ impl CGWMetrics {
     }
 }
 
-fn register_custom_metrics() {
-    REGISTRY
-        .register(Box::new(ACTIVE_CGW_NUM.clone()))
-        .expect("collector can't be registered");
+fn register_custom_metrics() -> Result<()> {
+    REGISTRY.register(Box::new(ACTIVE_CGW_NUM.clone()))?;
 
-    REGISTRY
-        .register(Box::new(GROUPS_ASSIGNED_NUM.clone()))
-        .expect("collector can't be registered");
+    REGISTRY.register(Box::new(GROUPS_ASSIGNED_NUM.clone()))?;
 
-    REGISTRY
-        .register(Box::new(GROUPS_CAPACITY.clone()))
-        .expect("collector can't be registered");
+    REGISTRY.register(Box::new(GROUPS_CAPACITY.clone()))?;
 
-    REGISTRY
-        .register(Box::new(GROUPS_THRESHOLD.clone()))
-        .expect("collector can't be registered");
+    REGISTRY.register(Box::new(GROUPS_THRESHOLD.clone()))?;
 
-    REGISTRY
-        .register(Box::new(CONNECTIONS_NUM.clone()))
-        .expect("collector can't be registered");
+    REGISTRY.register(Box::new(CONNECTIONS_NUM.clone()))?;
+
+    Ok(())
 }
 
-async fn metrics_handler() -> Result<impl Reply, Rejection> {
+async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {
     use prometheus::Encoder;
     let encoder = prometheus::TextEncoder::new();
 

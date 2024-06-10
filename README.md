@@ -57,47 +57,47 @@ Running application with default arguments might not be desired behavior.
 And thus the run script utilizes the following list of *enviroment* variables that you can define before running it to alternate behavior of the app.
 The following list is a list of enviroment variables you can define to configure cgw-app behavior in certain way:
 ```
-CGW_GRPC_IP - IP to bind gRPC server to (listens for gRPC requests from remote CGWs)
-CGW_GRPC_PORT - PORT to bind gRPC server to
-CGW_WSS_IP - IP to bind websocket server to (listens for incoming WSS connections from underlying devices - infrastructures)
-CGW_WSS_PORT - PORT to bind WSS server to
-CGW_WSS_CAS - Web socket CAS certificate file name
-CGW_WSS_CERT - Web socket server certificate file name
-CGW_WSS_KEY - Web socket server private key file name
-CGW_KAFKA_IP - IP of remote KAFKA server to connect to (NB API)
-CGW_KAFKA_PORT - PORT of remote KAFKA server to connect to
-CGW_DB_IP - IP of remote database server to connect to
-CGW_DB_PORT - PORT of remote database server to connect to
-CGW_DB_USER - PSQL DB username (credentials) to use upon connect to DB
-CGW_DB_PASS - PSQL DB password (credentials) to use upon connect to DB
-CGW_REDIS_DB_IP - IP of remote redis-db server to connect to
-CGW_REDIS_DB_PORT - PORT of remote redis-db server to connect to
-CGW_LOG_LEVEL - log level to start CGW application with (debug, info)
-CGW_CERTS_PATH - path to certificates located on host machine
-CGW_ALLOW_CERT_MISMATCH - allow client certificate CN and device MAC address mismatch (used for OWLS)
+CGW_GRPC_IP             - IP to bind gRPC server to (listens for gRPC requests from remote CGWs)
+CGW_GRPC_PORT           - PORT to bind gRPC server to
+CGW_WSS_IP              - IP to bind websocket server to (listens for incoming WSS connections from underlying devices - infrastructures)
+CGW_WSS_PORT            - PORT to bind WSS server to
+CGW_WSS_CAS             - Web socket CAS certificate file name
+CGW_WSS_CERT            - Web socket server certificate file name
+CGW_WSS_KEY             - Web socket server private key file name
+CGW_KAFKA_IP            - IP of remote KAFKA server to connect to (NB API)
+CGW_KAFKA_PORT          - PORT of remote KAFKA server to connect to
+CGW_DB_IP               - IP of remote database server to connect to
+CGW_DB_PORT             - PORT of remote database server to connect to
+CGW_DB_USER             - PSQL DB username (credentials) to use upon connect to DB
+CGW_DB_PASS             - PSQL DB password (credentials) to use upon connect to DB
+CGW_REDIS_DB_IP         - IP of remote redis-db server to connect to
+CGW_REDIS_DB_PORT       - PORT of remote redis-db server to connect to
+CGW_LOG_LEVEL           - Log level to start CGW application with (debug, info)
+CGW_CERTS_PATH          - Path to certificates located on host machine
+CGW_ALLOW_CERT_MISMATCH - Allow client certificate CN and device MAC address mismatch (used for OWLS)
 ```
 
 Example of properly configured list of env variables to start CGW:
 ```console
 $ export | grep CGW
-declare -x CGW_DB_IP="172.20.10.136"       # PSQL server is at xxx.136
+declare -x CGW_DB_IP="127.0.0.1"           # PSQL server is located at the local host
 declare -x CGW_DB_PORT="5432"
 declare -x CGW_DB_USERNAME="cgw"           # PSQL login credentials (username) default 'cgw' will be used
 declare -x CGW_DB_PASS="123"               # PSQL login credentials (password) default '123' will be used
-declare -x CGW_GRPC_IP="172.20.10.153"     # local default subnet is 172.20.10.0/24
+declare -x CGW_GRPC_IP="127.0.0.1"         # Local default subnet is 127.0.0.1/24
 declare -x CGW_GRPC_PORT="50051"
 declare -x CGW_ID="1"
-declare -x CGW_KAFKA_IP="172.20.10.136"    # kafka is located at the xxx.136 host
+declare -x CGW_KAFKA_IP="127.0.0.1"        # Kafka is located at the local host
 declare -x CGW_KAFKA_PORT="9092"
 declare -x CGW_LOG_LEVEL="debug"
-declare -x CGW_REDIS_DB_IP="172.20.10.136" # redis server can be found at the xxx.136 host
-declare -x CGW_WSS_IP="0.0.0.0"            # accept WSS connections at all interfaces / subnets
+declare -x CGW_REDIS_DB_IP="172.0.0.1"     # Redis server can be found at the local host
+declare -x CGW_WSS_IP="0.0.0.0"            # Accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"
 declare -x CGW_WSS_CAS="cas.pem"
 declare -x CGW_WSS_CERT="cert.pem"
 declare -x CGW_WSS_KEY="key.pem"
-declare -x CGW_CERTS_PATH="/etc/ssl/certs" # path to certificates located on host machine
-declare -x CGW_ALLOW_CERT_MISMATCH="no"    # allow client certificate CN and device MAC address mismatch
+declare -x CGW_CERTS_PATH="/etc/ssl/certs" # Path to certificates located on host machine
+declare -x CGW_ALLOW_CERT_MISMATCH="no"    # Allow client certificate CN and device MAC address mismatch
 ```
 # Certificates
 The CGW uses a number of certificates to provide security.

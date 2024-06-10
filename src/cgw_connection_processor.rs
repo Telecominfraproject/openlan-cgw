@@ -44,7 +44,6 @@ pub enum CGWConnectionProcessorReqMsg {
 enum CGWConnectionState {
     IsActive,
     IsForcedToClose,
-    #[allow(dead_code)]
     IsDead,
     #[allow(dead_code)]
     IsStale,
@@ -351,7 +350,8 @@ impl CGWConnectionProcessor {
             Unspecified,
             WSSRxMsg(std::result::Result<Message, tungstenite::error::Error>),
             MboxRx(Option<CGWConnectionProcessorReqMsg>),
-            Stale,
+            StaleConnection,
+            BrokenConnection,
         }
 
         let device_mac = self.serial;
@@ -427,20 +427,46 @@ impl CGWConnectionProcessor {
             }
 
             if let WakeupReason::Unspecified = wakeup_reason {
-                if let Some(val) = stream.next().now_or_never() {
-                    if let Some(res) = val {
-                        if let Ok(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg));
-                        } else if let Err(msg) = res {
-                            wakeup_reason = WakeupReason::WSSRxMsg(std::result::Result::Err(msg));
+                // 'next()' function returns a future that resolves to Some(item) if the stream produces an item,
+                // or None if the stream is terminated (i.e., there are no more items to produce).
+                // 'now_or_never()' function immediately polls the future and returns Some(output) if the future is ready,
+                // or None if it is not ready.
+                // As result from stream we got depth nesting: Option<Option<Result<Message, Error>>>
+                // if let Some(val) = stream.next().now_or_never()
+                match stream.next().now_or_never() {
+                    Some(val) => {
+                        // Top level Option => now_or_never():
+                        match val {
+                            // Internal level Option => next():
+                            Some(res) => {
+                                match res {
+                                    // Received websocket connection message
+                                    // 'Close' message - may be received on gracefull connection close event
+                                    Ok(msg) => wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg)),
+                                    // Received an error from stream
+                                    Err(msg) => {
+                                        wakeup_reason =
+                                            WakeupReason::WSSRxMsg(std::result::Result::Err(msg))
+                                    }
+                                }
+                            }
+                            // Internal level Option => None: Stream is terminated (socket closed)
+                            None => wakeup_reason = WakeupReason::BrokenConnection,
                         }
                     }
-                } else {
-                    sleep(Duration::from_millis(1000)).await;
-                    wakeup_reason = WakeupReason::Stale;
+                    None => {
+                        // No any message received from Stream
+                        // Connection is still active / established, but no messages available
+                        wakeup_reason = WakeupReason::StaleConnection;
+                        sleep(Duration::from_millis(1000)).await;
+                    }
                 }
             }
 
+            // Doesn't matter if connection was closed or terminated
+            // Do message queue timeout tick and cleanup queue dut to timeout\
+            // Or decrease timer value - on connection termination - background task
+            // is responsible to cleanup queue
             if fsm_state == CGWUCentralMessageProcessorState::ResultPending {
                 let elapsed_time = Instant::now() - start_time;
 
@@ -464,6 +490,7 @@ impl CGWConnectionProcessor {
                 }
             }
 
+            // Process WakeUp reason
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
@@ -473,18 +500,17 @@ impl CGWConnectionProcessor {
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await
                 }
-                WakeupReason::Stale => self.process_stale_connection_msg(last_contact).await,
-                _ => {
-                    error!("Failed to get wakeup reason for {} conn", self.addr);
-                    return;
+                WakeupReason::StaleConnection => {
+                    self.process_stale_connection_msg(last_contact).await
+                }
+                WakeupReason::BrokenConnection => Ok(CGWConnectionState::IsDead),
+                WakeupReason::Unspecified => {
+                    Err(Error::ConnectionProcessor("Unspecified wakeup reason"))
                 }
             };
 
+            // Handle result of WakeUp reason processing
             match rc {
-                Err(e) => {
-                    warn!("{:?}", e);
-                    break;
-                }
                 Ok(state) => {
                     if let CGWConnectionState::IsActive = state {
                         continue;
@@ -498,18 +524,30 @@ impl CGWConnectionProcessor {
                             "Remote client {} closed connection gracefully",
                             self.serial.to_hex_string()
                         );
-                        break;
+                        return self.send_connection_close_event().await;
                     } else if let CGWConnectionState::IsStale = state {
                         warn!(
                             "Remote client {} closed due to inactivity",
                             self.serial.to_hex_string()
                         );
-                        break;
+                        return self.send_connection_close_event().await;
+                    } else if let CGWConnectionState::IsDead = state {
+                        warn!(
+                            "Remote client {} connection is dead",
+                            self.serial.to_hex_string()
+                        );
+                        return self.send_connection_close_event().await;
                     }
+                }
+                Err(e) => {
+                    warn!("{:?}", e);
+                    return self.send_connection_close_event().await;
                 }
             }
         }
+    }
 
+    async fn send_connection_close_event(&self) {
         let msg = CGWConnectionServerReqMsg::ConnectionClosed(self.serial);
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)

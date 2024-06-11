@@ -49,9 +49,12 @@ pub struct CGWUCentralEventStateLinks {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum CGWUCentralEventStateClientsType {
+    // Timestamp
     Wired(i64),
-    // Ssid, Band
+    // Timestamp, Ssid, Band
     Wireless(i64, String, String),
+    // VID
+    FDBClient(u16),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]

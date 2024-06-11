@@ -5,17 +5,17 @@ use std::str::FromStr;
 use crate::cgw_errors::{Error, Result};
 
 use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClientsData,
+    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClients,
+    CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
     CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventType,
     CGWUCentralJRPCMessage,
 };
 
 fn parse_lldp_data(
     data: &Value,
-    upstream_port: Option<String>,
-) -> Result<Vec<CGWUCentralEventStateLinks>> {
-    let mut links: Vec<CGWUCentralEventStateLinks> = Vec::new();
-
+    links: &mut Vec<CGWUCentralEventStateLinks>,
+    upstream_port: &Option<String>,
+) -> Result<()> {
     if let Value::Object(map) = data {
         let directions = [
             map["upstream"]
@@ -62,7 +62,65 @@ fn parse_lldp_data(
         }
     }
 
-    Ok(links)
+    Ok(())
+}
+/*
+Example of "mac-forwarding-table" in json format:
+...
+"mac-forwarding-table": {
+    "overflow": false,
+    "Ethernet0":    {
+        "1":    ["90:3c:b3:6a:e3:59"]
+    },
+...
+*/
+
+fn parse_fdb_data(
+    data: &Value,
+    links: &mut Vec<CGWUCentralEventStateClients>,
+    upstream_port: &Option<String>,
+) -> Result<()> {
+    if let Value::Object(map) = data {
+        for (k, v) in map.iter() {
+            if let Value::Object(port) = v {
+                let local_port = k.to_string();
+                if let Some(ref upstream) = upstream_port {
+                    if local_port == *upstream {
+                        continue;
+                    }
+                }
+
+                for (k, v) in port.iter() {
+                    let vid = {
+                        match u16::from_str(k.as_str()) {
+                            Ok(v) => v,
+                            Err(_e) => {
+                                warn!("Failed to convert vid {k} to u16");
+                                continue;
+                            }
+                        }
+                    };
+                    if let Value::Array(macs) = v {
+                        for mac in macs.iter() {
+                            let remote_serial =
+                                MacAddress::from_str(mac.as_str().ok_or_else(|| {
+                                    Error::UCentralParser("Failed to parse mac address")
+                                })?)?;
+                            links.push(CGWUCentralEventStateClients {
+                                client_type: CGWUCentralEventStateClientsType::FDBClient(vid),
+                                local_port: local_port.clone(),
+                                remote_serial,
+                                remote_port: format!("<VLAN{}>", vid),
+                                is_downstream: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn cgw_ucentral_switch_parse_message(
@@ -118,6 +176,13 @@ pub fn cgw_ucentral_switch_parse_message(
                         Error::UCentralParser("Failed to parse serial from params")
                     })?)?;
                 let mut upstream_port: Option<String> = None;
+                let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
+
+                // We can reuse <clients> logic as used in AP, it's safe and OK
+                // since under the hood FDB macs are basically
+                // switch's <wired clients>, where underlying client type
+                // (FDBClient) will have all additional met info, like VID
+                let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
 
                 if state_map.contains_key("default-gateway") {
                     if let Value::Array(default_gw) = &state_map["default-gateway"] {
@@ -129,15 +194,27 @@ pub fn cgw_ucentral_switch_parse_message(
                     }
                 }
 
+                if state_map.contains_key("lldp-peers") {
+                    parse_lldp_data(&state_map["lldp-peers"], &mut lldp_links, &upstream_port)?;
+                }
+
+                if state_map.contains_key("mac-forwarding-table") {
+                    parse_fdb_data(
+                        &state_map["mac-forwarding-table"],
+                        &mut clients_links,
+                        &upstream_port,
+                    )?;
+                }
+
                 let state_event = CGWUCentralEvent {
                     serial,
                     evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
                         timestamp,
                         local_mac: serial,
-                        lldp_data: CGWUCentralEventStateLLDPData {
-                            links: parse_lldp_data(&state_map["lldp-peers"], upstream_port)?,
+                        lldp_data: CGWUCentralEventStateLLDPData { links: lldp_links },
+                        clients_data: CGWUCentralEventStateClientsData {
+                            links: clients_links,
                         },
-                        clients_data: CGWUCentralEventStateClientsData { links: Vec::new() },
                     }),
                 };
 

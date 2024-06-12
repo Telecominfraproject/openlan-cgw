@@ -482,7 +482,7 @@ impl CGWNBApiClient {
         );
 
         if let Err((e, _)) = produce_future.await {
-            println!("Error: {:?}", e)
+            error!("{:?}", e)
         }
     }
 

@@ -1187,6 +1187,10 @@ impl CGWConnectionServer {
                 .await;
         });
     }
+
+    pub async fn cleanup_redis(&self) {
+        self.cgw_remote_discovery.cleanup_redis().await;
+    }
 }
 
 #[cfg(test)]

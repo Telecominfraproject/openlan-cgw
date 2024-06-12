@@ -26,6 +26,8 @@ extern crate lazy_static;
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Handle, Runtime},
+    signal,
+    sync::Notify,
     time::{sleep, Duration},
 };
 
@@ -271,7 +273,7 @@ pub struct AppCore {
 
 impl AppCore {
     async fn new(app_args: AppArgs) -> Result<Self> {
-        Self::setup_app(&app_args)?;
+        Self::setup_app()?;
         let current_runtime = Arc::new(Handle::current());
 
         let stack_size: usize = 1024 * 1024;
@@ -301,29 +303,24 @@ impl AppCore {
         })
     }
 
-    fn setup_app(args: &AppArgs) -> Result<()> {
+    fn setup_app() -> Result<()> {
         let nofile_rlimit = Resource::NOFILE.get()?;
-        println!("{:?}", nofile_rlimit);
+        info!("{:?}", nofile_rlimit);
         let nofile_hard_limit = nofile_rlimit.1;
-        assert!(setrlimit(Resource::NOFILE, nofile_hard_limit, nofile_hard_limit).is_ok());
+        setrlimit(Resource::NOFILE, nofile_hard_limit, nofile_hard_limit)?;
         let nofile_rlimit = Resource::NOFILE.get()?;
-        println!("{:?}", nofile_rlimit);
-
-        match args.log_level {
-            AppCoreLogLevel::Debug => ::std::env::set_var("RUST_LOG", "ucentral_cgw=debug"),
-            AppCoreLogLevel::Info => ::std::env::set_var("RUST_LOG", "ucentral_cgw=info"),
-        }
-        env_logger::init();
+        info!("{:?}", nofile_rlimit);
 
         Ok(())
     }
 
-    async fn run(self: Arc<AppCore>) {
-        let main_runtime_handle = self.main_runtime_handle.clone();
+    async fn run(self: Arc<AppCore>, notifier: Arc<Notify>) {
+        let main_runtime_handle: Arc<Handle> = self.main_runtime_handle.clone();
         let core_clone = self.clone();
 
         let cgw_remote_server = CGWRemoteServer::new(&self.args);
         let cgw_srv_clone = self.cgw_server.clone();
+        let cgw_con_serv = self.cgw_server.clone();
         self.grpc_server_runtime_handle.spawn(async move {
             debug!("cgw_remote_server.start entry");
             cgw_remote_server.start(cgw_srv_clone).await;
@@ -332,10 +329,17 @@ impl AppCore {
 
         main_runtime_handle.spawn(async move { server_loop(core_clone).await });
 
-        // TODO:
-        // Add signal processing and etcetera app-related handlers.
         loop {
-            sleep(Duration::from_millis(5000)).await;
+            tokio::select! {
+                // Cleanup if notified of received SIGHUP, SIGINT or SIGTERM
+                _ = notifier.notified() => {
+                    cgw_con_serv.cleanup_redis().await;
+                    break;
+                },
+                _ = async {
+                    sleep(Duration::from_millis(5000)).await;
+                } => {},
+            }
         }
     }
 }
@@ -398,12 +402,57 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     Ok(())
 }
 
+fn setup_logger(log_level: AppCoreLogLevel) {
+    match log_level {
+        AppCoreLogLevel::Debug => ::std::env::set_var("RUST_LOG", "ucentral_cgw=debug"),
+        AppCoreLogLevel::Info => ::std::env::set_var("RUST_LOG", "ucentral_cgw=info"),
+    }
+    env_logger::init();
+}
+
+async fn signal_handler(shutdown_notify: Arc<Notify>) -> Result<()> {
+    let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())?;
+    let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())?;
+    let mut sighup = signal::unix::signal(signal::unix::SignalKind::hangup())?;
+
+    tokio::select! {
+        _ = sigterm.recv() => {
+            info!("Received SIGTERM");
+        },
+        _ = sigint.recv() => {
+            info!("Received SIGINT");
+        },
+        _ = sighup.recv() => {
+            info!("Received SIGHUP");
+        },
+    }
+
+    // Notify the main task to shutdown
+    shutdown_notify.notify_one();
+    Ok(())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = AppArgs::parse();
+
+    // Configure logger
+    setup_logger(args.log_level);
+
+    // Create a Notify instance to notify the main task of a shutdown signal
+    let shutdown_notify = Arc::new(Notify::new());
+    let shutdown_notify_clone = Arc::clone(&shutdown_notify);
+
+    // Spawn a task to listen for SIGHUP, SIGINT, and SIGTERM signals
+    tokio::spawn(async move {
+        if let Err(e) = signal_handler(shutdown_notify_clone).await {
+            error!("Failed to handle signal: {:?}", e);
+        }
+    });
+
     let app = Arc::new(AppCore::new(args).await?);
 
-    app.run().await;
+    app.run(shutdown_notify).await;
 
     Ok(())
 }

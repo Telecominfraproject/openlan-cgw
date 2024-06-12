@@ -13,7 +13,7 @@ use petgraph::{
     Direction,
 };
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 use tokio::sync::RwLock;
 
 use eui48::MacAddress;
@@ -36,6 +36,30 @@ pub enum CGWUCentralTopologySubEdgePort {
     WiredClient,
     // Wieless client reported by AP: SSID + Band
     WirelessClient(WirelessClientSsid, WirelessClientBand),
+
+    WiredFDBClient(u16),
+}
+
+impl fmt::Display for CGWUCentralTopologySubEdgePort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CGWUCentralTopologySubEdgePort::PhysicalWiredPort(port) => {
+                write!(f, "{port}")
+            }
+            CGWUCentralTopologySubEdgePort::WirelessPort => {
+                write!(f, "WirelessPort")
+            }
+            CGWUCentralTopologySubEdgePort::WiredClient => {
+                write!(f, "WiredClient")
+            }
+            CGWUCentralTopologySubEdgePort::WirelessClient(ssid, band) => {
+                write!(f, "WirelessClient({ssid},{band})")
+            }
+            CGWUCentralTopologySubEdgePort::WiredFDBClient(vid) => {
+                write!(f, "VLAN_{vid}")
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -64,8 +88,6 @@ enum CGWUCentralTopologyMapNodeOrigin {
     UCentralDevice,
     StateLLDPPeer,
     StateWiredWireless,
-    #[allow(dead_code)]
-    StateFDB,
 }
 
 // We have to track the 'origin' of any edge we add to topo map,
@@ -78,8 +100,6 @@ enum CGWUCentralTopologyMapNodeOrigin {
 enum CGWUCentralTopologyMapEdgeOrigin {
     StateLLDPPeer,
     StateWiredWireless(EdgeCreationTimestamp),
-    #[allow(dead_code)]
-    StateFDB,
 }
 
 #[derive(Debug)]
@@ -190,7 +210,7 @@ impl CGWUCentralTopologyMap {
                 }
             }
 
-            // Clients data second iteration:
+            // Clients data processing:
             // add all nodes seen in clients;
             // add new edges;
             for link in &s.clients_data.links {
@@ -201,6 +221,12 @@ impl CGWUCentralTopologyMap {
                 let mut link_timestamp = s.timestamp;
                 let (subedge_src, subedge_dst) = {
                     if let CGWUCentralEventStateClientsType::Wired(_) = link.client_type {
+                        // We can safely skip <Wired Client> MAC from adding if
+                        // it already exists (could be due to previous LLDP
+                        // info processed).
+                        if lock.node_idx_map.contains_key(&link.remote_serial) {
+                            continue;
+                        }
                         (
                             CGWUCentralTopologySubEdge {
                                 serial: s.local_mac,
@@ -235,6 +261,27 @@ impl CGWUCentralTopologyMap {
                                     ssid.clone(),
                                     band.clone(),
                                 ),
+                            },
+                        )
+                    } else if let CGWUCentralEventStateClientsType::FDBClient(vid) =
+                        &link.client_type
+                    {
+                        // We can safely skip <FDBClient> MAC from adding if
+                        // it already exists (could be due to previous LLDP
+                        // info processed).
+                        if lock.node_idx_map.contains_key(&link.remote_serial) {
+                            continue;
+                        }
+                        (
+                            CGWUCentralTopologySubEdge {
+                                serial: s.local_mac,
+                                port: CGWUCentralTopologySubEdgePort::PhysicalWiredPort(
+                                    link.local_port.clone(),
+                                ),
+                            },
+                            CGWUCentralTopologySubEdge {
+                                serial: link.remote_serial,
+                                port: CGWUCentralTopologySubEdgePort::WiredFDBClient(*vid),
                             },
                         )
                     } else {
@@ -654,7 +701,7 @@ impl CGWUCentralTopologyMap {
         let edge_idx = data.graph.add_edge(
             node_src_idx,
             node_dst_idx,
-            format!("{:?}<->{:?}", node_src_subedge.port, node_dst_subedge.port),
+            format!("{}<->{}", node_src_subedge.port, node_dst_subedge.port),
         );
 
         data.edge_idx_map.insert(

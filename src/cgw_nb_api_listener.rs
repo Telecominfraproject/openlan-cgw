@@ -94,6 +94,22 @@ pub struct InfraGroupDeviceCapabilitiesChanged {
     pub changes: Vec<CGWDeviceChange>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct UnassignedInfraConnection {
+    pub r#type: &'static str,
+    pub infra_group_infra_device: MacAddress,
+    pub reporter_shard_id: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ForeignInfraConnection {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra_device: MacAddress,
+    pub reporter_shard_id: i32,
+    pub group_owner_shard_id: i32,
+}
+
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
     infra_name: String,
@@ -223,6 +239,36 @@ pub fn cgw_construct_device_capabilities_changed_msg(
     };
 
     Ok(serde_json::to_string(&dev_cap_msg)?)
+}
+
+pub fn cgw_construct_unassigned_infra_connection_msg(
+    infra_group_infra_device: MacAddress,
+    reporter_shard_id: i32,
+) -> Result<String> {
+    let unassigned_infra_msg = UnassignedInfraConnection {
+        r#type: "unassigned_infra_connection",
+        infra_group_infra_device,
+        reporter_shard_id,
+    };
+
+    Ok(serde_json::to_string(&unassigned_infra_msg)?)
+}
+
+pub fn cgw_construct_foreign_infra_connection_msg(
+    infra_group_id: i32,
+    infra_group_infra_device: MacAddress,
+    reporter_shard_id: i32,
+    group_owner_shard_id: i32,
+) -> Result<String> {
+    let foreign_infra_msg = ForeignInfraConnection {
+        r#type: "foreign_infra_connection",
+        infra_group_id,
+        infra_group_infra_device,
+        reporter_shard_id,
+        group_owner_shard_id,
+    };
+
+    Ok(serde_json::to_string(&foreign_infra_msg)?)
 }
 
 struct CustomContext;

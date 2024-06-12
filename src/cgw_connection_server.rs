@@ -3,9 +3,10 @@ use crate::cgw_device::{
 };
 use crate::cgw_nb_api_listener::{
     cgw_construct_device_capabilities_changed_msg, cgw_construct_device_enqueue_response,
-    cgw_construct_infra_group_create_response, cgw_construct_infra_group_delete_response,
-    cgw_construct_infra_group_device_add_response, cgw_construct_infra_group_device_del_response,
-    cgw_construct_rebalance_group_response,
+    cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_group_create_response,
+    cgw_construct_infra_group_delete_response, cgw_construct_infra_group_device_add_response,
+    cgw_construct_infra_group_device_del_response, cgw_construct_rebalance_group_response,
+    cgw_construct_unassigned_infra_connection_msg,
 };
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
@@ -452,8 +453,6 @@ impl CGWConnectionServer {
         // it can still increase on demand or need automatically (upon insert, push_back etc)
         let cgw_buf_prealloc_size = 100;
 
-        let mut local_parsed_cgw_msg_buf: Vec<CGWNBApiParsedMsg> = Vec::with_capacity(buf_capacity);
-
         loop {
             if num_of_msg_read < buf_capacity {
                 // Try to recv_many, but don't sleep too much
@@ -500,8 +499,6 @@ impl CGWConnectionServer {
             // but still somewhat fully rely on it.
             //
             let _ = self.cgw_remote_discovery.sync_gid_to_cgw_map().await;
-
-            local_parsed_cgw_msg_buf.clear();
 
             // TODO: rework to avoid re-allocating these buffers on each loop iteration
             // (get mut slice of vec / clear when done?)
@@ -620,7 +617,13 @@ impl CGWConnectionServer {
                 // If it's a relayed message, we must not relay it further
                 // If msg originated from Kafka originally, it's safe to relay it (if needed)
                 if let CGWConnectionNBAPIReqMsgOrigin::FromRemoteCGW = origin {
-                    local_parsed_cgw_msg_buf.push(parsed_msg);
+                    local_cgw_msg_buf.push(
+                        CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
+                            key,
+                            payload,
+                            CGWConnectionNBAPIReqMsgOrigin::FromRemoteCGW,
+                        ),
+                    );
                     continue;
                 }
 
@@ -1012,6 +1015,36 @@ impl CGWConnectionServer {
                     if let Some(device) = devices_cache.get_device(&device_mac) {
                         device.set_device_state(CGWDeviceState::CGWDeviceConnected);
 
+                        let group_id = device.get_device_group_id();
+                        if let Some(group_owner_id) = self
+                            .cgw_remote_discovery
+                            .get_infra_group_owner_id(group_id)
+                            .await
+                        {
+                            if group_owner_id != self.local_cgw_id {
+                                let resp = cgw_construct_foreign_infra_connection_msg(
+                                    group_id,
+                                    device_mac,
+                                    self.local_cgw_id,
+                                    group_owner_id,
+                                )?;
+
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
+                                debug!("Detected foreign infra {} connetion. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), group_id, group_owner_id);
+                            }
+                        } else {
+                            let resp = cgw_construct_unassigned_infra_connection_msg(
+                                device_mac,
+                                self.local_cgw_id,
+                            )?;
+
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
+                            debug!(
+                                "Detected unassigned infra {} connetion.",
+                                device_mac.to_hex_string()
+                            );
+                        }
+
                         let changes =
                             cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                         match changes {
@@ -1055,6 +1088,17 @@ impl CGWConnectionServer {
                         devices_cache.add_device(
                             &device_mac,
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
+                        );
+
+                        let resp = cgw_construct_unassigned_infra_connection_msg(
+                            device_mac,
+                            self.local_cgw_id,
+                        )?;
+
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
+                        debug!(
+                            "Detected unassigned infra {} connetion.",
+                            device_mac.to_hex_string()
                         );
                     }
 

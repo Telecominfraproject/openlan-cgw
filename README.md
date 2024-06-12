@@ -11,6 +11,8 @@ CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards
 CGW uses Kafka as a main North-Bound API layer for communication with NB services. CnC topic is used for commands and requests handling, CnC_Res is used to send replies/results back (CGW reads CnC and writes into CnC_Res).
 ### Requirements
 It's required for the Kafka to have the following topics premade upon CGW launch:
+1. "CnC"     - Kafka consumer topic
+2. "CnC_Res" - Kafka producer topic
 ## PSQL
 Application utilizes relational DB (PSQL) to store registered Infrastructure Groups as well as registered Infrastructures.
 ### Requirements
@@ -33,13 +35,9 @@ FOREIGN KEY(infra_group_id) REFERENCES infrastructure_groups(id) ON DELETE CASCA
 ## Redis
 fast in-memory DB that CGW uses to store all needed runtime information (InfraGroup assigned CGW id, remote CGW info - IP, gRPC port etc)
 # Building
-Before building CGW you must put cert+key pair into the src folder, named *localhost.crt* and *localhost.key*.
-These steps are not part of the build, and crt+key pair should exist upon running the build command.
-Key and certificate will be used by the CGW internally to validate incoming WSS connections.
 ```console
 $ make all
 ```
-The output (CGW binaries) is then put into the ./output/bin directory.
 Two new docker images will be generated on host system:
 **openlan_cgw** - image that holds CGW application itself
 **cgw_build_env** - building enviroment docker image that is used for generating openlan_cgw
@@ -90,7 +88,7 @@ declare -x CGW_ID="1"
 declare -x CGW_KAFKA_IP="127.0.0.1"        # Kafka is located at the local host
 declare -x CGW_KAFKA_PORT="9092"
 declare -x CGW_LOG_LEVEL="debug"
-declare -x CGW_REDIS_DB_IP="172.0.0.1"     # Redis server can be found at the local host
+declare -x CGW_REDIS_DB_IP="127.0.0.1"     # Redis server can be found at the local host
 declare -x CGW_WSS_IP="0.0.0.0"            # Accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"
 declare -x CGW_WSS_CAS="cas.pem"

@@ -256,8 +256,20 @@ impl CGWConnectionProcessor {
                             topo_map.process_state_message(&device_type, evt).await;
                             topo_map.debug_dump_map().await;
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
-                            assert_eq!(*fsm_state, CGWUCentralMessageProcessorState::ResultPending);
-                            assert_eq!(content.id, pending_req_id);
+                            if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
+                                error!(
+                                    "Unexpected FSM {:?} state! Expected: ResultPending",
+                                    *fsm_state
+                                );
+                            }
+
+                            if content.id != pending_req_id {
+                                error!(
+                                    "Pending request ID {} is not equal received reply ID {}!",
+                                    pending_req_id, content.id
+                                );
+                            }
+
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
                             debug!("Got reply event for pending request id: {}", pending_req_id);
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {

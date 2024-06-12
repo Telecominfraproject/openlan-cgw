@@ -68,7 +68,7 @@ impl CGWDBAccessor {
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
+                error!("connection error: {}", e);
             }
         });
 

@@ -764,4 +764,16 @@ impl CGWRemoteDiscovery {
 
         Ok(0u32)
     }
+
+    pub async fn cleanup_redis(&self) {
+        debug!("Remove from Redis shard id {}", self.local_shard_id);
+        // We are on de-init stage - ignore any errors on Redis clean-up
+        let _ = self
+            .redis_client
+            .send::<i32>(resp_array![
+                "DEL",
+                format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", self.local_shard_id)
+            ])
+            .await;
+    }
 }

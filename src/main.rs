@@ -92,6 +92,7 @@ const CGW_DEFAULT_DB_PASSWORD: &str = "123";
 const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
+const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
 
 /// CGW server
 pub struct AppArgs {
@@ -148,6 +149,9 @@ pub struct AppArgs {
 
     /// Allow Missmatch
     allow_mismatch: bool,
+
+    // PORT to connect to Metrics
+    metrics_port: u16,
 }
 
 impl AppArgs {
@@ -236,6 +240,11 @@ impl AppArgs {
             .unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
         let allow_mismatch = mismatch == "yes";
 
+        let metrics_port: u16 = match env::var("CGW_METRICS_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_METRICS_PORT),
+            Err(_) => CGW_DEFAULT_METRICS_PORT,
+        };
+
         AppArgs {
             log_level,
             cgw_id,
@@ -259,6 +268,7 @@ impl AppArgs {
             redis_db_ip,
             redis_db_port,
             allow_mismatch,
+            metrics_port,
         }
     }
 }
@@ -458,7 +468,7 @@ async fn main() -> Result<()> {
 
     // Make sure metrics are available <before> any of the components
     // starts up;
-    CGWMetrics::get_ref().start(&args).await?;
+    CGWMetrics::get_ref().start(args.metrics_port).await?;
     let app = Arc::new(AppCore::new(args).await?);
 
     app.run(shutdown_notify).await;

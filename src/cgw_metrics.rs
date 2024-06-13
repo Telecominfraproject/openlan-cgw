@@ -1,10 +1,11 @@
-use crate::cgw_errors::{Error, Result};
+use crate::cgw_errors::Result;
 use crate::AppArgs;
 
 use prometheus::{IntGauge, Registry};
-use std::sync::Mutex;
+use std::{collections::HashMap, fmt, sync::Arc};
+use tokio::sync::{Mutex, RwLock};
 
-use warp::{Filter, Rejection, Reply};
+use warp::{http::StatusCode, reply, Filter, Rejection, Reply};
 
 lazy_static! {
     pub static ref ACTIVE_CGW_NUM: IntGauge = IntGauge::new(
@@ -35,7 +36,54 @@ lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
     pub static ref CGW_METRICS: CGWMetrics = CGWMetrics {
         started: Mutex::new(false),
+        components_health: Arc::new(RwLock::new(HashMap::new())),
     };
+}
+
+#[derive(Eq, Hash, PartialEq)]
+pub enum CGWMetricsHealthComponent {
+    RedisConnection,
+    DBConnection,
+    KafkaConnection,
+    ConnectionServer,
+}
+
+#[derive(PartialEq)]
+pub enum CGWMetricsHealthComponentStatus {
+    NotReady(String),
+    Ready,
+}
+
+impl fmt::Display for CGWMetricsHealthComponent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CGWMetricsHealthComponent::RedisConnection => {
+                write!(f, "REDIS Connection")
+            }
+            CGWMetricsHealthComponent::DBConnection => {
+                write!(f, "SQL DB Connection")
+            }
+            CGWMetricsHealthComponent::KafkaConnection => {
+                write!(f, "Kafka BOOTSTRAP server Connection")
+            }
+            CGWMetricsHealthComponent::ConnectionServer => {
+                write!(f, "Main Secure WebSockets Server")
+            }
+        }
+    }
+}
+
+impl fmt::Display for CGWMetricsHealthComponentStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CGWMetricsHealthComponentStatus::Ready => {
+                write!(f, "Component status is - OK")
+            }
+            CGWMetricsHealthComponentStatus::NotReady(reason) => {
+                write!(f, "Component status is - BAD, reason: {reason}",)
+            }
+        }
+    }
 }
 
 pub enum CGWMetricsCounterType {
@@ -60,6 +108,8 @@ pub enum CGWMetricsCounterOpType {
 
 pub struct CGWMetrics {
     started: Mutex<bool>,
+    components_health:
+        Arc<RwLock<HashMap<CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus>>>,
 }
 
 impl CGWMetrics {
@@ -68,16 +118,34 @@ impl CGWMetrics {
     }
 
     pub async fn start(&self, _app_args: &AppArgs) -> Result<()> {
-        let mut started = match self.started.lock() {
-            Ok(guard) => guard,
-            Err(_) => return Err(Error::Metrics("Failed to get lock guard")),
-        };
+        let mut started = self.started.lock().await;
 
         if *started {
             return Ok(());
         }
 
+        debug!("Staring metrics engine...");
+
         *started = true;
+
+        let mut lock = self.components_health.write().await;
+
+        lock.insert(
+            CGWMetricsHealthComponent::RedisConnection,
+            CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
+        );
+        lock.insert(
+            CGWMetricsHealthComponent::DBConnection,
+            CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
+        );
+        lock.insert(
+            CGWMetricsHealthComponent::KafkaConnection,
+            CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
+        );
+        lock.insert(
+            CGWMetricsHealthComponent::ConnectionServer,
+            CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
+        );
 
         // TODO: remove: W/A for now, as currently capacity / threshold
         // is non-configurable
@@ -91,11 +159,24 @@ impl CGWMetrics {
             };
 
             let metrics_route = warp::path!("metrics").and_then(metrics_handler);
+            let health_route = warp::path!("health").and_then(health_handler);
 
-            warp::serve(metrics_route).run(([0, 0, 0, 0], 8080)).await;
+            let routes = warp::get().and(metrics_route.or(health_route));
+            warp::serve(routes).run(([0, 0, 0, 0], 8080)).await;
         });
 
+        debug!("Metrics engine's been started!");
         Ok(())
+    }
+
+    pub async fn change_component_health_status(
+        &self,
+        counter: CGWMetricsHealthComponent,
+        status: CGWMetricsHealthComponentStatus,
+    ) {
+        let mut lock = self.components_health.write().await;
+
+        lock.insert(counter, status);
     }
 
     pub fn change_counter(&self, counter: CGWMetricsCounterType, op: CGWMetricsCounterOpType) {
@@ -152,6 +233,34 @@ fn register_custom_metrics() -> Result<()> {
     REGISTRY.register(Box::new(CONNECTIONS_NUM.clone()))?;
 
     Ok(())
+}
+
+async fn health_handler() -> std::result::Result<impl Reply, Rejection> {
+    let metrics = CGWMetrics::get_ref();
+    let lock = metrics.components_health.read().await;
+
+    let mut healthy = true;
+    let mut text_status = String::new();
+
+    for (k, v) in lock.iter() {
+        text_status.push_str(&format!("Component - {}, Status - {}\n", k, v));
+        if let CGWMetricsHealthComponentStatus::NotReady(_) = v {
+            healthy = false;
+        }
+    }
+
+    if healthy {
+        Ok("CGW: up and running (all components are healhy)".into_response())
+    } else {
+        Ok(reply::with_status(
+            format!(
+                "CGW: one or more of the components are not healhy:\n{}",
+                text_status
+            ),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response())
+    }
 }
 
 async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {

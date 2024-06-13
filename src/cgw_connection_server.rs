@@ -20,7 +20,10 @@ use crate::{
     cgw_connection_processor::{CGWConnectionProcessor, CGWConnectionProcessorReqMsg},
     cgw_db_accessor::CGWDBInfrastructureGroup,
     cgw_devices_cache::CGWDevicesCache,
-    cgw_metrics::{CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType},
+    cgw_metrics::{
+        CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType, CGWMetricsHealthComponent,
+        CGWMetricsHealthComponentStatus,
+    },
     cgw_nb_api_listener::CGWNBApiClient,
     cgw_remote_discovery::CGWRemoteDiscovery,
 };
@@ -236,7 +239,29 @@ impl CGWConnectionServer {
 
         // Give NB API client a handle where it can do a TX (CLIENT -> CGW_SERVER)
         // RX is handled in internal_mbox of CGW_Server
-        let nb_api_c = CGWNBApiClient::new(app_args, &nb_api_tx);
+        let nb_api_c = match CGWNBApiClient::new(app_args, &nb_api_tx) {
+            Ok(c) => c,
+            Err(e) => {
+                error!(
+                    "Cant create CGW Connection server: NB API client create failed:{:?}",
+                    e
+                );
+                return Err(Error::ConnectionServer("NB API client create failed!"));
+            }
+        };
+
+        let cgw_remote_discovery = match CGWRemoteDiscovery::new(app_args).await {
+            Ok(d) => d,
+            Err(e) => {
+                error!(
+                    "Cant create CGW Connection server: Remote Discovery create failed:{:?}",
+                    e
+                );
+                return Err(Error::ConnectionServer(
+                    "Remote Discovery client create failed!",
+                ));
+            }
+        };
 
         let server = Arc::new(CGWConnectionServer {
             allow_mismatch: app_args.allow_mismatch,
@@ -248,8 +273,8 @@ impl CGWConnectionServer {
             mbox_nb_api_tx_runtime_handle: nb_api_mbox_tx_runtime_handle,
             mbox_internal_tx: internal_tx,
             queue_timeout_handle,
-            nb_api_client: nb_api_c?,
-            cgw_remote_discovery: Arc::new(CGWRemoteDiscovery::new(app_args).await?),
+            nb_api_client: nb_api_c,
+            cgw_remote_discovery: Arc::new(cgw_remote_discovery),
             mbox_relayed_messages_handle: nb_api_tx,
             mbox_relay_msg_runtime_handle: relay_msg_mbox_runtime_handle,
             devices_cache: Arc::new(RwLock::new(CGWDevicesCache::new())),
@@ -277,6 +302,15 @@ impl CGWConnectionServer {
             .sync_device_to_gid_cache(server.devices_cache.clone())
             .await;
         server.devices_cache.write().await.dump_devices_cache();
+
+        tokio::spawn(async move {
+            CGWMetrics::get_ref()
+                .change_component_health_status(
+                    CGWMetricsHealthComponent::ConnectionServer,
+                    CGWMetricsHealthComponentStatus::Ready,
+                )
+                .await;
+        });
 
         Ok(server)
     }
@@ -565,6 +599,11 @@ impl CGWConnectionServer {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                         }
                         Err(e) => {
+                            warn!(
+                                "Create group gid {gid}, uuid {uuid} request failed, reason: {:?}",
+                                e
+                            );
+
                             let resp = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
@@ -573,7 +612,6 @@ impl CGWConnectionServer {
                                 Some(format!("Failed to create new group: {:?}", e)),
                             )?;
                             self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
-                            warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
                         }
                     }
                     // This type of msg is handled in place, not added to buf
@@ -598,6 +636,11 @@ impl CGWConnectionServer {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                         }
                         Err(e) => {
+                            warn!(
+                                "Destroy group gid {gid}, uuid {uuid} request failed, reason: {:?}",
+                                e
+                            );
+
                             let resp = cgw_construct_infra_group_delete_response(
                                 gid,
                                 uuid,
@@ -605,7 +648,6 @@ impl CGWConnectionServer {
                                 Some(format!("Failed to delete group: {:?}", e)),
                             )?;
                             self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
-                            warn!("Destroy group gid {gid} received, but it does not exist");
                         }
                     }
                     // This type of msg is handled in place, not added to buf
@@ -890,6 +932,11 @@ impl CGWConnectionServer {
                                     debug!("Rebalancing groups completed successfully, # of rebalanced groups {groups_res}");
                                 }
                                 Err(e) => {
+                                    warn!(
+                                        "Rebalance groups uuid {uuid} request failed, reason: {:?}",
+                                        e
+                                    );
+
                                     let resp = cgw_construct_rebalance_group_response(
                                         gid,
                                         uuid,

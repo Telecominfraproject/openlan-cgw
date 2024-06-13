@@ -294,8 +294,16 @@ impl AppCore {
                 .build()?,
         );
 
+        let cgw_server = match CGWConnectionServer::new(&app_args).await {
+            Ok(s) => s,
+            Err(e) => {
+                error!("Failed to create CGW server: {:?}", e);
+                return Err(e);
+            }
+        };
+
         Ok(AppCore {
-            cgw_server: CGWConnectionServer::new(&app_args).await?,
+            cgw_server,
             main_runtime_handle: current_runtime,
             conn_ack_runtime_handle: c_ack_runtime_handle,
             args: app_args,
@@ -364,8 +372,6 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     info!("Started WSS server.");
 
     let tls_acceptor = cgw_tls_create_acceptor(&app_core.args).await?;
-
-    CGWMetrics::get_ref().start(&app_core.args).await?;
 
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
@@ -450,6 +456,9 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Make sure metrics are available <before> any of the components
+    // starts up;
+    CGWMetrics::get_ref().start(&args).await?;
     let app = Arc::new(AppCore::new(args).await?);
 
     app.run(shutdown_notify).await;

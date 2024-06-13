@@ -78,19 +78,21 @@ const CGW_DEFAULT_WSS_PORT: u16 = 15002;
 const CGW_DEFAULT_WSS_CAS: &str = "cas.pem";
 const CGW_DEFAULT_WSS_CERT: &str = "cert.pem";
 const CGW_DEFAULT_WSS_KEY: &str = "key.pem";
-const CGW_DEFAULT_GRPC_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
-const CGW_DEFAULT_GRPC_PORT: u16 = 50051;
-const CGW_DEFAULT_KAFKA_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+const CGW_DEFAULT_GRPC_LISTENING_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
+const CGW_DEFAULT_GRPC_LISTENING_PORT: u16 = 50051;
+const CGW_DEFAULT_GRPC_PUBLIC_HOST: &str = "localhost";
+const CGW_DEFAULT_GRPC_PUBLIC_PORT: u16 = 50051;
+const CGW_DEFAULT_KAFKA_HOST: &str = "localhost";
 const CGW_DEFAULT_KAFKA_PORT: u16 = 9092;
 const CGW_DEFAULT_KAFKA_CONSUME_TOPIC: &str = "CnC";
 const CGW_DEFAULT_KAFKA_PRODUCE_TOPIC: &str = "CnC_Res";
-const CGW_DEFAULT_DB_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+const CGW_DEFAULT_DB_HOST: &str = "localhost";
 const CGW_DEFAULT_DB_PORT: u16 = 6379;
 const CGW_DEFAULT_DB_NAME: &str = "cgw";
 const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
 const CGW_DEFAULT_DB_PASSWORD: &str = "123";
-const CGW_DEFAULT_REDIS_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
-const CGW_DEFAULT_REDIS_PORT: u16 = 5432;
+const CGW_DEFAULT_REDIS_HOST: &str = "localhost";
+const CGW_DEFAULT_REDIS_PORT: u16 = 6379;
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
 const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
 
@@ -116,12 +118,16 @@ pub struct AppArgs {
     wss_key: String,
 
     /// IP to listen for incoming GRPC connection
-    grpc_ip: Ipv4Addr,
+    grpc_listening_ip: Ipv4Addr,
     /// PORT to listen for incoming GRPC connection
-    grpc_port: u16,
+    grpc_listening_port: u16,
+    /// IP or hostname for Redis Record
+    grpc_public_host: String,
+    /// PORT for Redis record
+    grpc_public_port: u16,
 
-    /// IP to connect to KAFKA broker
-    kafka_ip: Ipv4Addr,
+    /// IP or hostname to connect to KAFKA broker
+    kafka_host: String,
     /// PORT to connect to KAFKA broker
     kafka_port: u16,
     /// KAFKA topic from where to consume messages
@@ -131,8 +137,8 @@ pub struct AppArgs {
     #[allow(unused)]
     kafka_produce_topic: String,
 
-    /// IP to connect to DB (PSQL)
-    db_ip: Ipv4Addr,
+    /// IP or hostname to connect to DB (PSQL)
+    db_host: String,
     /// PORT to connect to DB (PSQL)
     db_port: u16,
     /// DB name to connect to in DB (PSQL)
@@ -142,10 +148,10 @@ pub struct AppArgs {
     /// DB user password use with connection to in DB (PSQL)
     db_password: String,
 
-    /// IP to connect to DB (REDIS)
-    redis_db_ip: Ipv4Addr,
-    /// PORT to connect to DB (REDIS)
-    redis_db_port: u16,
+    /// IP or hostname to connect to REDIS
+    redis_host: String,
+    /// PORT to connect to REDIS
+    redis_port: u16,
 
     /// Allow Missmatch
     allow_mismatch: bool,
@@ -185,19 +191,47 @@ impl AppArgs {
         let wss_cert: String = env::var("CGW_WSS_CERT").unwrap_or(CGW_DEFAULT_WSS_CERT.to_string());
         let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
 
-        let grpc_ip: Ipv4Addr = match env::var("CGW_GRPC_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_IP),
-            Err(_) => CGW_DEFAULT_GRPC_IP,
+        let grpc_listening_ip: Ipv4Addr = match env::var("CGW_GRPC_LISTENING_IP") {
+            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_LISTENING_IP),
+            Err(_) => CGW_DEFAULT_GRPC_LISTENING_IP,
         };
 
-        let grpc_port: u16 = match env::var("CGW_GRPC_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_PORT),
-            Err(_) => CGW_DEFAULT_GRPC_PORT,
+        let grpc_listening_port: u16 = match env::var("CGW_GRPC_LISTENING_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_LISTENING_PORT),
+            Err(_) => CGW_DEFAULT_GRPC_LISTENING_PORT,
         };
 
-        let kafka_ip: Ipv4Addr = match env::var("CGW_KAFKA_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_KAFKA_IP),
-            Err(_) => CGW_DEFAULT_KAFKA_IP,
+        let grpc_public_host: String = match env::var("CGW_GRPC_PUBLIC_HOST") {
+            Ok(val) => {
+                // 1. Try to parse variable into IpAddress
+                match Ipv4Addr::from_str(val.as_str()) {
+                    // 2. If parsed - return IpAddress as String value
+                    Ok(ip) => ip.to_string(),
+                    // 3. If parse failed - probably hostname specified
+                    Err(_e) => val,
+                }
+            }
+            // Env. variable is not setup - use default value
+            Err(_) => CGW_DEFAULT_GRPC_PUBLIC_HOST.to_string(),
+        };
+
+        let grpc_public_port: u16 = match env::var("CGW_GRPC_PUBLIC_PORT") {
+            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_PUBLIC_PORT),
+            Err(_) => CGW_DEFAULT_GRPC_PUBLIC_PORT,
+        };
+
+        let kafka_host: String = match env::var("CGW_KAFKA_HOST") {
+            Ok(val) => {
+                // 1. Try to parse variable into IpAddress
+                match Ipv4Addr::from_str(val.as_str()) {
+                    // 2. If parsed - return IpAddress as String value
+                    Ok(ip) => ip.to_string(),
+                    // 3. If parse failed - probably hostname specified
+                    Err(_e) => val,
+                }
+            }
+            // Env. variable is not setup - use default value
+            Err(_) => CGW_DEFAULT_KAFKA_HOST.to_string(),
         };
 
         let kafka_port: u16 = match env::var("CGW_KAFKA_PORT") {
@@ -210,9 +244,18 @@ impl AppArgs {
         let kafka_produce_topic: String = env::var("CGW_KAFKA_PRODUCER_TOPIC")
             .unwrap_or(CGW_DEFAULT_KAFKA_PRODUCE_TOPIC.to_string());
 
-        let db_ip: Ipv4Addr = match env::var("CGW_DB_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_DB_IP),
-            Err(_) => CGW_DEFAULT_DB_IP,
+        let db_host: String = match env::var("CGW_DB_HOST") {
+            Ok(val) => {
+                // 1. Try to parse variable into IpAddress
+                match Ipv4Addr::from_str(val.as_str()) {
+                    // 2. If parsed - return IpAddress as String value
+                    Ok(ip) => ip.to_string(),
+                    // 3. If parse failed - probably hostname specified
+                    Err(_e) => val,
+                }
+            }
+            // Env. variable is not setup - use default value
+            Err(_) => CGW_DEFAULT_DB_HOST.to_string(),
         };
 
         let db_port: u16 = match env::var("CGW_DB_PORT") {
@@ -226,12 +269,21 @@ impl AppArgs {
         let db_password: String =
             env::var("CGW_DB_PASSWORD").unwrap_or(CGW_DEFAULT_DB_PASSWORD.to_string());
 
-        let redis_db_ip: Ipv4Addr = match env::var("CGW_REDIS_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_REDIS_IP),
-            Err(_) => CGW_DEFAULT_KAFKA_IP,
+        let redis_host: String = match env::var("CGW_REDIS_HOST") {
+            Ok(val) => {
+                // 1. Try to parse variable into IpAddress
+                match Ipv4Addr::from_str(val.as_str()) {
+                    // 2. If parsed - return IpAddress as String value
+                    Ok(ip) => ip.to_string(),
+                    // 3. If parse failed - probably hostname specified
+                    Err(_e) => val,
+                }
+            }
+            // Env. variable is not setup - use default value
+            Err(_) => CGW_DEFAULT_REDIS_HOST.to_string(),
         };
 
-        let redis_db_port: u16 = match env::var("CGW_REDIS_PORT") {
+        let redis_port: u16 = match env::var("CGW_REDIS_PORT") {
             Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_REDIS_PORT),
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
@@ -254,19 +306,21 @@ impl AppArgs {
             wss_cas,
             wss_cert,
             wss_key,
-            grpc_ip,
-            grpc_port,
-            kafka_ip,
+            grpc_listening_ip,
+            grpc_listening_port,
+            grpc_public_host,
+            grpc_public_port,
+            kafka_host,
             kafka_port,
             kafka_consume_topic,
             kafka_produce_topic,
-            db_ip,
+            db_host,
             db_port,
             db_name,
             db_username,
             db_password,
-            redis_db_ip,
-            redis_db_port,
+            redis_host,
+            redis_port,
             allow_mismatch,
             metrics_port,
         }

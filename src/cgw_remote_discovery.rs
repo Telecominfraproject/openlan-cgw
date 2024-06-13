@@ -13,7 +13,7 @@ use crate::{
 
 use std::{
     collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
 };
 
@@ -33,27 +33,14 @@ static REDIS_KEY_GID: &str = "group_id_";
 static REDIS_KEY_GID_VALUE_GID: &str = "gid";
 static REDIS_KEY_GID_VALUE_SHARD_ID: &str = "shard_id";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CGWREDISDBShard {
     id: i32,
-    server_ip: IpAddr,
+    server_host: String,
     server_port: u16,
     assigned_groups_num: i32,
     capacity: i32,
     threshold: i32,
-}
-
-impl Default for CGWREDISDBShard {
-    fn default() -> Self {
-        Self {
-            id: Default::default(),
-            server_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-            server_port: Default::default(),
-            assigned_groups_num: Default::default(),
-            capacity: Default::default(),
-            threshold: Default::default(),
-        }
-    }
 }
 
 impl From<Vec<String>> for CGWREDISDBShard {
@@ -66,8 +53,8 @@ impl From<Vec<String>> for CGWREDISDBShard {
         if values[0] != "id" {
             error!("redis.res[0] != id, unexpected.");
             return CGWREDISDBShard::default();
-        } else if values[2] != "server_ip" {
-            error!("redis.res[2] != server_ip, unexpected.");
+        } else if values[2] != "server_host" {
+            error!("redis.res[2] != server_host, unexpected.");
             return CGWREDISDBShard::default();
         } else if values[4] != "server_port" {
             error!("redis.res[4] != server_port, unexpected.");
@@ -84,9 +71,7 @@ impl From<Vec<String>> for CGWREDISDBShard {
         }
 
         let id = values[1].parse::<i32>().unwrap_or_default();
-        let server_ip = values[3]
-            .parse::<IpAddr>()
-            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+        let server_host = values[3].clone();
         let server_port = values[5].parse::<u16>().unwrap_or_default();
         let assigned_groups_num = values[7].parse::<i32>().unwrap_or_default();
         let capacity = values[9].parse::<i32>().unwrap_or_default();
@@ -94,7 +79,7 @@ impl From<Vec<String>> for CGWREDISDBShard {
 
         CGWREDISDBShard {
             id,
-            server_ip,
+            server_host,
             server_port,
             assigned_groups_num,
             capacity,
@@ -108,8 +93,8 @@ impl From<CGWREDISDBShard> for Vec<String> {
         vec![
             "id".to_string(),
             val.id.to_string(),
-            "server_ip".to_string(),
-            val.server_ip.to_string(),
+            "server_host".to_string(),
+            val.server_host,
             "server_port".to_string(),
             val.server_port.to_string(),
             "assigned_groups_num".to_string(),
@@ -137,6 +122,7 @@ impl CGWRemoteConfig {
             server_port: port,
         }
     }
+
     pub fn to_socket_addr(&self) -> SocketAddr {
         SocketAddr::new(std::net::IpAddr::V4(self.server_ip), self.server_port)
     }
@@ -161,12 +147,11 @@ impl CGWRemoteDiscovery {
     pub async fn new(app_args: &AppArgs) -> Result<Self> {
         debug!(
             "Trying to create redis db connection ({}:{})",
-            app_args.redis_db_ip.to_string(),
-            app_args.redis_db_port
+            app_args.redis_host, app_args.redis_port
         );
         let redis_client = match redis_async::client::paired::paired_connect(
-            app_args.redis_db_ip.to_string(),
-            app_args.redis_db_port,
+            app_args.redis_host.clone(),
+            app_args.redis_port,
         )
         .await
         {
@@ -221,12 +206,13 @@ impl CGWRemoteDiscovery {
         {
             let redisdb_shard_info = CGWREDISDBShard {
                 id: app_args.cgw_id,
-                server_ip: std::net::IpAddr::V4(app_args.grpc_ip),
-                server_port: app_args.grpc_port,
+                server_host: app_args.grpc_public_host.clone(),
+                server_port: app_args.grpc_public_port,
                 assigned_groups_num: 0i32,
                 capacity: 1000i32,
                 threshold: 50i32,
             };
+
             let redis_req_data: Vec<String> = redisdb_shard_info.into();
 
             if let Err(e) = rc
@@ -290,8 +276,8 @@ impl CGWRemoteDiscovery {
                 continue;
             }
             debug!(
-                "Shard #{}, IP {}:{}",
-                val.shard.id, val.shard.server_ip, val.shard.server_port
+                "Shard #{}, Hostname/IP {}:{}",
+                val.shard.id, val.shard.server_host, val.shard.server_port
             );
         }
 
@@ -434,7 +420,7 @@ impl CGWRemoteDiscovery {
                     }
 
                     let endpoint_str = String::from("http://")
-                        + &shrd.server_ip.to_string()
+                        + &shrd.server_host
                         + ":"
                         + &shrd.server_port.to_string();
                     let cgw_iface = CGWRemoteIface {
@@ -772,7 +758,12 @@ impl CGWRemoteDiscovery {
     ) -> Result<()> {
         // try to use internal cache first
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-            cl.client.relay_request_stream(stream).await?;
+            if let Err(_e) = cl.client.relay_request_stream(stream).await {
+                error!(
+                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
+                    shard_id, cl.shard.server_host, cl.shard.server_port
+                );
+            }
 
             return Ok(());
         }
@@ -780,7 +771,12 @@ impl CGWRemoteDiscovery {
         // then try to use redis
         let _ = self.sync_remote_cgw_map().await;
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-            cl.client.relay_request_stream(stream).await?;
+            if let Err(_e) = cl.client.relay_request_stream(stream).await {
+                error!(
+                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
+                    shard_id, cl.shard.server_host, cl.shard.server_port
+                );
+            }
             return Ok(());
         }
 

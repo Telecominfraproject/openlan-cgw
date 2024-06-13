@@ -53,8 +53,11 @@ pub struct CGWRemoteServer {
 
 impl CGWRemoteServer {
     pub fn new(app_args: &AppArgs) -> Self {
-        let remote_cfg =
-            CGWRemoteConfig::new(app_args.cgw_id, app_args.grpc_ip, app_args.grpc_port);
+        let remote_cfg = CGWRemoteConfig::new(
+            app_args.cgw_id,
+            app_args.grpc_listening_ip,
+            app_args.grpc_listening_port,
+        );
         CGWRemoteServer { cfg: remote_cfg }
     }
     pub async fn start(&self, srv: Arc<CGWConnectionServer>) {
@@ -72,6 +75,7 @@ impl CGWRemoteServer {
             "Starting GRPC server id {} - listening at {}:{}",
             self.cfg.remote_id, self.cfg.server_ip, self.cfg.server_port
         );
+
         let res = grpc_srv.serve(self.cfg.to_socket_addr()).await;
         error!("grpc server returned {:?}", res);
         // end of GRPC server build / start declaration

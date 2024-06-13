@@ -364,7 +364,7 @@ impl CGWCNCConsumer {
             .set("group.instance.id", app_args.cgw_id.to_string())
             .set(
                 "bootstrap.servers",
-                app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
+                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
             )
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
@@ -383,8 +383,7 @@ impl CGWCNCConsumer {
 
         debug!(
             "(consumer) (producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_ip.to_string(),
-            app_args.kafka_port.to_string()
+            app_args.kafka_host, app_args.kafka_port,
         );
 
         if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
@@ -409,7 +408,7 @@ impl CGWCNCProducer {
         let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
-                app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
+                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
             )
             .set("message.timeout.ms", "5000")
             .create()
@@ -423,8 +422,7 @@ impl CGWCNCProducer {
 
         debug!(
             "(producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_ip.to_string(),
-            app_args.kafka_port.to_string()
+            app_args.kafka_host, app_args.kafka_port,
         );
 
         Ok(producer)

@@ -9,8 +9,6 @@ pub enum Error {
 
     ConnectionServer(&'static str),
 
-    Metrics(&'static str),
-
     DbAccessor(&'static str),
 
     RemoteDiscovery(&'static str),

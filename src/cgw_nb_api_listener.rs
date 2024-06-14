@@ -3,7 +3,8 @@ use crate::cgw_ucentral_parser::CGWDeviceChange;
 use crate::AppArgs;
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
-use crate::cgw_errors::Result;
+use crate::cgw_errors::{Error, Result};
+use crate::cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus};
 
 use eui48::MacAddress;
 use futures::stream::TryStreamExt;
@@ -312,6 +313,15 @@ impl ConsumerContext for CustomContext {
             }
             debug!("post_rebalance callback, revoked partition(s): {part_list}");
         }
+
+        tokio::spawn(async move {
+            CGWMetrics::get_ref()
+                .change_component_health_status(
+                    CGWMetricsHealthComponent::KafkaConnection,
+                    CGWMetricsHealthComponentStatus::Ready,
+                )
+                .await;
+        });
     }
 
     fn commit_callback(&self, _result: KafkaResult<()>, _offsets: &TopicPartitionList) {
@@ -345,13 +355,7 @@ impl CGWCNCConsumer {
     fn create_consumer(app_args: &AppArgs) -> Result<CGWCNCConsumerType> {
         let context = CustomContext;
 
-        debug!(
-            "(consumer) Trying to connect to kafka broker ({}:{})...",
-            app_args.kafka_ip.to_string(),
-            app_args.kafka_port.to_string()
-        );
-
-        let consumer: CGWCNCConsumerType = ClientConfig::new()
+        let consumer: CGWCNCConsumerType = match ClientConfig::new()
             .set("group.id", GROUP_ID)
             .set(
                 "client.id",
@@ -368,11 +372,28 @@ impl CGWCNCConsumer {
             //.set("statistics.interval.ms", "30000")
             //.set("auto.offset.reset", "smallest")
             .set_log_level(RDKafkaLogLevel::Debug)
-            .create_with_context(context)?;
+            .create_with_context(context)
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to create kafka consumer from config: {:?}", e);
+                return Err(Error::Kafka(e));
+            }
+        };
 
-        consumer.subscribe(&CONSUMER_TOPICS)?;
+        debug!(
+            "(consumer) (producer) Created lazy connection to kafka broker ({}:{})...",
+            app_args.kafka_ip.to_string(),
+            app_args.kafka_port.to_string()
+        );
 
-        info!("Connected to kafka broker");
+        if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
+            error!(
+                "Kafka consumer was unable to subscribe to {:?}",
+                CONSUMER_TOPICS
+            );
+            return Err(Error::Kafka(e));
+        };
 
         Ok(consumer)
     }
@@ -385,16 +406,23 @@ impl CGWCNCProducer {
     }
 
     fn create_producer(app_args: &AppArgs) -> Result<CGWCNCProducerType> {
-        let producer: FutureProducer = ClientConfig::new()
+        let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
                 app_args.kafka_ip.to_string() + ":" + &app_args.kafka_port.to_string(),
             )
             .set("message.timeout.ms", "5000")
-            .create()?;
+            .create()
+        {
+            Ok(p) => p,
+            Err(e) => {
+                error!("Failed to create Kafka producer!");
+                return Err(Error::Kafka(e));
+            }
+        };
 
         debug!(
-            "(producer) Trying to connect to kafka broker ({}:{})...",
+            "(producer) Created lazy connection to kafka broker ({}:{})...",
             app_args.kafka_ip.to_string(),
             app_args.kafka_port.to_string()
         );

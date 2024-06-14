@@ -1,6 +1,9 @@
 use crate::AppArgs;
 
-use crate::cgw_errors::{Error, Result};
+use crate::{
+    cgw_errors::{Error, Result},
+    cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus},
+};
 
 use eui48::MacAddress;
 
@@ -50,7 +53,7 @@ pub struct CGWDBAccessor {
 impl CGWDBAccessor {
     pub async fn new(app_args: &AppArgs) -> Result<Self> {
         let conn_str = format!(
-            "host={host} port={port} user={user} dbname={db} password={pass}",
+            "host={host} port={port} user={user} dbname={db} password={pass} connect_timeout=10",
             host = app_args.db_ip,
             port = app_args.db_port,
             user = app_args.db_username,
@@ -64,15 +67,42 @@ impl CGWDBAccessor {
             conn_str
         );
 
-        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await?;
+        let (client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {
+            Ok((cl, conn)) => (cl, conn),
+            Err(e) => {
+                error!(
+                    "Failed to establish connection with remote DB, reason: {:?}",
+                    e
+                );
+                return Err(Error::DbAccessor(
+                    "Failed to establish connection with remote DB",
+                ));
+            }
+        };
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
-                error!("connection error: {}", e);
+                let err_msg = format!("Connection to remote DB broke up: {}", e);
+                error!("{}", err_msg);
+                CGWMetrics::get_ref()
+                    .change_component_health_status(
+                        CGWMetricsHealthComponent::DBConnection,
+                        CGWMetricsHealthComponentStatus::NotReady(err_msg),
+                    )
+                    .await;
             }
         });
 
-        info!("Connected to remote DB");
+        tokio::spawn(async move {
+            CGWMetrics::get_ref()
+                .change_component_health_status(
+                    CGWMetricsHealthComponent::DBConnection,
+                    CGWMetricsHealthComponentStatus::Ready,
+                )
+                .await;
+        });
+
+        info!("Connectiong to SQL DB has been established!");
 
         Ok(CGWDBAccessor { cl: client })
     }
@@ -89,7 +119,13 @@ impl CGWDBAccessor {
     */
 
     pub async fn insert_new_infra_group(&self, g: &CGWDBInfrastructureGroup) -> Result<()> {
-        let q = self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await?;
+        let q = match self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to prepare query (new infra group) for insertion, reason: {:?}", e);
+                return Err(Error::DbAccessor("Insert new infra group failed"));
+            }
+        };
         let res = self
             .cl
             .execute(&q, &[&g.id, &g.reserved_size, &g.actual_size])
@@ -110,10 +146,20 @@ impl CGWDBAccessor {
 
     pub async fn delete_infra_group(&self, gid: i32) -> Result<()> {
         // TODO: query-base approach instead of static string
-        let req = self
+        let req = match self
             .cl
             .prepare("DELETE FROM infrastructure_groups WHERE id = $1")
-            .await?;
+            .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!(
+                    "Failed to prepare query (del infra group) for removal, reason: {:?}",
+                    e
+                );
+                return Err(Error::DbAccessor("Insert new infra group failed"));
+            }
+        };
         let res = self.cl.execute(&req, &[&gid]).await;
 
         match res {
@@ -181,10 +227,17 @@ impl CGWDBAccessor {
     */
 
     pub async fn insert_new_infra(&self, infra: &CGWDBInfra) -> Result<()> {
-        let q = self
+        let q = match self
             .cl
             .prepare("INSERT INTO infras (mac, infra_group_id) VALUES ($1, $2)")
-            .await?;
+            .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to insert new infra, reason: {:?}", e);
+                return Err(Error::DbAccessor("Failed to insert new infra"));
+            }
+        };
         let res = self
             .cl
             .execute(&q, &[&infra.mac, &infra.infra_group_id])
@@ -200,7 +253,13 @@ impl CGWDBAccessor {
     }
 
     pub async fn delete_infra(&self, serial: MacAddress) -> Result<()> {
-        let q = self.cl.prepare("DELETE FROM infras WHERE mac = $1").await?;
+        let q = match self.cl.prepare("DELETE FROM infras WHERE mac = $1").await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to delete infra, reason: {:?}", e);
+                return Err(Error::DbAccessor("Failed to delete infra from DB"));
+            }
+        };
         let res = self.cl.execute(&q, &[&serial]).await;
 
         match res {
@@ -233,7 +292,10 @@ impl CGWDBAccessor {
                 }
                 Some(list)
             }
-            Err(_e) => None,
+            Err(e) => {
+                error!("Failed to retrieve infras from DB, reason: {:?}", e);
+                None
+            }
         }
     }
 }

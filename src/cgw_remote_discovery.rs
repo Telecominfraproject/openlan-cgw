@@ -3,7 +3,10 @@ use crate::{
     cgw_device::{CGWDevice, CGWDeviceState},
     cgw_devices_cache::CGWDevicesCache,
     cgw_errors::{Error, Result},
-    cgw_metrics::{CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType},
+    cgw_metrics::{
+        CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType, CGWMetricsHealthComponent,
+        CGWMetricsHealthComponentStatus,
+    },
     cgw_remote_client::CGWRemoteClient,
     AppArgs,
 };
@@ -156,20 +159,58 @@ pub struct CGWRemoteDiscovery {
 
 impl CGWRemoteDiscovery {
     pub async fn new(app_args: &AppArgs) -> Result<Self> {
+        debug!(
+            "Trying to create redis db connection ({}:{})",
+            app_args.redis_db_ip.to_string(),
+            app_args.redis_db_port
+        );
+        let redis_client = match redis_async::client::paired::paired_connect(
+            app_args.redis_db_ip.to_string(),
+            app_args.redis_db_port,
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!(
+                    "Cant create CGW Remote Discovery client: Redis client create failed ({:?})",
+                    e
+                );
+                return Err(Error::RemoteDiscovery("Redis client create failed"));
+            }
+        };
+
+        let db_accessor = match CGWDBAccessor::new(app_args).await {
+            Ok(c) => c,
+            Err(e) => {
+                error!(
+                    "Cant create CGW Remote Discovery client: DB Accessor create failed ({:?})",
+                    e
+                );
+                return Err(Error::RemoteDiscovery("DB Accessor create failed"));
+            }
+        };
+
         let rc = CGWRemoteDiscovery {
-            db_accessor: Arc::new(CGWDBAccessor::new(app_args).await?),
-            redis_client: redis_async::client::paired::paired_connect(
-                app_args.redis_db_ip.to_string(),
-                app_args.redis_db_port,
-            )
-            .await?,
+            db_accessor: Arc::new(db_accessor),
+            redis_client,
             gid_to_cgw_cache: Arc::new(RwLock::new(HashMap::new())),
             local_shard_id: app_args.cgw_id,
             remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        let _ = rc.sync_gid_to_cgw_map().await;
-        let _ = rc.sync_remote_cgw_map().await;
+        if let Err(e) = rc.sync_gid_to_cgw_map().await {
+            error!("Cant create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
+            ));
+        }
+        if let Err(e) = rc.sync_remote_cgw_map().await {
+            error!("Cant create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
+            ));
+        }
 
         if rc
             .remote_cgws_map
@@ -188,15 +229,21 @@ impl CGWRemoteDiscovery {
             };
             let redis_req_data: Vec<String> = redisdb_shard_info.into();
 
-            let _ = rc
+            if let Err(e) = rc
                 .redis_client
                 .send::<i32>(resp_array![
                     "DEL",
                     format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)
                 ])
-                .await;
+                .await
+            {
+                warn!(
+                    "Failed to destroy record about shard in REDIS, first launch? ({:?})",
+                    e
+                );
+            }
 
-            if rc
+            if let Err(e) = rc
                 .redis_client
                 .send::<String>(
                     resp_array![
@@ -206,16 +253,32 @@ impl CGWRemoteDiscovery {
                     .append(redis_req_data),
                 )
                 .await
-                .is_err()
             {
+                error!("Cant create CGW Remote Discovery client: Failed to create record about shard in REDIS: {:?}", e);
                 return Err(Error::RemoteDiscovery(
                     "Failed to create record about shard in REDIS",
                 ));
             }
         }
 
-        let _ = rc.sync_gid_to_cgw_map().await;
-        let _ = rc.sync_remote_cgw_map().await;
+        if let Err(e) = rc.sync_gid_to_cgw_map().await {
+            error!(
+                "Cant create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
+                e
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
+            ));
+        }
+        if let Err(e) = rc.sync_remote_cgw_map().await {
+            error!(
+                "Cant create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
+                e
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
+            ));
+        }
 
         debug!(
             "Found {} remote CGWs",
@@ -231,6 +294,17 @@ impl CGWRemoteDiscovery {
                 val.shard.id, val.shard.server_ip, val.shard.server_port
             );
         }
+
+        tokio::spawn(async move {
+            CGWMetrics::get_ref()
+                .change_component_health_status(
+                    CGWMetricsHealthComponent::RedisConnection,
+                    CGWMetricsHealthComponentStatus::Ready,
+                )
+                .await;
+        });
+
+        info!("Connectiong to REDIS DB has been established!");
 
         Ok(rc)
     }

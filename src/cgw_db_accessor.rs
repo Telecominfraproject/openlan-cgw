@@ -54,7 +54,7 @@ impl CGWDBAccessor {
     pub async fn new(app_args: &AppArgs) -> Result<Self> {
         let conn_str = format!(
             "host={host} port={port} user={user} dbname={db} password={pass} connect_timeout=10",
-            host = app_args.db_ip,
+            host = app_args.db_host,
             port = app_args.db_port,
             user = app_args.db_username,
             db = app_args.db_name,
@@ -62,9 +62,7 @@ impl CGWDBAccessor {
         );
         debug!(
             "Trying to connect to remote db ({}:{})...\nConn args {}",
-            app_args.db_ip.to_string(),
-            app_args.db_port.to_string(),
-            conn_str
+            app_args.db_host, app_args.db_port, conn_str
         );
 
         let (client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {

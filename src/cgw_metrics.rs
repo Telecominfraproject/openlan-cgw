@@ -1,5 +1,4 @@
 use crate::cgw_errors::Result;
-use crate::AppArgs;
 
 use prometheus::{IntGauge, Registry};
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -117,7 +116,7 @@ impl CGWMetrics {
         &CGW_METRICS
     }
 
-    pub async fn start(&self, _app_args: &AppArgs) -> Result<()> {
+    pub async fn start(&self, port: u16) -> Result<()> {
         let mut started = self.started.lock().await;
 
         if *started {
@@ -162,7 +161,7 @@ impl CGWMetrics {
             let health_route = warp::path!("health").and_then(health_handler);
 
             let routes = warp::get().and(metrics_route.or(health_route));
-            warp::serve(routes).run(([0, 0, 0, 0], 8080)).await;
+            warp::serve(routes).run(([0, 0, 0, 0], port)).await;
         });
 
         debug!("Metrics engine's been started!");

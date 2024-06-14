@@ -12,7 +12,7 @@ use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
     CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
 };
-use crate::cgw_ucentral_parser::{cgw_ucentral_parse_command_message, CGWUCentralCommand};
+use crate::cgw_ucentral_parser::cgw_ucentral_parse_command_message;
 use crate::cgw_ucentral_topology_map::CGWUCentralTopologyMap;
 use crate::AppArgs;
 
@@ -283,12 +283,12 @@ impl CGWConnectionServer {
         let server_clone = server.clone();
         // Task for processing mbox_internal_rx, task owns the RX part
         server.mbox_internal_runtime_handle.spawn(async move {
-            let _ = server_clone.process_internal_mbox(internal_rx).await;
+            server_clone.process_internal_mbox(internal_rx).await;
         });
 
         let server_clone = server.clone();
         server.mbox_nb_api_runtime_handle.spawn(async move {
-            let _ = server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
         });
 
         server.queue_timeout_handle.spawn(async move {
@@ -476,7 +476,7 @@ impl CGWConnectionServer {
     async fn process_internal_nb_api_mbox(
         self: Arc<Self>,
         mut rx_mbox: CGWConnectionServerNBAPIMboxRx,
-    ) -> Result<()> {
+    ) {
         debug!("process_nb_api_mbox entry");
 
         let buf_capacity = 2000;
@@ -588,15 +588,17 @@ impl CGWConnectionServer {
                     };
                     match self.cgw_remote_discovery.create_infra_group(&group).await {
                         Ok(_dst_cgw_id) => {
-                            let resp = cgw_construct_infra_group_create_response(
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
                                 uuid,
                                 true,
                                 None,
-                            )?;
-
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
                         }
                         Err(e) => {
                             warn!(
@@ -604,14 +606,19 @@ impl CGWConnectionServer {
                                 e
                             );
 
-                            let resp = cgw_construct_infra_group_create_response(
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
                                 uuid,
                                 false,
                                 Some(format!("Failed to create new group: {:?}", e)),
-                            )?;
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
+
+                            warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
                         }
                     }
                     // This type of msg is handled in place, not added to buf
@@ -630,10 +637,13 @@ impl CGWConnectionServer {
                         .await
                     {
                         Ok(()) => {
-                            let resp =
-                                cgw_construct_infra_group_delete_response(gid, uuid, true, None)?;
-
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            if let Ok(resp) =
+                                cgw_construct_infra_group_delete_response(gid, uuid, true, None)
+                            {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_delete message");
+                            }
                         }
                         Err(e) => {
                             warn!(
@@ -641,13 +651,18 @@ impl CGWConnectionServer {
                                 e
                             );
 
-                            let resp = cgw_construct_infra_group_delete_response(
+                            if let Ok(resp) = cgw_construct_infra_group_delete_response(
                                 gid,
                                 uuid,
                                 false,
                                 Some(format!("Failed to delete group: {:?}", e)),
-                            )?;
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_delete message");
+                            }
+
+                            warn!("Destroy group gid {gid} received, but it does not exist");
                         }
                     }
                     // This type of msg is handled in place, not added to buf
@@ -671,7 +686,7 @@ impl CGWConnectionServer {
 
                 match self
                     .cgw_remote_discovery
-                    .get_infra_group_owner_id(key.parse::<i32>()?)
+                    .get_infra_group_owner_id(gid_numeric)
                     .await
                 {
                     Some(dst_cgw_id) => {
@@ -691,14 +706,18 @@ impl CGWConnectionServer {
                         }
                     }
                     None => {
-                        let resp = cgw_construct_device_enqueue_response(
+                        if let Ok(resp) = cgw_construct_device_enqueue_response(
                             Uuid::default(),
                             false,
                             Some(format!(
                                 "Received message for unknown group {gid_numeric} - unassigned?"
                             )),
-                        )?;
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid_numeric, resp);
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid_numeric, resp);
+                        } else {
+                            error!("Failed to construct device_enqueue message");
+                        }
+
                         warn!("Received msg for gid {gid_numeric}, while this group is unassigned to any of CGWs: rejecting");
                     }
                 }
@@ -747,13 +766,15 @@ impl CGWConnectionServer {
                             .await)
                             .is_err()
                         {
-                            let resp = cgw_construct_device_enqueue_response(
+                            if let Ok(resp) = cgw_construct_device_enqueue_response(
                                 Uuid::default(),
                                 false,
                                 Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
-                            )
-                            .unwrap_or_default();
-                            self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                            ) {
+                                self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                            } else {
+                                error!("Failed to construct device_enqueue message");
+                            }
                         }
                     });
                 }
@@ -772,7 +793,14 @@ impl CGWConnectionServer {
                     _origin,
                 ) = msg;
 
-                let gid_numeric: i32 = key.parse::<i32>()?;
+                let gid_numeric = match key.parse::<i32>() {
+                    Err(e) => {
+                        warn!("Invalid KEY received from KAFKA bus message, ignoring\n{e}");
+                        continue;
+                    }
+                    Ok(v) => v,
+                };
+
                 debug!(
                     "Received message for local CGW k:{key}, local id {}",
                     self.local_cgw_id
@@ -791,14 +819,18 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                let resp = cgw_construct_infra_group_device_add_response(
+                                if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                     gid,
                                     mac_list.clone(),
                                     uuid,
                                     false,
                                     Some(format!("Failed to add infra list to nonexisting group, gid {gid}, uuid {uuid}")),
-                                )?;
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                } else {
+                                    error!("Failed to construct infra_group_device_add message");
+                                }
+
                                 warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}");
                             }
 
@@ -809,22 +841,33 @@ impl CGWConnectionServer {
                                 .await
                             {
                                 Ok(()) => {
-                                    let resp = cgw_construct_infra_group_device_add_response(
+                                    if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                         gid, mac_list, uuid, true, None,
-                                    )?;
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    ) {
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    } else {
+                                        error!(
+                                            "Failed to construct infra_group_device_add message"
+                                        );
+                                    }
                                 }
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
-                                        let resp = cgw_construct_infra_group_device_add_response(
+                                        if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                             gid,
                                             mac_addresses,
                                             uuid,
                                             false,
                                             Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
-                                        )?;
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        ) {
+                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        } else {
+                                            error!(
+                                                "Failed to construct infra_group_device_add message"
+                                            );
+                                        }
+
                                         warn!("Failed to create few MACs from infras list (partial create)");
                                         continue;
                                     }
@@ -842,15 +885,20 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                let resp = cgw_construct_infra_group_device_del_response(
+                                if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                     gid,
                                     mac_list.clone(),
                                     uuid,
                                     false,
                                     Some(format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist.")),
-                                )?;
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                } else {
+                                    error!(
+                                        "Failed to construct infra_group_device_del message"
+                                    );
+                                }
 
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                 warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid}");
                             }
 
@@ -861,22 +909,33 @@ impl CGWConnectionServer {
                                 .await
                             {
                                 Ok(()) => {
-                                    let resp = cgw_construct_infra_group_device_del_response(
+                                    if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                         gid, mac_list, uuid, true, None,
-                                    )?;
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    ) {
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    } else {
+                                        error!(
+                                            "Failed to construct infra_group_device_del message"
+                                        );
+                                    }
                                 }
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
-                                        let resp = cgw_construct_infra_group_device_del_response(
+                                        if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                             gid,
                                             mac_addresses,
                                             uuid,
                                             false,
                                             Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
-                                        )?;
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        ) {
+                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        } else {
+                                            error!(
+                                                "Failed to construct infra_group_device_del message"
+                                            );
+                                        }
+
                                         warn!("Failed to destroy few MACs from infras list (partial delete)");
                                         continue;
                                     }
@@ -895,24 +954,31 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                let resp = cgw_construct_device_enqueue_response(
+                                if let Ok(resp) = cgw_construct_device_enqueue_response(
                                     uuid,
                                     false,
                                     Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist.")),
-                                )?;
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                } else {
+                                    error!("Failed to construct device_enqueue message");
+                                }
+
                                 warn!("Unexpected: tried to sink down msg to device of nonexisting group (gid {gid}, uuid {uuid}");
                             }
 
                             // 1. Parse message from NB
-                            let parsed_cmd: CGWUCentralCommand =
-                                cgw_ucentral_parse_command_message(&msg.clone())?;
-                            let queue_msg: CGWUCentralMessagesQueueItem =
-                                CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
+                            if let Ok(parsed_cmd) = cgw_ucentral_parse_command_message(&msg.clone())
+                            {
+                                let queue_msg: CGWUCentralMessagesQueueItem =
+                                    CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
 
-                            // 2. Add message to queue
-                            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                            let _ = queue_lock.push_device_message(device_mac, queue_msg).await;
+                                // 2. Add message to queue
+                                let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                                let _ = queue_lock.push_device_message(device_mac, queue_msg).await;
+                            } else {
+                                error!("Failed to parse UCentral command");
+                            }
                         }
                         CGWNBApiParsedMsg {
                             uuid,
@@ -925,10 +991,14 @@ impl CGWConnectionServer {
                             );
                             match self.cgw_remote_discovery.rebalance_all_groups().await {
                                 Ok(groups_res) => {
-                                    let resp = cgw_construct_rebalance_group_response(
+                                    if let Ok(resp) = cgw_construct_rebalance_group_response(
                                         gid, uuid, true, None,
-                                    )?;
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    ) {
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    } else {
+                                        error!("Failed to construct rebalance_group message");
+                                    }
+
                                     debug!("Rebalancing groups completed successfully, # of rebalanced groups {groups_res}");
                                 }
                                 Err(e) => {
@@ -937,14 +1007,18 @@ impl CGWConnectionServer {
                                         e
                                     );
 
-                                    let resp = cgw_construct_rebalance_group_response(
+                                    if let Ok(resp) = cgw_construct_rebalance_group_response(
                                         gid,
                                         uuid,
                                         false,
                                         Some(format!("Failed to rebalance groups: {:?}", e)),
-                                    )?;
+                                    ) {
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    } else {
+                                        error!("Failed to construct rebalance_group message");
+                                    }
 
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    warn!("Rebalancing groups failed, error {:?}", e);
                                 }
                             }
                         }
@@ -969,10 +1043,7 @@ impl CGWConnectionServer {
         }
     }
 
-    async fn process_internal_mbox(
-        self: Arc<Self>,
-        mut rx_mbox: CGWConnectionServerMboxRx,
-    ) -> Result<()> {
+    async fn process_internal_mbox(self: Arc<Self>, mut rx_mbox: CGWConnectionServerMboxRx) {
         debug!("process_internal_mbox entry");
 
         let buf_capacity = 1000;
@@ -1069,23 +1140,29 @@ impl CGWConnectionServer {
                             .await
                         {
                             if group_owner_id != self.local_cgw_id {
-                                let resp = cgw_construct_foreign_infra_connection_msg(
+                                if let Ok(resp) = cgw_construct_foreign_infra_connection_msg(
                                     group_id,
                                     device_mac,
                                     self.local_cgw_id,
                                     group_owner_id,
-                                )?;
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
+                                } else {
+                                    error!("Failed to construct foreign_infra_connection message");
+                                }
 
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
                                 debug!("Detected foreign infra {} connetion. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), group_id, group_owner_id);
                             }
                         } else {
-                            let resp = cgw_construct_unassigned_infra_connection_msg(
+                            if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
                                 device_mac,
                                 self.local_cgw_id,
-                            )?;
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
+                            } else {
+                                error!("Failed to construct unassigned_infra_connection message");
+                            }
 
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
                             debug!(
                                 "Detected unassigned infra {} connetion.",
                                 device_mac.to_hex_string()
@@ -1096,15 +1173,20 @@ impl CGWConnectionServer {
                             cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                         match changes {
                             Some(diff) => {
-                                let resp = cgw_construct_device_capabilities_changed_msg(
+                                if let Ok(resp) = cgw_construct_device_capabilities_changed_msg(
                                     device_mac,
                                     device.get_device_group_id(),
                                     &diff,
-                                )?;
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    device.get_device_group_id(),
-                                    resp,
-                                );
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                        device.get_device_group_id(),
+                                        resp,
+                                    );
+                                } else {
+                                    error!(
+                                        "Failed to construct device_capabilities_changed message"
+                                    );
+                                }
                             }
                             None => {
                                 debug!(
@@ -1119,10 +1201,15 @@ impl CGWConnectionServer {
                         let changes = cgw_detect_device_chages(&default_caps, &caps);
                         match changes {
                             Some(diff) => {
-                                let resp = cgw_construct_device_capabilities_changed_msg(
+                                if let Ok(resp) = cgw_construct_device_capabilities_changed_msg(
                                     device_mac, 0, &diff,
-                                )?;
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
+                                } else {
+                                    error!(
+                                        "Failed to construct device_capabilities_changed message"
+                                    );
+                                }
                             }
                             None => {
                                 debug!(
@@ -1137,12 +1224,15 @@ impl CGWConnectionServer {
                             &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
                         );
 
-                        let resp = cgw_construct_unassigned_infra_connection_msg(
+                        if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
                             device_mac,
                             self.local_cgw_id,
-                        )?;
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
+                        } else {
+                            error!("Failed to construct unassigned_infra_connection message");
+                        }
 
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
                         debug!(
                             "Detected unassigned infra {} connetion.",
                             device_mac.to_hex_string()

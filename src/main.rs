@@ -161,29 +161,69 @@ pub struct AppArgs {
 }
 
 impl AppArgs {
-    fn parse() -> Self {
+    fn parse() -> Result<Self> {
         let log_level: AppCoreLogLevel = match env::var("CGW_LOG_LEVEL") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_LOG_LEVEL),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_LOG_LEVEL! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_LOG_LEVEL,
         };
 
         let cgw_id: i32 = match env::var("CGW_ID") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_ID),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_ID! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_ID,
         };
 
         let wss_t_num: usize = match env::var("DEFAULT_WSS_THREAD_NUM") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_WSS_T_NUM),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse DEFAULT_WSS_THREAD_NUM! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_WSS_T_NUM,
         };
 
         let wss_ip: Ipv4Addr = match env::var("CGW_WSS_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_WSS_IP),
+            Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_WSS_IP! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_WSS_IP,
         };
 
         let wss_port: u16 = match env::var("CGW_WSS_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_WSS_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_WSS_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_WSS_PORT,
         };
 
@@ -192,12 +232,28 @@ impl AppArgs {
         let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
 
         let grpc_listening_ip: Ipv4Addr = match env::var("CGW_GRPC_LISTENING_IP") {
-            Ok(val) => Ipv4Addr::from_str(val.as_str()).unwrap_or(CGW_DEFAULT_GRPC_LISTENING_IP),
+            Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GRPC_LISTENING_IP! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_GRPC_LISTENING_IP,
         };
 
         let grpc_listening_port: u16 = match env::var("CGW_GRPC_LISTENING_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_LISTENING_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GRPC_LISTENING_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_GRPC_LISTENING_PORT,
         };
 
@@ -216,7 +272,15 @@ impl AppArgs {
         };
 
         let grpc_public_port: u16 = match env::var("CGW_GRPC_PUBLIC_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_GRPC_PUBLIC_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GRPC_PUBLIC_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_GRPC_PUBLIC_PORT,
         };
 
@@ -235,7 +299,15 @@ impl AppArgs {
         };
 
         let kafka_port: u16 = match env::var("CGW_KAFKA_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_KAFKA_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_KAFKA_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_KAFKA_PORT,
         };
 
@@ -259,7 +331,15 @@ impl AppArgs {
         };
 
         let db_port: u16 = match env::var("CGW_DB_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_DB_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_DB_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_DB_PORT,
         };
 
@@ -284,7 +364,15 @@ impl AppArgs {
         };
 
         let redis_port: u16 = match env::var("CGW_REDIS_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_REDIS_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_REDIS_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
 
@@ -293,11 +381,19 @@ impl AppArgs {
         let allow_mismatch = mismatch == "yes";
 
         let metrics_port: u16 = match env::var("CGW_METRICS_PORT") {
-            Ok(val) => val.parse().ok().unwrap_or(CGW_DEFAULT_METRICS_PORT),
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_METRICS_PORT! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
             Err(_) => CGW_DEFAULT_METRICS_PORT,
         };
 
-        AppArgs {
+        Ok(AppArgs {
             log_level,
             cgw_id,
             wss_t_num,
@@ -323,7 +419,7 @@ impl AppArgs {
             redis_port,
             allow_mismatch,
             metrics_port,
-        }
+        })
     }
 }
 
@@ -424,18 +520,31 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
         app_core.args.wss_ip, app_core.args.wss_port
     );
     // Bind the server's socket
-    let sockaddraddr = SocketAddr::new(
+    let sockaddress = SocketAddr::new(
         std::net::IpAddr::V4(app_core.args.wss_ip),
         app_core.args.wss_port,
     );
-    let listener: Arc<TcpListener> = match TcpListener::bind(sockaddraddr).await {
+    let listener: Arc<TcpListener> = match TcpListener::bind(sockaddress).await {
         Ok(listener) => Arc::new(listener),
-        Err(_) => return Err(Error::Other("listener bind failed")),
+        Err(e) => {
+            error!(
+                "Failed to bind socket address: {}. Error: {}",
+                sockaddress, e
+            );
+            return Err(Error::ConnectionServer(format!(
+                "Failed to bind socket address: {}. Error: {}",
+                sockaddress, e
+            )));
+        }
     };
 
-    info!("Started WSS server.");
-
-    let tls_acceptor = cgw_tls_create_acceptor(&app_core.args).await?;
+    let tls_acceptor = match cgw_tls_create_acceptor(&app_core.args).await {
+        Ok(acceptor) => acceptor,
+        Err(e) => {
+            error!("Failed to create TLS acceptor. Error: {}", e.to_string());
+            return Err(e);
+        }
+    };
 
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
@@ -457,6 +566,8 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                         continue;
                     }
                 };
+
+                info!("Started WSS server.");
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone
@@ -504,7 +615,14 @@ async fn signal_handler(shutdown_notify: Arc<Notify>) -> Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let args = AppArgs::parse();
+    let args = match AppArgs::parse() {
+        Ok(app_args) => app_args,
+        Err(e) => {
+            setup_logger(AppCoreLogLevel::Info);
+            error!("Failed to parse app args: {}", e.to_string());
+            return Err(e);
+        }
+    };
 
     // Configure logger
     setup_logger(args.log_level);

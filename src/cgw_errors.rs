@@ -21,6 +21,8 @@ pub enum Error {
 
     UCentralMessagesQueue(&'static str),
 
+    AppArgsParser(String),
+
     Other(&'static str),
 
     // -- Externals
@@ -77,6 +79,15 @@ pub enum Error {
 
     #[from]
     Empty(()),
+}
+
+impl ToString for Error {
+    fn to_string(&self) -> String {
+        match self {
+            Error::AppArgsParser(s) => s.clone(),
+            _ => format!("{:?}", self),
+        }
+    }
 }
 
 // Helper function to collect results

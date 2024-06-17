@@ -7,7 +7,7 @@ pub enum Error {
     // -- Internals
     ConnectionProcessor(&'static str),
 
-    ConnectionServer(&'static str),
+    ConnectionServer(String),
 
     DbAccessor(&'static str),
 
@@ -15,15 +15,13 @@ pub enum Error {
 
     RemoteDiscoveryFailedInfras(Vec<eui48::MacAddress>),
 
-    Tls(&'static str),
+    Tls(String),
 
     UCentralParser(&'static str),
 
     UCentralMessagesQueue(&'static str),
 
     AppArgsParser(String),
-
-    Other(&'static str),
 
     // -- Externals
     #[from]
@@ -84,7 +82,8 @@ pub enum Error {
 impl ToString for Error {
     fn to_string(&self) -> String {
         match self {
-            Error::AppArgsParser(s) => s.clone(),
+            Error::AppArgsParser(message) => message.clone(),
+            Error::Tls(message) => message.clone(),
             _ => format!("{:?}", self),
         }
     }

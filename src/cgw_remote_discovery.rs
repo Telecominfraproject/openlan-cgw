@@ -158,7 +158,7 @@ impl CGWRemoteDiscovery {
             Ok(c) => c,
             Err(e) => {
                 error!(
-                    "Cant create CGW Remote Discovery client: Redis client create failed ({:?})",
+                    "Can't create CGW Remote Discovery client: Redis client create failed ({:?})",
                     e
                 );
                 return Err(Error::RemoteDiscovery("Redis client create failed"));
@@ -169,7 +169,7 @@ impl CGWRemoteDiscovery {
             Ok(c) => c,
             Err(e) => {
                 error!(
-                    "Cant create CGW Remote Discovery client: DB Accessor create failed ({:?})",
+                    "Can't create CGW Remote Discovery client: DB Accessor create failed ({:?})",
                     e
                 );
                 return Err(Error::RemoteDiscovery("DB Accessor create failed"));
@@ -185,13 +185,13 @@ impl CGWRemoteDiscovery {
         };
 
         if let Err(e) = rc.sync_gid_to_cgw_map().await {
-            error!("Cant create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
             ));
         }
         if let Err(e) = rc.sync_remote_cgw_map().await {
-            error!("Cant create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
             ));
@@ -240,7 +240,7 @@ impl CGWRemoteDiscovery {
                 )
                 .await
             {
-                error!("Cant create CGW Remote Discovery client: Failed to create record about shard in REDIS: {:?}", e);
+                error!("Can't create CGW Remote Discovery client: Failed to create record about shard in REDIS: {:?}", e);
                 return Err(Error::RemoteDiscovery(
                     "Failed to create record about shard in REDIS",
                 ));
@@ -249,7 +249,7 @@ impl CGWRemoteDiscovery {
 
         if let Err(e) = rc.sync_gid_to_cgw_map().await {
             error!(
-                "Cant create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
+                "Can't create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
                 e
             );
             return Err(Error::RemoteDiscovery(
@@ -258,7 +258,7 @@ impl CGWRemoteDiscovery {
         }
         if let Err(e) = rc.sync_remote_cgw_map().await {
             error!(
-                "Cant create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
+                "Can't create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
                 e
             );
             return Err(Error::RemoteDiscovery(

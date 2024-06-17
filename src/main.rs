@@ -520,18 +520,31 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
         app_core.args.wss_ip, app_core.args.wss_port
     );
     // Bind the server's socket
-    let sockaddraddr = SocketAddr::new(
+    let sockaddress = SocketAddr::new(
         std::net::IpAddr::V4(app_core.args.wss_ip),
         app_core.args.wss_port,
     );
-    let listener: Arc<TcpListener> = match TcpListener::bind(sockaddraddr).await {
+    let listener: Arc<TcpListener> = match TcpListener::bind(sockaddress).await {
         Ok(listener) => Arc::new(listener),
-        Err(_) => return Err(Error::Other("listener bind failed")),
+        Err(e) => {
+            error!(
+                "Failed to bind socket address: {}. Error: {}",
+                sockaddress, e
+            );
+            return Err(Error::ConnectionServer(format!(
+                "Failed to bind socket address: {}. Error: {}",
+                sockaddress, e
+            )));
+        }
     };
 
-    info!("Started WSS server.");
-
-    let tls_acceptor = cgw_tls_create_acceptor(&app_core.args).await?;
+    let tls_acceptor = match cgw_tls_create_acceptor(&app_core.args).await {
+        Ok(acceptor) => acceptor,
+        Err(e) => {
+            error!("Failed to create TLS acceptor. Error: {}", e.to_string());
+            return Err(e);
+        }
+    };
 
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
@@ -553,6 +566,8 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                         continue;
                     }
                 };
+
+                info!("Started WSS server.");
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone

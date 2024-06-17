@@ -243,10 +243,13 @@ impl CGWConnectionServer {
             Ok(c) => c,
             Err(e) => {
                 error!(
-                    "Cant create CGW Connection server: NB API client create failed:{:?}",
+                    "Can't create CGW Connection server: NB API client create failed: {:?}",
                     e
                 );
-                return Err(Error::ConnectionServer("NB API client create failed!"));
+                return Err(Error::ConnectionServer(format!(
+                    "Can't create CGW Connection server: NB API client create failed: {:?}",
+                    e
+                )));
             }
         };
 
@@ -254,12 +257,13 @@ impl CGWConnectionServer {
             Ok(d) => d,
             Err(e) => {
                 error!(
-                    "Cant create CGW Connection server: Remote Discovery create failed:{:?}",
+                    "Can't create CGW Connection server: Remote Discovery create failed: {:?}",
                     e
                 );
-                return Err(Error::ConnectionServer(
-                    "Remote Discovery client create failed!",
-                ));
+                return Err(Error::ConnectionServer(format!(
+                    "Can't create CGW Connection server: Remote Discovery create failed: {:?}",
+                    e,
+                )));
             }
         };
 
@@ -328,7 +332,10 @@ impl CGWConnectionServer {
             .devices_cache
             .try_read()?
             .get_device_id(&device_mac)
-            .ok_or(Error::ConnectionServer("Failed to get device group id"))?;
+            .ok_or(Error::ConnectionServer(format!(
+                "Failed to get device {} group id.",
+                device_mac
+            )))?;
 
         let key = device_id.to_string();
         let nb_api_client_clone = self.nb_api_client.clone();
@@ -1307,12 +1314,12 @@ impl CGWConnectionServer {
                 Ok(stream) => match cgw_tls_get_cn_from_stream(&stream).await {
                     Ok(cn) => (cn, stream),
                     Err(e) => {
-                        warn!("Err {:?}", e);
+                        error!("Failed to read client CN. Error: {}", e.to_string());
                         return;
                     }
                 },
                 Err(e) => {
-                    warn!("Err {e}");
+                    error!("Failed to accept connection: Error {}", e);
                     return;
                 }
             };

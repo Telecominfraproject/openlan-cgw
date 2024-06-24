@@ -1,0 +1,122 @@
+replicaCount: 1
+strategyType: Recreate
+revisionHistoryLimit: 2
+
+nameOverride: ""
+fullnameOverride: ""
+
+images:
+  cgw:
+    repository: tip-tip-wlan-cloud-ucentral.jfrog.io/cgw
+    tag: carsten
+    pullPolicy: Always
+#    regcred:
+#      registry: tip-tip-wlan-cloud-ucentral.jfrog.io
+#      username: username
+#      password: password
+
+services:
+  cgw:
+    type: ClusterIP
+    ports:
+      websocket:
+        servicePort: 15002
+        targetPort: 15002
+        protocol: TCP
+      grpc:
+        servicePort: 15051
+        targetPort: 50051
+        protocol: TCP
+
+checks:
+  cgw: {}
+# TODO: what should this be for CGW?
+#    liveness:
+#      httpGet:
+#        path: /
+#        port: 16102
+#    readiness:
+#      exec:
+#        command:
+#          - /readiness_check
+
+ingresses: {}
+
+volumes:
+  cgw:
+    - name: certs
+      mountPath: /cgw-data/certs
+      volumeDefinition: |
+        secret:
+          secretName: {{ if .Values.existingCertsSecret }}{{ .Values.existingCertsSecret }}{{ else }}{{ include "cgw.fullname" . }}-certs{{ end }}
+    - name: persist
+      mountPath: /cgw-data/persist
+      volumeDefinition: |
+        persistentVolumeClaim:
+          claimName: {{ template "cgw.fullname" . }}-pvc
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+securityContext:
+  fsGroup: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+podAnnotations: {}
+
+podSecurityPolicy:
+  enabled: false
+
+persistence:
+  enabled: true
+  # storageClassName: "-"
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  annotations: {}
+
+# Application
+public_env_variables:
+  CGW_ROOT: /cgw-data
+  CGW_WSS_CAS: "/cgw-data/certs/cas.pem"
+  CGW_WSS_CERT: "/cgw-data/certs/websocket-cert.pem"
+  CGW_WSS_KEY: "/cgw-data/certs/websocket-key.pem"
+  CGW_DB_HOST: "psql"
+  CGW_DB_IP: "127.0.0.1"
+  CGW_DB_PORT: "5432"
+  CGW_DB_NAME: "cgw"
+  CGW_DB_USERNAME: "cgw"
+  CGW_KAFKA_HOST: "kafka"
+  CGW_KAFKA_IP: "127.0.0.1"
+  CGW_KAFKA_PORT: "9092"
+  CGW_REDIS_IP: "127.0.0.1"
+  CGW_REDIS_HOST: "redis"
+  CGW_REDIS_PORT: "9092"
+  CGW_KAFKA_CONSUME_TOPIC: "CnC"
+  CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
+
+secret_env_variables:
+  CGW_DB_PASSWORD: "123"
+
+# NOTE: List of required certificates may be found in "certs" key. Alternative way to pass required certificates is to create external secret with all required certificates and set secret name in "existingCertsSecret" key. Details may be found in https://github.com/Telecominfraproject/wlan-cloud-ucentral-deploy/tree/main/cgwchart#tldr
+existingCertsSecret: ""
+
+certs:
+  root.pem: ""
+  websocket-cert.pem: ""
+  websocket-key.pem: ""
+  cas.pem: ""

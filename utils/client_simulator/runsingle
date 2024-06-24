@@ -1,0 +1,36 @@
+#!/bin/bash
+[ -z "$URL" ] && URL="wss://cgw-devcgw.cicd.lab.wlan.tip.build:15002"
+#URL="wss://cgw-cgw:15002"
+[ -z "$MAC" ] && MAC="11:22:AA:BB:CC:13"
+MSG_INTERVAL=10
+MSG_SIZE=1000
+CA_CERT_PATH=$(pwd)/../cert_generator/certs/ca
+CA_CERT_PATH=./tipcerts
+CLIENT_CERT_PATH=$(pwd)/../cert_generator/certs/client
+CLIENT_CERT_PATH=./tipcerts
+python3 single.py --mac "$MAC" \
+    --server "$URL" \
+    --no-cert-check \
+    --ca-cert "$CA_CERT_PATH/ca.crt" \
+    --client-certs-path "$CLIENT_CERT_PATH" \
+    --msg-interval "$MSG_INTERVAL" \
+    --payload-size "$MSG_SIZE"
+exit
+
+
+MAC="11:22:AA:BB:CC:XX"
+COUNT=20
+URL="wss://cgw-devcgw.cicd.lab.wlan.tip.build:15002"
+MSG_INTERVAL=10
+MSG_SIZE=1000
+CA_CERT_PATH=$(pwd)/../cert_generator/certs/ca
+#CA_CERT_PATH=./certs/ca
+CLIENT_CERT_PATH=$(pwd)/../cert_generator/certs/client
+#CLIENT_CERT_PATH=./certs/client
+python3 main.py --mac ${MAC} -N ${COUNT} \
+    --server ${URL} \
+    --no-cert-check \
+    --ca-cert $CA_CERT_PATH/ca.crt \
+    --client-certs-path $CLIENT_CERT_PATH \
+    --msg-interval ${MSG_INTERVAL} \
+    --payload-size ${MSG_SIZE}

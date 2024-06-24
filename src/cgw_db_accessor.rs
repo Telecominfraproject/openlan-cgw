@@ -61,7 +61,7 @@ impl CGWDBAccessor {
             pass = app_args.db_password
         );
         debug!(
-            "Trying to connect to remote db ({}:{})...\nConn args {}",
+            "Trying to connect to DB ({}:{})...\nConn args {}",
             app_args.db_host, app_args.db_port, conn_str
         );
 
@@ -69,18 +69,18 @@ impl CGWDBAccessor {
             Ok((cl, conn)) => (cl, conn),
             Err(e) => {
                 error!(
-                    "Failed to establish connection with remote DB, reason: {:?}",
+                    "Failed to establish connection with DB, reason: {:?}",
                     e
                 );
                 return Err(Error::DbAccessor(
-                    "Failed to establish connection with remote DB",
+                    "Failed to establish connection with DB",
                 ));
             }
         };
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
-                let err_msg = format!("Connection to remote DB broke up: {}", e);
+                let err_msg = format!("Connection to DB broken: {}", e);
                 error!("{}", err_msg);
                 CGWMetrics::get_ref()
                     .change_component_health_status(
@@ -100,7 +100,7 @@ impl CGWDBAccessor {
                 .await;
         });
 
-        info!("Connectiong to SQL DB has been established!");
+        info!("Connection to SQL DB has been established!");
 
         Ok(CGWDBAccessor { cl: client })
     }

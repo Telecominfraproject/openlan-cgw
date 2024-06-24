@@ -290,7 +290,7 @@ impl CGWRemoteDiscovery {
                 .await;
         });
 
-        info!("Connectiong to REDIS DB has been established!");
+        info!("Connection to REDIS DB has been established!");
 
         Ok(rc)
     }

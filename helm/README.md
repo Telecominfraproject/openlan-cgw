@@ -50,34 +50,26 @@ The following table lists the configurable parameters of the chart and their def
 | images.cgw.repository | string | Docker image repository |  |
 | images.cgw.tag | string | Docker image tag | `'master'` |
 | images.cgw.pullPolicy | string | Docker image pull policy | `'Always'` |
-| services.cgw.type | string | Gateway service type | `'LoadBalancer'` |
+| services.cgw.type | string | Gateway service type | `'ClusterIP'` |
 | services.cgw.ports.websocket.servicePort | number | Websocket endpoint port to be exposed on service | `15002` |
 | services.cgw.ports.websocket.targetPort | number | Websocket endpoint port to be targeted by service | `15002` |
 | services.cgw.ports.websocket.protocol | string | Websocket endpoint protocol | `'TCP'` |
-| services.cgw.ports.restapi.servicePort | number | REST API endpoint port to be exposed on service | `16002` |
-| services.cgw.ports.restapi.targetPort | number | REST API endpoint port to be targeted by service | `16002` |
-| services.cgw.ports.restapi.protocol | string | REST API endpoint protocol | `'TCP'` |
-| services.cgw.ports.restapiinternal.servicePort | string | Internal REST API endpoint port to be exposed on service | `17002` |
-| services.cgw.ports.restapiinternal.targetPort | number | Internal REST API endpoint port to be targeted by service | `17002` |
-| services.cgw.ports.restapiinternal.protocol | string | Internal REST API endpoint protocol | `'TCP'` |
-| services.cgw.ports.fileuploader.servicePort | string | Fileuploader endpoint port to be exposed on service | `16003` |
-| services.cgw.ports.fileuploader.targetPort | number | Fileuploader endpoint port to be targeted by service | `16003` |
-| services.cgw.ports.fileuploader.protocol | string | Fileuploader endpoint protocol | `'TCP'` |
-| checks.cgw.liveness.httpGet.path | string | Liveness check path to be used | `'/'` |
-| checks.cgw.liveness.httpGet.port | number | Liveness check port to be used (should be pointint to ALB endpoint) | `16102` |
-| checks.cgw.readiness.httpGet.path | string | Readiness check path to be used | `'/'` |
-| checks.cgw.readiness.httpGet.port | number | Readiness check port to be used (should be pointint to ALB endpoint) | `16102` |
-| ingresses.restapi.enabled | boolean | Defines if REST API endpoint should be exposed via Ingress controller | `False` |
-| ingresses.restapi.hosts | array | List of hosts for exposed REST API |  |
-| ingresses.restapi.paths | array | List of paths to be exposed for REST API |  |
-| ingresses.fileuploader.enabled | boolean | Defines if Fileuploader endpoint should be exposed via Ingress controller | `False` |
-| ingresses.fileuploader.hosts | array | List of hosts for exposed Fileuploader |  |
-| ingresses.fileuploader.paths | array | List of paths for exposed Fileuploader |  |
+| services.cgw.ports.metrics.servicePort | number | Metrics API endpoint port to be exposed on service | `15003` |
+| services.cgw.ports.metrics.targetPort | number | Metrics API endpoint port to be targeted by service | `8080` |
+| services.cgw.ports.metrics.protocol | string | Metrics API endpoint protocol | `'TCP'` |
+| services.cgw.ports.grpc.servicePort | string | Internal REST API endpoint port to be exposed on service | `15051` |
+| services.cgw.ports.grpc.targetPort | number | Internal REST API endpoint port to be targeted by service | `50051` |
+| services.cgw.ports.grpc.protocol | string | Internal REST API endpoint protocol | `'TCP'` |
+| checks.cgw.liveness.httpGet.path | string | Liveness check path to be used | `'/health'` |
+| checks.cgw.liveness.httpGet.port | number | Liveness check port to be used (should be pointint to ALB endpoint) | `15003` |
+| checks.cgw.readiness.httpGet.path | string | Readiness check path to be used | `'/health'` |
+| checks.cgw.readiness.httpGet.port | number | Readiness check port to be used (should be pointint to ALB endpoint) | `15003` |
 | volumes.cgw | array | Defines list of volumes to be attached to the Gateway |  |
 | persistence.enabled | boolean | Defines if the Gateway requires Persistent Volume (required for permanent files storage and SQLite DB if enabled) | `True` |
 | persistence.accessModes | array | Defines PV access modes |  |
 | persistence.size | string | Defines PV size | `'10Gi'` |
-| public_env_variables | hash | Defines list of environment variables to be passed to the Gateway | |
+| public\_env\_variables | hash | Defines list of environment variables to be passed to the Gateway via ConfigMaps | |
+| secret\_env\_variables | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |
 | existingCertsSecret | string | Existing Kubernetes secret containing all required certificates and private keys for microservice operation. If set, certificates from `certs` key are ignored | `""` |
 | certs | hash | Defines files (keys and certificates) that should be passed to the Gateway (PEM format is adviced to be used) (see `volumes.cgw` on where it is mounted). If `existingCertsSecret` is set, certificates passed this way will not be used. |  |
 | certsCAs | hash | Defines files with CAs that should be passed to the Gateway (see `volumes.cgw` on where it is mounted) |  |

@@ -8,7 +8,7 @@ fullnameOverride: ""
 images:
   cgw:
     repository: tip-tip-wlan-cloud-ucentral.jfrog.io/cgw
-    tag: carsten
+    tag: next
     pullPolicy: Always
 #    regcred:
 #      registry: tip-tip-wlan-cloud-ucentral.jfrog.io
@@ -19,9 +19,19 @@ services:
   cgw:
     type: ClusterIP
     ports:
+      # this port doesn't actually exist in cgw ... yet
+      # It is needed however, as the ALB requires at least one ssl port
+      restapi:
+        servicePort: 16002
+        targetPort: 16002
+        protocol: TCP
       websocket:
         servicePort: 15002
         targetPort: 15002
+        protocol: TCP
+      metrics:
+        servicePort: 15003
+        targetPort: 8080
         protocol: TCP
       grpc:
         servicePort: 15051
@@ -29,31 +39,25 @@ services:
         protocol: TCP
 
 checks:
-  cgw: {}
-# TODO: what should this be for CGW?
-#    liveness:
-#      httpGet:
-#        path: /
-#        port: 16102
-#    readiness:
-#      exec:
-#        command:
-#          - /readiness_check
+  cgw:
+    liveness:
+      httpGet:
+        path: /health
+        port: 8080
+    readiness:
+      httpGet:
+        path: /health
+        port: 8080
 
 ingresses: {}
 
 volumes:
   cgw:
     - name: certs
-      mountPath: /cgw-data/certs
+      mountPath: /etc/cgw/certs
       volumeDefinition: |
         secret:
           secretName: {{ if .Values.existingCertsSecret }}{{ .Values.existingCertsSecret }}{{ else }}{{ include "cgw.fullname" . }}-certs{{ end }}
-    - name: persist
-      mountPath: /cgw-data/persist
-      volumeDefinition: |
-        persistentVolumeClaim:
-          claimName: {{ template "cgw.fullname" . }}-pvc
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -82,7 +86,7 @@ podSecurityPolicy:
   enabled: false
 
 persistence:
-  enabled: true
+  enabled: false
   # storageClassName: "-"
   accessModes:
     - ReadWriteOnce
@@ -92,22 +96,21 @@ persistence:
 # Application
 public_env_variables:
   CGW_ROOT: /cgw-data
-  CGW_WSS_CAS: "/cgw-data/certs/cas.pem"
-  CGW_WSS_CERT: "/cgw-data/certs/websocket-cert.pem"
-  CGW_WSS_KEY: "/cgw-data/certs/websocket-key.pem"
-  CGW_DB_HOST: "psql"
-  CGW_DB_IP: "127.0.0.1"
+  CGW_WSS_CAS: "cas.pem"
+  CGW_WSS_CERT: "websocket-cert.pem"
+  CGW_WSS_KEY: "websocket-key.pem"
+  CGW_DB_HOST: "pgsql"
   CGW_DB_PORT: "5432"
   CGW_DB_NAME: "cgw"
   CGW_DB_USERNAME: "cgw"
   CGW_KAFKA_HOST: "kafka"
-  CGW_KAFKA_IP: "127.0.0.1"
   CGW_KAFKA_PORT: "9092"
-  CGW_REDIS_IP: "127.0.0.1"
   CGW_REDIS_HOST: "redis"
-  CGW_REDIS_PORT: "9092"
+  CGW_REDIS_PORT: "6379"
+  CFG_LOG_LEVEL: "Info"  # or Debug
   CGW_KAFKA_CONSUME_TOPIC: "CnC"
   CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
+  DEFAULT_WSS_THREAD_NUM: "4"
 
 secret_env_variables:
   CGW_DB_PASSWORD: "123"

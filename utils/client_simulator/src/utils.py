@@ -22,6 +22,7 @@ class Args:
     server_proto: str = "ws"
     server_address: str = "localhost"
     server_port: int = 50001
+    check_cert: bool = True
 
     @property
     def server(self):
@@ -63,6 +64,9 @@ def parse_args():
     parser.add_argument("-c", "--client-certs-path", metavar="PATH",
                         default="./certs/client",
                         help="path to client certificates directory")
+    parser.add_argument("-C", "--no-cert-check", type=bool, action='store_true',
+                        default=False,
+                        help="do not check certificate")
     parser.add_argument("-t", "--msg-interval", metavar="SECONDS", type=int,
                         default=10,
                         help="time between client messages to gw")
@@ -80,13 +84,15 @@ def parse_args():
                 cert_path=parsed_args.client_certs_path,
                 msg_interval=parsed_args.msg_interval,
                 msg_size=parse_msg_size(parsed_args.payload_size),
+                check_certs=not parsed_args.no_cert_check,
                 wait_for_sig=parsed_args.wait_for_signal)
 
     if len(args.masks) == 0:
         args.masks.append("XX:XX:XX:XX:XX:XX")
 
     # PROTO :// ADDRESS : PORT
-    match = re.match(r"(?:(wss?)://)?([\d\w\.]+):?(\d+)?", parsed_args.server)
+    # TODO: fixme the host portion can contain a lot more than just these characters!
+    match = re.match(r"(?:(wss?)://)?([\d\w\.-]+):?(\d+)?", parsed_args.server)
     if match is None:
         raise ValueError(f"Unable to parse server address {parsed_args.server}")
     proto, addr, port = match.groups()

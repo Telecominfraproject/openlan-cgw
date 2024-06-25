@@ -147,11 +147,12 @@ impl CGWRemoteDiscovery {
     pub async fn new(app_args: &AppArgs) -> Result<Self> {
         debug!(
             "Trying to create redis db connection ({}:{})",
-            app_args.redis_host, app_args.redis_port
+            app_args.redis_args.redis_host, app_args.redis_args.redis_port
         );
+
         let redis_client = match redis_async::client::paired::paired_connect(
-            app_args.redis_host.clone(),
-            app_args.redis_port,
+            app_args.redis_args.redis_host.clone(),
+            app_args.redis_args.redis_port,
         )
         .await
         {
@@ -165,7 +166,7 @@ impl CGWRemoteDiscovery {
             }
         };
 
-        let db_accessor = match CGWDBAccessor::new(app_args).await {
+        let db_accessor = match CGWDBAccessor::new(&app_args.db_args).await {
             Ok(c) => c,
             Err(e) => {
                 error!(
@@ -206,8 +207,8 @@ impl CGWRemoteDiscovery {
         {
             let redisdb_shard_info = CGWREDISDBShard {
                 id: app_args.cgw_id,
-                server_host: app_args.grpc_public_host.clone(),
-                server_port: app_args.grpc_public_port,
+                server_host: app_args.grpc_args.grpc_public_host.clone(),
+                server_port: app_args.grpc_args.grpc_public_port,
                 assigned_groups_num: 0i32,
                 capacity: 1000i32,
                 threshold: 50i32,

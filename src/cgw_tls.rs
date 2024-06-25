@@ -1,5 +1,5 @@
+use crate::cgw_app_args::CGWWSSArgs;
 use crate::cgw_errors::{collect_results, Error, Result};
-use crate::AppArgs;
 
 use eui48::MacAddress;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
@@ -103,9 +103,9 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
 
     Err(Error::Tls("Failed to read peer comman name!".to_string()))
 }
-pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
+pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAcceptor> {
     // Read root/issuer certs.
-    let cas_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_cas);
+    let cas_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_cas);
     let cas = match cgw_tls_read_certs(cas_path.as_str()).await {
         Ok(cas_pem) => cas_pem,
         Err(e) => {
@@ -115,7 +115,7 @@ pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
     };
 
     // Read cert.
-    let cert_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_cert);
+    let cert_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_cert);
     let mut cert = match cgw_tls_read_certs(cert_path.as_str()).await {
         Ok(cert_pem) => cert_pem,
         Err(e) => {
@@ -126,7 +126,7 @@ pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
     cert.extend(cas.clone());
 
     // Read private key.
-    let key_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_key);
+    let key_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_key);
     let key = match cgw_tls_read_private_key(key_path.as_str()).await {
         Ok(pkey) => pkey,
         Err(e) => {

@@ -187,7 +187,7 @@ impl CGWConnectionServer {
     pub async fn new(app_args: &AppArgs) -> Result<Arc<Self>> {
         let wss_runtime_handle = Arc::new(
             Builder::new_multi_thread()
-                .worker_threads(app_args.wss_t_num)
+                .worker_threads(app_args.wss_args.wss_t_num)
                 .thread_name_fn(|| {
                     static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
                     let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
@@ -243,7 +243,8 @@ impl CGWConnectionServer {
 
         // Give NB API client a handle where it can do a TX (CLIENT -> CGW_SERVER)
         // RX is handled in internal_mbox of CGW_Server
-        let nb_api_c = match CGWNBApiClient::new(app_args, &nb_api_tx) {
+        let nb_api_c = match CGWNBApiClient::new(app_args.cgw_id, &app_args.kafka_args, &nb_api_tx)
+        {
             Ok(c) => c,
             Err(e) => {
                 error!(
@@ -272,7 +273,7 @@ impl CGWConnectionServer {
         };
 
         let server = Arc::new(CGWConnectionServer {
-            allow_mismatch: app_args.allow_mismatch,
+            allow_mismatch: app_args.wss_args.allow_mismatch,
             local_cgw_id: app_args.cgw_id,
             connmap: CGWConnMap::new(),
             wss_rx_tx_runtime: wss_runtime_handle,
@@ -489,7 +490,7 @@ impl CGWConnectionServer {
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
 
             for mac in mac_list.iter() {
-                match connmap_r_lock.get(&mac) {
+                match connmap_r_lock.get(mac) {
                     Some(c) => {
                         let _ = c.send(msg.clone());
                         debug!("Notified {mac} about GID change (->{new_gid})");

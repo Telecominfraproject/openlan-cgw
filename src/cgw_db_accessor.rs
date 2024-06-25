@@ -1,4 +1,4 @@
-use crate::AppArgs;
+use crate::cgw_app_args::CGWDBArgs;
 
 use crate::{
     cgw_errors::{Error, Result},
@@ -51,18 +51,18 @@ pub struct CGWDBAccessor {
 }
 
 impl CGWDBAccessor {
-    pub async fn new(app_args: &AppArgs) -> Result<Self> {
+    pub async fn new(db_args: &CGWDBArgs) -> Result<Self> {
         let conn_str = format!(
             "host={host} port={port} user={user} dbname={db} password={pass} connect_timeout=10",
-            host = app_args.db_host,
-            port = app_args.db_port,
-            user = app_args.db_username,
-            db = app_args.db_name,
-            pass = app_args.db_password
+            host = db_args.db_host,
+            port = db_args.db_port,
+            user = db_args.db_username,
+            db = db_args.db_name,
+            pass = db_args.db_password
         );
         debug!(
-            "Trying to connect to DB ({}:{})...\nConn args {}",
-            app_args.db_host, app_args.db_port, conn_str
+            "Trying to connect to remote db ({}:{})...\nConn args {}",
+            db_args.db_host, db_args.db_port, conn_str
         );
 
         let (client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {

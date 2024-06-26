@@ -107,10 +107,11 @@ public_env_variables:
   CGW_KAFKA_PORT: "9092"
   CGW_REDIS_HOST: "redis"
   CGW_REDIS_PORT: "6379"
-  CFG_LOG_LEVEL: "Info"  # or Debug
+  CGW_LOG_LEVEL: "info"  # or debug
   CGW_KAFKA_CONSUME_TOPIC: "CnC"
   CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
-  DEFAULT_WSS_THREAD_NUM: "4"
+  # set to (#cpus * 2) - 2
+  DEFAULT_WSS_THREAD_NUM: "6"
 
 secret_env_variables:
   CGW_DB_PASSWORD: "123"

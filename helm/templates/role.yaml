@@ -1,0 +1,16 @@
+{{- if .Values.podSecurityPolicy.enabled }}
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "cgw.fullname" . }}-cgw-use-unsafe-sysctl
+rules:
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+  resourceNames:
+  - {{ include "cgw.fullname" . }}-{{ .Release.Namespace }}-cgw-unsafe-sysctl
+{{- end }}

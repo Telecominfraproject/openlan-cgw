@@ -1158,7 +1158,7 @@ impl CGWConnectionServer {
                                     error!("Failed to construct foreign_infra_connection message");
                                 }
 
-                                debug!("Detected foreign infra {} connetion. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), group_id, group_owner_id);
+                                debug!("Detected foreign infra {} connection. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), group_id, group_owner_id);
                             }
                         } else {
                             if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
@@ -1171,7 +1171,7 @@ impl CGWConnectionServer {
                             }
 
                             debug!(
-                                "Detected unassigned infra {} connetion.",
+                                "Detected unassigned infra {} connection.",
                                 device_mac.to_hex_string()
                             );
                         }
@@ -1241,7 +1241,7 @@ impl CGWConnectionServer {
                         }
 
                         debug!(
-                            "Detected unassigned infra {} connetion.",
+                            "Detected unassigned infra {} connection.",
                             device_mac.to_hex_string()
                         );
                     }

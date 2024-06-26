@@ -40,7 +40,7 @@ class Message:
 class Device:
     def __init__(self, mac: str, server: str, ca_cert: str,
                  msg_interval: int, msg_size: int,
-                 client_cert: str, client_key: str,
+                 client_cert: str, client_key: str, check_cert: bool,
                  start_event: multiprocessing.Event,
                  stop_event: multiprocessing.Event):
         self.mac = mac
@@ -55,7 +55,11 @@ class Device:
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self.ssl_context.load_cert_chain(client_cert, client_key, "")
         self.ssl_context.load_verify_locations(ca_cert)
-        self.ssl_context.verify_mode = ssl.CERT_REQUIRED
+        if check_cert:
+            self.ssl_context.verify_mode = ssl.CERT_REQUIRED
+        else:
+            self.ssl_context.check_hostname = False
+            self.ssl_context.verify_mode = ssl.CERT_NONE
 
     def send_hello(self, socket: client.ClientConnection):
         logger.debug(self.messages.connect)
@@ -101,6 +105,25 @@ class Device:
         if self._socket is not None:
             self._socket.close()
             self._socket = None
+
+    def single_run(self):
+        logger.debug("starting simulation")
+        self.connect()
+        start = time.time()
+        try:
+            self.send_hello(self._socket)
+            while True:
+                if self._socket is None:
+                    logger.error("Connection to GW is lost. Trying to reconnect...")
+                    self.connect()
+                if time.time() - start > self.interval:
+                    logger.info(f"Sent log")
+                    self.send_log(self._socket)
+                    start = time.time()
+                self.handle_messages(self._socket)
+        finally:
+            self.disconnect()
+        logger.debug("simulation done")
 
     def job(self):
         logger.debug("waiting for start trigger")
@@ -157,6 +180,7 @@ def process(args: Args, mask: str, start_event: multiprocessing.Event, stop_even
     devices = [Device(mac, args.server, args.ca_path, args.msg_interval, args.msg_size,
                       os.path.join(args.cert_path, f"{mac}.crt"),
                       os.path.join(args.cert_path, f"{mac}.key"),
+                      args.check_cert,
                       start_event, stop_event)
                for mac, _ in zip(macs, range(args.number_of_connections))]
     threads = [threading.Thread(target=d.job, name=d.mac) for d in devices]

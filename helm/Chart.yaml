@@ -1,0 +1,5 @@
+apiVersion: v2
+appVersion: "1.0.0"
+description: A CGW Helm chart for Kubernetes
+name: cgw
+version: 0.1.0

@@ -513,7 +513,7 @@ impl AppCore {
 }
 
 async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
-    debug!("sever_loop entry");
+    debug!("server_loop entry");
 
     debug!(
         "Starting WSS server, listening at {}:{}",

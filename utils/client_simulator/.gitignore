@@ -4,3 +4,5 @@ lib64
 include/
 *.cfg
 __pycache__
+tipbundle.tgz
+tipcerts

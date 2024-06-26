@@ -1,0 +1,125 @@
+{{- $root := . -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cgw.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "cgw.name" . }}
+    helm.sh/chart: {{ include "cgw.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.strategyType }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cgw.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- with .Values.services.cgw.labels }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.podSecurityPolicy.enabled }}
+        kubernetes.io/psp: {{ include "cgw.fullname" . }}-{{ .Release.Namespace }}-cgw-unsafe-sysctl
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "cgw.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- with .Values.services.cgw.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+
+      containers:
+
+        - name: cgw
+          image: "{{ .Values.images.cgw.repository }}:{{ .Values.images.cgw.tag }}"
+          imagePullPolicy: {{ .Values.images.cgw.pullPolicy }}
+
+          env:
+            - name: KUBERNETES_DEPLOYED
+              value: "{{ now }}"
+          {{- range $key, $value := .Values.public_env_variables }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- range $key, $value := .Values.secret_env_variables }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cgw.fullname" $root }}-env
+                  key: {{ $key }}
+          {{- end }}
+
+          ports:
+          {{- range $port, $portValue := .Values.services.cgw.ports }}
+            - name: {{ $port }}
+              containerPort: {{ $portValue.targetPort }}
+              protocol: {{ $portValue.protocol }}
+          {{- end }}
+
+          volumeMounts:
+          {{- range .Values.volumes.cgw }}
+          - name: {{ .name }}
+            mountPath: {{ .mountPath }}
+            {{- if .subPath }}
+            subPath: {{ .subPath }}
+            {{- end }}
+          {{- end }}
+
+          {{- if .Values.checks.cgw.liveness }}
+          livenessProbe:
+            {{- toYaml .Values.checks.cgw.liveness | nindent 12 }}
+          {{- end }}
+          {{- if .Values.checks.cgw.readiness }}
+          readinessProbe:
+            {{- toYaml .Values.checks.cgw.readiness | nindent 12 }}
+          {{- end }}
+
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      imagePullSecrets:
+      {{- range $image, $imageValue := .Values.images }}
+        {{- if $imageValue.regcred }}
+      - name: {{ include "cgw.fullname" $root }}-{{ $image }}-regcred
+        {{- end }}
+      {{- end }}
+
+      volumes:
+      {{- range $container, $containerVolumes := .Values.volumes }}
+      {{- range $containerVolumes }}
+      - name: {{ .name }}
+        {{- tpl .volumeDefinition $root | nindent 8 }}
+      {{- end }}
+      {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

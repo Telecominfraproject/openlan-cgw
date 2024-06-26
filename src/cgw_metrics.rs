@@ -123,7 +123,7 @@ impl CGWMetrics {
             return Ok(());
         }
 
-        debug!("Staring metrics engine...");
+        debug!("Starting metrics engine...");
 
         *started = true;
 
@@ -164,7 +164,7 @@ impl CGWMetrics {
             warp::serve(routes).run(([0, 0, 0, 0], port)).await;
         });
 
-        debug!("Metrics engine's been started!");
+        debug!("Metrics engine started!");
         Ok(())
     }
 

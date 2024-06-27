@@ -1,0 +1,61 @@
+# Stage 1: Create a rust build image
+FROM rust:1.77.0 as builder
+LABEL Description="OpenLAN CGW (Build) environment"
+
+# Setup a specific compilation target to the Rust toolchain.
+RUN rustup target add x86_64-unknown-linux-gnu
+
+# Install build packages
+RUN apt-get update -q -y  && \
+    apt-get install -q -y    \
+    pkg-config               \
+    build-essential          \
+    cmake                    \
+    protobuf-compiler        \
+    libssl-dev
+
+# Create directory - ignore errors if exist
+RUN mkdir -p /usr/src/openlan-cgw
+
+# Set the working directory
+WORKDIR /usr/src/openlan-cgw
+COPY src src
+COPY build.rs Cargo.toml Cargo.lock .
+
+#RUN cargo build --target x86_64-unknown-linux-gnu --release && \
+RUN cargo build --target x86_64-unknown-linux-gnu && \
+    cp target/x86_64-unknown-linux-gnu/debug/ucentral-cgw /usr/local/bin
+
+CMD ["echo", "CGW build finished successfully!"]
+
+# Stage 2: Create a runtime image
+FROM rust:1.77.0 as cgw-img
+LABEL Description="OpenLAN CGW environment"
+
+RUN apt-get update -q -y  && \
+    apt-get install -q -y    \
+    libssl-dev \
+    gdb \
+    strace
+
+# Create a non-root user and group
+#RUN adduser cgw_runner && addgroup cgw_users_group
+
+# Add `cgw_runner` user to `cgw_users_group`
+#RUN usermod -a -G cgw_users_group cgw_runner
+
+# CGW create log file under /var directory
+# It is required to change direcory owner
+#RUN chown cgw_runner:cgw_users_group "/var"
+
+# Switch to non-root user
+#USER cgw_runner
+
+# Create volume to certificates directory
+VOLUME [ "/etc/cgw/certs" ]
+
+# Copy libs and CGW binaries
+COPY --from=builder /lib/x86_64-linux-gnu/ /lib/x86_64-linux-gnu/
+COPY --from=builder /usr/local/bin/ucentral-cgw /usr/local/bin/ucentral-cgw
+
+CMD ["ucentral-cgw"]

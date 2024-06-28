@@ -300,11 +300,12 @@ impl CGWUCentralMessagesQueueManager {
     ) -> Option<CGWUCentralMessagesQueueItem> {
         let ret_msg: CGWUCentralMessagesQueueItem;
         let default_msg = CGWUCentralCommand::default();
-        let container_lock = self.queue.read().await;
 
         if self.get_device_messages_queue_len(device_mac).await == 0 {
             return None;
         }
+
+        let container_lock = self.queue.read().await;
 
         let mut device_msg_queue = container_lock.get(device_mac)?.write().await;
         let reboot_msg = device_msg_queue

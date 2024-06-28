@@ -305,7 +305,6 @@ impl CGWConnectionServer {
             .cgw_remote_discovery
             .sync_device_to_gid_cache(server.devices_cache.clone())
             .await;
-        server.devices_cache.write().await.dump_devices_cache();
 
         tokio::spawn(async move {
             CGWMetrics::get_ref()
@@ -981,8 +980,10 @@ impl CGWConnectionServer {
                                     CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
 
                                 // 2. Add message to queue
-                                let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                                let _ = queue_lock.push_device_message(device_mac, queue_msg).await;
+                                {
+                                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                                    let _ = queue_lock.push_device_message(device_mac, queue_msg).await;
+                                }
                             } else {
                                 error!("Failed to parse UCentral command");
                             }
@@ -1098,9 +1099,6 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
-                    // Remove device from disconnected device list
-                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.device_connected(&device_mac).await;
 
                     // if connection is unique: simply insert new conn
                     //
@@ -1248,9 +1246,6 @@ impl CGWConnectionServer {
 
                     let topo_map = CGWUCentralTopologyMap::get_ref();
                     topo_map.insert_device(&device_mac).await;
-                    topo_map.debug_dump_map().await;
-
-                    devices_cache.dump_devices_cache();
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
 
@@ -1260,16 +1255,17 @@ impl CGWConnectionServer {
                         let _ = conn_processor_mbox_tx_clone.send(msg);
                     });
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
+                    // Insert device to disconnected device list
+                    {
+                        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                        queue_lock.device_disconnected(&device_mac).await;
+                    }
                     info!(
                         "connmap: removed {} serial from connmap, new num_of_connections:{}",
                         device_mac,
                         connmap_w_lock.len() - 1
                     );
                     connmap_w_lock.remove(&device_mac);
-
-                    // Insert device to disconnected device list
-                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.device_disconnected(&device_mac).await;
 
                     let mut devices_cache = self.devices_cache.write().await;
                     if let Some(device) = devices_cache.get_device(&device_mac) {
@@ -1278,12 +1274,10 @@ impl CGWConnectionServer {
                         } else {
                             devices_cache.del_device(&device_mac);
                         }
-                        devices_cache.dump_devices_cache();
                     }
 
                     let topo_map = CGWUCentralTopologyMap::get_ref();
                     topo_map.remove_device(&device_mac).await;
-                    topo_map.debug_dump_map().await;
 
                     CGWMetrics::get_ref().change_counter(
                         CGWMetricsCounterType::ConnectionsNum,

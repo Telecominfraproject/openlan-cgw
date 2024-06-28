@@ -627,8 +627,6 @@ impl CGWRemoteDiscovery {
             device_cache.del_device(key);
         }
 
-        device_cache.dump_devices_cache();
-
         Ok(())
     }
 
@@ -681,7 +679,6 @@ impl CGWRemoteDiscovery {
                                 ),
                             );
                         }
-                        devices_cache.dump_devices_cache();
                     }
                 }
                 Err(_) => {
@@ -734,7 +731,6 @@ impl CGWRemoteDiscovery {
                             } else {
                                 devices_cache.del_device(&device_mac);
                             }
-                            devices_cache.dump_devices_cache();
                         }
                     }
                 }

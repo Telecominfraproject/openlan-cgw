@@ -156,7 +156,7 @@ impl CGWConnectionProcessor {
             }
         }
 
-        debug!("Done Parse Connect Event");
+        debug!("Done Parse Connect Event {}", evt.serial.to_hex_string());
 
         let mut caps: CGWDeviceCapabilities = Default::default();
         match evt.evt_type {
@@ -177,27 +177,12 @@ impl CGWConnectionProcessor {
         self.serial = evt.serial;
         let device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
 
-        // Check if device queue already exist
-        // If yes - it could mean that we have device reconnection event
-        // The possible reconnect reason could be: FW Upgrade or Factory reset
-        // Need to make sure queue is unlocked to process requests
-        // If no - create new message queue for device
-        {
-            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-            if queue_lock.check_messages_queue_exists(&evt.serial).await {
-                queue_lock
-                    .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
-                    .await;
-            } else {
-                queue_lock.create_device_messages_queue(&evt.serial).await;
-            }
-        }
-
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
         // we can proceed on with this underlying connection.
         // cgw_connection_server has an authorative decision whether
         // we can proceed.
+        debug!("Sending ACK req for {}", self.serial);
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial, caps, mbox_tx);
         self.cgw_server
@@ -205,6 +190,7 @@ impl CGWConnectionProcessor {
             .await;
 
         let ack = mbox_rx.recv().await;
+        debug!("GOT ACK resp for {}", self.serial);
         if let Some(m) = ack {
             match m {
                 CGWConnectionProcessorReqMsg::AddNewConnectionAck => {
@@ -223,6 +209,35 @@ impl CGWConnectionProcessor {
             info!("connection server declined connection, websocket connection {} {} cannot be established",
                   self.addr, evt.serial);
             return Err(Error::ConnectionProcessor("Websocker connection declined"));
+        }
+
+        // Remove device from disconnected device list
+        // Only connection processor can <know> that connection's established,
+        // however ConnServer knows about <disconnects>, hence
+        // we handle connect here, while it's up to ConnServer to <remove>
+        // connection (add it to <disconnected> list)
+        // NOTE: this most like also would require a proper DISCONNECT_ACK
+        // synchronization between processor / server, as there could be still
+        // race conditions in case if duplicate connection occurs, for example.
+        {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            queue_lock.device_connected(&self.serial).await;
+        }
+
+        // Check if device queue already exist
+        // If yes - it could mean that we have device reconnection event
+        // The possible reconnect reason could be: FW Upgrade or Factory reset
+        // Need to make sure queue is unlocked to process requests
+        // If no - create new message queue for device
+        {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            if queue_lock.check_messages_queue_exists(&evt.serial).await {
+                queue_lock
+                    .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
+                    .await;
+            } else {
+                queue_lock.create_device_messages_queue(&evt.serial).await;
+            }
         }
 
         self.process_connection(stream, sink, mbox_rx, device_type)

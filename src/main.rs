@@ -567,7 +567,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                     }
                 };
 
-                info!("Started WSS server.");
+                info!("ACK conn: {}", conn_idx);
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone

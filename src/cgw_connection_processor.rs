@@ -32,12 +32,19 @@ use tungstenite::Message::{Close, Ping, Text};
 type SStream = SplitStream<WebSocketStream<TlsStream<TcpStream>>>;
 type SSink = SplitSink<WebSocketStream<TlsStream<TcpStream>>, Message>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CGWConnectionProcessorReqMsg {
     // We got green light from server to process this connection on
-    AddNewConnectionAck,
+    // Upon creation, this conn processor is <assigned> to specific GID,
+    // meaning in any replies sent from device it should include provided
+    // GID (used as kafka key).
+    AddNewConnectionAck(i32),
     AddNewConnectionShouldClose,
     SinkRequestToDevice(CGWUCentralMessagesQueueItem),
+    // Conn Server can request this specific Processor to change
+    // it's internal GID value (infra list created - new gid,
+    // infra list deleted - unassigned, e.g. GID 0).
+    GroupIdChanged(i32),
 }
 
 #[derive(Debug)]
@@ -61,6 +68,7 @@ pub struct CGWConnectionProcessor {
     pub serial: MacAddress,
     pub addr: SocketAddr,
     pub idx: i64,
+    pub group_id: i32,
 }
 
 impl CGWConnectionProcessor {
@@ -70,6 +78,7 @@ impl CGWConnectionProcessor {
             serial: MacAddress::default(),
             addr,
             idx: conn_idx,
+            group_id: 0,
         };
 
         conn_processor
@@ -193,11 +202,12 @@ impl CGWConnectionProcessor {
         debug!("GOT ACK resp for {}", self.serial);
         if let Some(m) = ack {
             match m {
-                CGWConnectionProcessorReqMsg::AddNewConnectionAck => {
+                CGWConnectionProcessorReqMsg::AddNewConnectionAck(gid) => {
                     debug!(
-                        "websocket connection established: {} {}",
+                        "websocket connection established: {} {} gid {gid}",
                         self.addr, evt.serial
                     );
+                    self.group_id = gid;
                 }
                 _ => {
                     return Err(Error::ConnectionProcessor(
@@ -297,7 +307,7 @@ impl CGWConnectionProcessor {
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.serial, payload)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.serial, self.group_id, payload)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -318,7 +328,7 @@ impl CGWConnectionProcessor {
     }
 
     async fn process_sink_mbox_rx_msg(
-        &self,
+        &mut self,
         sink: &mut SSink,
         val: Option<CGWConnectionProcessorReqMsg>,
     ) -> Result<CGWConnectionState> {
@@ -336,7 +346,12 @@ impl CGWConnectionProcessor {
                     );
                     sink.send(Message::text(pload.message)).await.ok();
                 }
+                CGWConnectionProcessorReqMsg::GroupIdChanged(new_group_id) => {
+                    debug!("Mac {} received gid {} -> {} change request", self.serial, self.group_id, new_group_id);
+                    self.group_id = new_group_id;
+                }
                 _ => {
+                    warn!("Received unknown mbox message {:?}", msg);
                     return Err(Error::ConnectionProcessor(
                         "Sink MBOX: received unexpected message",
                     ));
@@ -366,7 +381,7 @@ impl CGWConnectionProcessor {
     }
 
     async fn process_connection(
-        self,
+        mut self,
         mut stream: SStream,
         mut sink: SSink,
         mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,

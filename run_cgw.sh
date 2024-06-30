@@ -12,7 +12,7 @@ DEFAULT_GRPC_PUBLIC_PORT=50051
 # By default - listen to all interfaces
 DEFAULT_WSS_IP="0.0.0.0"
 DEFAULT_WSS_PORT=15002
-DEFAULT_WSS_THREAD_NUM=4
+DEFAULT_WSS_T_NUM=4
 
 DEFAULT_CERTS_PATH="/etc/ssl/certs"
 DEFAULT_WSS_CAS="cas.pem"
@@ -43,7 +43,7 @@ export CGW_LOG_LEVEL="${CGW_LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
 export CGW_ID="${CGW_ID:-$DEFAULT_ID}"
 export CGW_WSS_IP="${CGW_WSS_IP:-$DEFAULT_WSS_IP}"
 export CGW_WSS_PORT="${CGW_WSS_PORT:-$DEFAULT_WSS_PORT}"
-export CGW_WSS_THREAD_NUM="${CGW_WSS_THREAD_NUM:-$DEFAULT_WSS_THREAD_NUM}"
+export DEFAULT_WSS_THREAD_NUM="${DEFAULT_WSS_THREAD_NUM:-$DEFAULT_WSS_T_NUM}"
 export CGW_WSS_CAS="${CGW_WSS_CAS:-$DEFAULT_WSS_CAS}"
 export CGW_WSS_CERT="${CGW_WSS_CERT:-$DEFAULT_WSS_CERT}"
 export CGW_WSS_KEY="${CGW_WSS_KEY:-$DEFAULT_WSS_KEY}"
@@ -69,7 +69,7 @@ export CGW_ALLOW_CERT_MISMATCH="${CGW_ALLOW_CERT_MISMATCH:-$DEFAULT_ALLOW_CERT_M
 echo "Starting CGW..."
 echo "CGW LOG LEVEL              : $CGW_LOG_LEVEL"
 echo "CGW ID                     : $CGW_ID"
-echo "CGW WSS THREAD NUM         : $CGW_WSS_THREAD_NUM"
+echo "CGW WSS THREAD NUM         : $DEFAULT_WSS_THREAD_NUM"
 echo "CGW WSS IP/PORT            : $CGW_WSS_IP:$CGW_WSS_PORT"
 echo "CGW WSS CAS                : $CGW_WSS_CAS"
 echo "CGW WSS CERT               : $CGW_WSS_CERT"
@@ -86,12 +86,13 @@ echo "CGW CERTS PATH             : $CGW_CERTS_PATH"
 echo "CGW ALLOW CERT MISMATCH    : $CGW_ALLOW_CERT_MISMATCH"
 
 docker run \
+	--cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
 	-v $CGW_CERTS_PATH:$CONTAINTER_CERTS_VOLUME \
 	-e CGW_LOG_LEVEL           \
 	-e CGW_ID                  \
 	-e CGW_WSS_IP              \
 	-e CGW_WSS_PORT            \
-	-e CGW_WSS_THREAD_NUM      \
+	-e DEFAULT_WSS_THREAD_NUM  \
 	-e CGW_WSS_CAS             \
 	-e CGW_WSS_CERT            \
 	-e CGW_WSS_KEY             \

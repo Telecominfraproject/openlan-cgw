@@ -325,20 +325,13 @@ impl CGWConnectionServer {
     pub fn enqueue_mbox_message_from_device_to_nb_api_c(
         &self,
         device_mac: MacAddress,
+        group_id: i32,
         req: String,
     ) -> Result<()> {
-        let device_id = self
-            .devices_cache
-            .try_read()?
-            .get_device_id(&device_mac)
-            .ok_or(Error::ConnectionServer(format!(
-                "Failed to get device {} group id.",
-                device_mac
-            )))?;
-
-        let key = device_id.to_string();
+        let cache = self.devices_cache.clone();
         let nb_api_client_clone = self.nb_api_client.clone();
         tokio::spawn(async move {
+            let key = group_id.to_string();
             let _ = nb_api_client_clone
                 .enqueue_mbox_message_from_cgw_server(key, req)
                 .await;
@@ -477,6 +470,37 @@ impl CGWConnectionServer {
         }
 
         None
+    }
+
+    fn notify_devices_on_gid_change(
+        self: Arc<Self>,
+        mac_list: Vec<MacAddress>,
+        new_gid: i32,
+    ) {
+        tokio::spawn(async move {
+            // If we receive NB API add/del infra req,
+            // and under storm of connections,
+            // both conn ACK / as well as processing of this
+            // request degrades heavily, due to single
+            // sync.prim used in both - connmap lock;
+            // TODO: investigate potential for resolving this
+            // performance drop (lazy cache?)
+            let connmap_r_lock = self.connmap.map.read().await;
+            let msg: CGWConnectionProcessorReqMsg =
+                CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
+
+            for mac in mac_list.iter() {
+                match connmap_r_lock.get(&mac) {
+                    Some(c) => {
+                        let _ = c.send(msg.clone());
+                        debug!("Notified {mac} about GID change (->{new_gid})");
+                    }
+                    None => {
+                        warn!("Wanted to notify {mac} about GID change (->{new_gid}), but device doesn't exist in map (Not connected still?)");
+                    }
+                }
+            }
+        });
     }
 
     async fn process_internal_nb_api_mbox(
@@ -840,13 +864,17 @@ impl CGWConnectionServer {
                                 warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}");
                             }
 
-                            let lock = self.devices_cache.clone();
+                            let devices_cache_lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_ifras_list(gid, mac_list.clone(), lock)
+                                .create_ifras_list(gid, mac_list.clone(), devices_cache_lock)
                                 .await
                             {
                                 Ok(()) => {
+                                    // All mac's GIDs been successfully changed;
+                                    // Notify all of them about the change.
+                                    self.clone().notify_devices_on_gid_change(mac_list.clone(), gid);
+
                                     if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                         gid, mac_list, uuid, true, None,
                                     ) {
@@ -860,6 +888,21 @@ impl CGWConnectionServer {
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
+                                        // We have a full list of macs we've tried to <add> to GID;
+                                        // Remove elements from cloned list based on whethere
+                                        // they're present in <failed list>
+                                        // Whenever done - notify corresponding conn.processors,
+                                        // that they should updated their state to have GID
+                                        // change reflected;
+                                        let mut macs_to_notify = mac_list.clone();
+                                        macs_to_notify.retain(|&m| ! mac_addresses.contains(&m));
+
+                                        // Do so, only if there are at least any <successfull>
+                                        // GID changes;
+                                        if !macs_to_notify.is_empty() {
+                                            self.clone().notify_devices_on_gid_change(macs_to_notify, gid);
+                                        }
+
                                         if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                             gid,
                                             mac_addresses,
@@ -915,6 +958,12 @@ impl CGWConnectionServer {
                                 .await
                             {
                                 Ok(()) => {
+                                    // All mac's GIDs been successfully changed;
+                                    // Notify all of them about the change.
+                                    //
+                                    // Group del == unassigned (0)
+                                    self.clone().notify_devices_on_gid_change(mac_list.clone(), 0i32);
+
                                     if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                         gid, mac_list, uuid, true, None,
                                     ) {
@@ -928,6 +977,21 @@ impl CGWConnectionServer {
                                 Err(macs) => {
                                     if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
                                     {
+                                        // We have a full list of macs we've tried to <del> from GID;
+                                        // Remove elements from cloned list based on whethere
+                                        // they're present in <failed list>
+                                        // Whenever done - notify corresponding conn.processors,
+                                        // that they should updated their state to have GID
+                                        // change reflected;
+                                        let mut macs_to_notify = mac_list.clone();
+                                        macs_to_notify.retain(|&m| ! mac_addresses.contains(&m));
+
+                                        // Do so, only if there are at least any <successfull>
+                                        // GID changes;
+                                        if !macs_to_notify.is_empty() {
+                                            self.clone().notify_devices_on_gid_change(macs_to_notify, 0i32);
+                                        }
+
                                         if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                             gid,
                                             mac_addresses,
@@ -1135,7 +1199,9 @@ impl CGWConnectionServer {
                     // If exists - it already should have assigned group
                     // If not - simply add to cache - set gid == 0, devices should't remain in DB
                     let mut devices_cache = self.devices_cache.write().await;
+                    let mut device_group_id: i32 = 0;
                     if let Some(device) = devices_cache.get_device(&device_mac) {
+                        device_group_id = device.get_device_group_id();
                         device.set_device_state(CGWDeviceState::CGWDeviceConnected);
 
                         let group_id = device.get_device_group_id();
@@ -1251,7 +1317,7 @@ impl CGWConnectionServer {
 
                     tokio::spawn(async move {
                         let msg: CGWConnectionProcessorReqMsg =
-                            CGWConnectionProcessorReqMsg::AddNewConnectionAck;
+                            CGWConnectionProcessorReqMsg::AddNewConnectionAck(device_group_id);
                         let _ = conn_processor_mbox_tx_clone.send(msg);
                     });
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {

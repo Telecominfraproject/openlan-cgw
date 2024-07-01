@@ -1,5 +1,5 @@
 # Stage 1: Create a rust build image
-FROM rust:1.77.0 as builder
+FROM rust:1.77.0 AS builder
 LABEL Description="OpenLan CGW (Build) environment"
 
 # Setup a specific compilation target to the Rust toolchain.
@@ -38,7 +38,11 @@ RUN --mount=type=bind,source=src,target=src                                \
 CMD ["echo", "CGW build finished successfully!"]
 
 # Stage 2: Create a runtime image
-FROM rust:1.77.0 as cgw-img
+FROM rust:1.77.0 AS cgw-img
+
+ARG CGW_CONTAINER_BUILD_REV="<unknown>"
+ENV CGW_CONTAINER_BUILD_REV=$CGW_CONTAINER_BUILD_REV
+
 LABEL Description="OpenLan CGW environment"
 
 # # Create a non-root user and group

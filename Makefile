@@ -42,6 +42,7 @@ cgw-img: stop cgw-build-env-img
 	@docker run -it --name ${CGW_BUILD_ENV_IMG_CONTAINER_NAME} --network=host \
 		${CGW_BUILD_ENV_IMG_ID}:${CGW_BUILD_ENV_IMG_TAG}
 	@docker build --file Dockerfile \
+		--build-arg="CGW_CONTAINER_BUILD_REV=${CGW_IMG_TAG}" \
 		--tag ${CGW_IMG_ID}:${CGW_IMG_TAG} \
 		--target cgw-img \
 		.

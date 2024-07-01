@@ -324,11 +324,9 @@ impl CGWConnectionServer {
 
     pub fn enqueue_mbox_message_from_device_to_nb_api_c(
         &self,
-        device_mac: MacAddress,
         group_id: i32,
         req: String,
     ) -> Result<()> {
-        let cache = self.devices_cache.clone();
         let nb_api_client_clone = self.nb_api_client.clone();
         tokio::spawn(async move {
             let key = group_id.to_string();

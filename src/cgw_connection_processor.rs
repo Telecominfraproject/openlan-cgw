@@ -307,7 +307,7 @@ impl CGWConnectionProcessor {
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.serial, self.group_id, payload)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, payload)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {

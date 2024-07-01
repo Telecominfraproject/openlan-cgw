@@ -72,6 +72,7 @@ impl CGWDevicesCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_device_id(&self, key: &MacAddress) -> Option<i32> {
         self.cache.get(key).map(|value| value.get_device_group_id())
     }

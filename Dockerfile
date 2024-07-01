@@ -39,6 +39,10 @@ CMD ["echo", "CGW build finished successfully!"]
 
 # Stage 2: Create a runtime image
 FROM rust:1.77.0 as cgw-img
+
+ARG CGW_CONTAINER_BUILD_REV="<unknown>"
+ENV CGW_CONTAINER_BUILD_REV=$CGW_CONTAINER_BUILD_REV
+
 LABEL Description="OpenLan CGW environment"
 
 # # Create a non-root user and group

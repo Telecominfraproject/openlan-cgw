@@ -69,16 +69,18 @@ pub struct CGWConnectionProcessor {
     pub addr: SocketAddr,
     pub idx: i64,
     pub group_id: i32,
+    pub feature_topomap_enabled: bool,
 }
 
 impl CGWConnectionProcessor {
     pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
-            cgw_server: server,
+            cgw_server: server.clone(),
             serial: MacAddress::default(),
             addr,
             idx: conn_idx,
             group_id: 0,
+            feature_topomap_enabled: server.feature_topomap_enabled,
         };
 
         conn_processor
@@ -277,9 +279,11 @@ impl CGWConnectionProcessor {
                         cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
                     {
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
-                            let topo_map = CGWUCentralTopologyMap::get_ref();
-                            topo_map.process_state_message(&device_type, evt).await;
-                            topo_map.debug_dump_map().await;
+                            if self.feature_topomap_enabled {
+                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                topo_map.process_state_message(&device_type, evt).await;
+                                topo_map.debug_dump_map().await;
+                            }
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
                             if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
                                 error!(
@@ -298,11 +302,13 @@ impl CGWConnectionProcessor {
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
                             debug!("Got reply event for pending request id: {}", pending_req_id);
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
-                            let topo_map = CGWUCentralTopologyMap::get_ref();
-                            topo_map
-                                .process_device_topology_event(&device_type, evt)
-                                .await;
-                            topo_map.debug_dump_map().await;
+                            if self.feature_topomap_enabled {
+                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                topo_map
+                                    .process_device_topology_event(&device_type, evt)
+                                    .await;
+                                topo_map.debug_dump_map().await;
+                            }
                         }
                     }
 

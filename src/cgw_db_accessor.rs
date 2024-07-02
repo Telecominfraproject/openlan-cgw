@@ -68,13 +68,8 @@ impl CGWDBAccessor {
         let (client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {
             Ok((cl, conn)) => (cl, conn),
             Err(e) => {
-                error!(
-                    "Failed to establish connection with DB, reason: {:?}",
-                    e
-                );
-                return Err(Error::DbAccessor(
-                    "Failed to establish connection with DB",
-                ));
+                error!("Failed to establish connection with DB, reason: {:?}", e);
+                return Err(Error::DbAccessor("Failed to establish connection with DB"));
             }
         };
 

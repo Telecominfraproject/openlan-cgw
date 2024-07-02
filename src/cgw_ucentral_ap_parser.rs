@@ -126,10 +126,6 @@ fn parse_wireless_clients_data(
 
             // Upstream WAN iface? Not supported
             if upstream_ifaces.iter().any(|i| *i == local_port) {
-                warn!(
-                    "Skipped ssid wireless client info {:?} for upstream interface",
-                    ssid
-                );
                 continue;
             }
 
@@ -402,7 +398,7 @@ fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result
         ));
     } else if let Value::Object(state_map) = &params["state"] {
         let serial = MacAddress::from_str(
-            state_map["serial"]
+            params["serial"]
                 .as_str()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse mac address"))?,
         )?;

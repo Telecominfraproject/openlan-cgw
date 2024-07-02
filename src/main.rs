@@ -156,7 +156,7 @@ pub struct AppArgs {
     /// Allow Missmatch
     allow_mismatch: bool,
 
-    // PORT to connect to Metrics
+    /// PORT to connect to Metrics
     metrics_port: u16,
 }
 
@@ -627,9 +627,10 @@ async fn main() -> Result<()> {
     // Configure logger
     setup_logger(args.log_level);
 
-    info!("Starting CGW application, rev tag: {}",
-          env::var("CGW_CONTAINER_BUILD_REV")
-          .unwrap_or("<CGW-unknown-tag>".to_string()));
+    info!(
+        "Starting CGW application, rev tag: {}",
+        env::var("CGW_CONTAINER_BUILD_REV").unwrap_or("<CGW-unknown-tag>".to_string())
+    );
 
     // Create a Notify instance to notify the main task of a shutdown signal
     let shutdown_notify = Arc::new(Notify::new());

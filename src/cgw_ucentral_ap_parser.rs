@@ -126,10 +126,6 @@ fn parse_wireless_clients_data(
 
             // Upstream WAN iface? Not supported
             if upstream_ifaces.iter().any(|i| *i == local_port) {
-                warn!(
-                    "Skipped ssid wireless client info {:?} for upstream interface",
-                    ssid
-                );
                 continue;
             }
 

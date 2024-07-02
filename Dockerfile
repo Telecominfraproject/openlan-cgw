@@ -61,7 +61,7 @@ RUN usermod -a -G cgw_users_group cgw_runner
 RUN chown cgw_runner:cgw_users_group "/var"
 
 # Switch to non-root user
-USER cgw_runner
+USER root
 
 # Create volume to certificates directory
 VOLUME [ "/etc/cgw/certs" ]

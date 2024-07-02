@@ -347,7 +347,10 @@ impl CGWConnectionProcessor {
                     sink.send(Message::text(pload.message)).await.ok();
                 }
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_group_id) => {
-                    debug!("Mac {} received gid {} -> {} change request", self.serial, self.group_id, new_group_id);
+                    debug!(
+                        "Mac {} received gid {} -> {} change request",
+                        self.serial, self.group_id, new_group_id
+                    );
                     self.group_id = new_group_id;
                 }
                 _ => {

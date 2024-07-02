@@ -470,11 +470,7 @@ impl CGWConnectionServer {
         None
     }
 
-    fn notify_devices_on_gid_change(
-        self: Arc<Self>,
-        mac_list: Vec<MacAddress>,
-        new_gid: i32,
-    ) {
+    fn notify_devices_on_gid_change(self: Arc<Self>, mac_list: Vec<MacAddress>, new_gid: i32) {
         tokio::spawn(async move {
             // If we receive NB API add/del infra req,
             // and under storm of connections,
@@ -871,7 +867,8 @@ impl CGWConnectionServer {
                                 Ok(()) => {
                                     // All mac's GIDs been successfully changed;
                                     // Notify all of them about the change.
-                                    self.clone().notify_devices_on_gid_change(mac_list.clone(), gid);
+                                    self.clone()
+                                        .notify_devices_on_gid_change(mac_list.clone(), gid);
 
                                     if let Ok(resp) = cgw_construct_infra_group_device_add_response(
                                         gid, mac_list, uuid, true, None,
@@ -893,12 +890,13 @@ impl CGWConnectionServer {
                                         // that they should updated their state to have GID
                                         // change reflected;
                                         let mut macs_to_notify = mac_list.clone();
-                                        macs_to_notify.retain(|&m| ! mac_addresses.contains(&m));
+                                        macs_to_notify.retain(|&m| !mac_addresses.contains(&m));
 
                                         // Do so, only if there are at least any <successfull>
                                         // GID changes;
                                         if !macs_to_notify.is_empty() {
-                                            self.clone().notify_devices_on_gid_change(macs_to_notify, gid);
+                                            self.clone()
+                                                .notify_devices_on_gid_change(macs_to_notify, gid);
                                         }
 
                                         if let Ok(resp) = cgw_construct_infra_group_device_add_response(
@@ -960,7 +958,8 @@ impl CGWConnectionServer {
                                     // Notify all of them about the change.
                                     //
                                     // Group del == unassigned (0)
-                                    self.clone().notify_devices_on_gid_change(mac_list.clone(), 0i32);
+                                    self.clone()
+                                        .notify_devices_on_gid_change(mac_list.clone(), 0i32);
 
                                     if let Ok(resp) = cgw_construct_infra_group_device_del_response(
                                         gid, mac_list, uuid, true, None,
@@ -982,12 +981,13 @@ impl CGWConnectionServer {
                                         // that they should updated their state to have GID
                                         // change reflected;
                                         let mut macs_to_notify = mac_list.clone();
-                                        macs_to_notify.retain(|&m| ! mac_addresses.contains(&m));
+                                        macs_to_notify.retain(|&m| !mac_addresses.contains(&m));
 
                                         // Do so, only if there are at least any <successfull>
                                         // GID changes;
                                         if !macs_to_notify.is_empty() {
-                                            self.clone().notify_devices_on_gid_change(macs_to_notify, 0i32);
+                                            self.clone()
+                                                .notify_devices_on_gid_change(macs_to_notify, 0i32);
                                         }
 
                                         if let Ok(resp) = cgw_construct_infra_group_device_del_response(
@@ -1044,7 +1044,8 @@ impl CGWConnectionServer {
                                 // 2. Add message to queue
                                 {
                                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                                    let _ = queue_lock.push_device_message(device_mac, queue_msg).await;
+                                    let _ =
+                                        queue_lock.push_device_message(device_mac, queue_msg).await;
                                 }
                             } else {
                                 error!("Failed to parse UCentral command");
@@ -1161,7 +1162,6 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
-
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.

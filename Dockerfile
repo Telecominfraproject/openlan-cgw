@@ -40,8 +40,11 @@ CMD ["echo", "CGW build finished successfully!"]
 # Stage 2: Create a runtime image
 FROM rust:1.77.0 AS cgw-img
 
-ARG CGW_CONTAINER_BUILD_REV="<unknown>"
-ENV CGW_CONTAINER_BUILD_REV=$CGW_CONTAINER_BUILD_REV
+#ARG CGW_CONTAINER_BUILD_REV="<unknown>"
+ARG GITHUB_SHA="<unknown>"
+ARG GITHUB_BRANCH="<unknown>"
+ENV CGW_CONTAINER_BUILD_REV=$GITHUB_SHA
+ENV CGW_CONTAINER_BUILD_BRANCH=$GITHUB_BRANCH
 
 LABEL Description="OpenLan CGW environment"
 

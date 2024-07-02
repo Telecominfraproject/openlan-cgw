@@ -152,6 +152,10 @@ pub struct CGWConnectionServer {
     // Internal CGW Devices cache
     // Key: device MAC, Value: Device
     devices_cache: Arc<RwLock<CGWDevicesCache>>,
+
+    // User-supplied arguments can disable state/realtime events
+    // processing by underlying connections processors.
+    pub feature_topomap_enabled: bool,
 }
 
 enum CGWNBApiParsedMsgType {
@@ -282,6 +286,7 @@ impl CGWConnectionServer {
             mbox_relayed_messages_handle: nb_api_tx,
             mbox_relay_msg_runtime_handle: relay_msg_mbox_runtime_handle,
             devices_cache: Arc::new(RwLock::new(CGWDevicesCache::new())),
+            feature_topomap_enabled: app_args.feature_topomap_enabled,
         });
 
         let server_clone = server.clone();
@@ -1308,8 +1313,10 @@ impl CGWConnectionServer {
                         );
                     }
 
-                    let topo_map = CGWUCentralTopologyMap::get_ref();
-                    topo_map.insert_device(&device_mac).await;
+                    if self.feature_topomap_enabled {
+                        let topo_map = CGWUCentralTopologyMap::get_ref();
+                        topo_map.insert_device(&device_mac).await;
+                    }
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
 
@@ -1340,8 +1347,10 @@ impl CGWConnectionServer {
                         }
                     }
 
-                    let topo_map = CGWUCentralTopologyMap::get_ref();
-                    topo_map.remove_device(&device_mac).await;
+                    if self.feature_topomap_enabled {
+                        let topo_map = CGWUCentralTopologyMap::get_ref();
+                        topo_map.remove_device(&device_mac).await;
+                    }
 
                     CGWMetrics::get_ref().change_counter(
                         CGWMetricsCounterType::ConnectionsNum,

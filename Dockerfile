@@ -32,8 +32,8 @@ RUN --mount=type=bind,source=src,target=src                                \
     --mount=type=cache,target=/usr/src/openlan-cgw/target                  \
     --mount=type=cache,target=/usr/local/cargo/git/db                      \
     --mount=type=cache,target=/usr/local/cargo/registry                    \
-    cargo build --target x86_64-unknown-linux-gnu --release &&             \
-    cp target/x86_64-unknown-linux-gnu/release/ucentral-cgw /usr/local/bin
+    RUSTFLAGS="-g -C symbol-mangling-version=v0" cargo build --target x86_64-unknown-linux-gnu &&             \
+    cp target/x86_64-unknown-linux-gnu/debug/ucentral-cgw /usr/local/bin
 
 CMD ["echo", "CGW build finished successfully!"]
 

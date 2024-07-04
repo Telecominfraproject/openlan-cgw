@@ -44,8 +44,8 @@ def parse_args():
                         help="remove mac addrs from a group")
     parser.add_argument("-T", "--topic", default="CnC",
                         help="kafka topic (default: \"CnC\")")
-    parser.add_argument("-s", "--bootstrap-server", metavar="ADDRESS", default="172.20.10.136:9092",
-                        help="kafka address (default: \"172.20.10.136:9092\")")
+    parser.add_argument("-s", "--bootstrap-server", metavar="ADDRESS", default="127.0.0.1:9092",
+                        help="kafka address (default: \"127.0.0.1:9092\")")
     parser.add_argument("-m", "--send-message", metavar="JSON", type=str,
                         help="this message will be sent down from the GW to all devices "
                              "specified in the --send-to-mac")

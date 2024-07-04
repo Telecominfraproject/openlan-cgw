@@ -64,7 +64,7 @@ def parse_args():
     parser.add_argument("-c", "--client-certs-path", metavar="PATH",
                         default="./certs/client",
                         help="path to client certificates directory")
-    parser.add_argument("-C", "--no-cert-check", type=bool, action='store_true',
+    parser.add_argument("-C", "--no-cert-check", action='store_true',
                         default=False,
                         help="do not check certificate")
     parser.add_argument("-t", "--msg-interval", metavar="SECONDS", type=int,
@@ -78,13 +78,17 @@ def parse_args():
 
     parsed_args = parser.parse_args()
 
+    no_cert_check = False
+    if parsed_args.no_cert_check is not None:
+        no_cert_check = True
+
     args = Args(number_of_connections=parsed_args.number_of_connections,
                 masks=parsed_args.mac_mask,
                 ca_path=parsed_args.ca_cert,
                 cert_path=parsed_args.client_certs_path,
                 msg_interval=parsed_args.msg_interval,
                 msg_size=parse_msg_size(parsed_args.payload_size),
-                check_certs=not parsed_args.no_cert_check,
+                check_cert=not no_cert_check,
                 wait_for_sig=parsed_args.wait_for_signal)
 
     if len(args.masks) == 0:

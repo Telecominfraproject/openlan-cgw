@@ -95,7 +95,7 @@ const CGW_DEFAULT_REDIS_HOST: &str = "localhost";
 const CGW_DEFAULT_REDIS_PORT: u16 = 6379;
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
 const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
-const CGW_DEFAULT_TOPOMAP_STATE: bool = true;
+const CGW_DEFAULT_TOPOMAP_STATE: bool = false;
 
 /// CGW server
 pub struct AppArgs {
@@ -397,8 +397,8 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_METRICS_PORT,
         };
 
-        let feature_topomap_enabled: bool = match env::var("CGW_FEATURE_TOPOMAP_DISABLE") {
-            Ok(_) => false,
+        let feature_topomap_enabled: bool = match env::var("CGW_FEATURE_TOPOMAP_ENABLE") {
+            Ok(_) => true,
             Err(_) => CGW_DEFAULT_TOPOMAP_STATE,
         };
 
@@ -637,8 +637,8 @@ async fn main() -> Result<()> {
     // Configure logger
     setup_logger(args.log_level);
 
-    if !args.feature_topomap_enabled {
-        warn!("CGW_FEATURE_TOPOMAP_DISABLE is set, TOPO MAP feature will be disabled (realtime events / state processing)");
+    if args.feature_topomap_enabled {
+        warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPO MAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");
     }
 
     info!(

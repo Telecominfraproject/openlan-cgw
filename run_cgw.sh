@@ -111,7 +111,7 @@ docker run \
 	-e CGW_DB_PASSWORD         \
 	-e CGW_REDIS_HOST          \
 	-e CGW_REDIS_PORT          \
-	-e CGW_FEATURE_TOPOMAP_DISABLE \
+	-e CGW_FEATURE_TOPOMAP_ENABLE \
 	-e CGW_METRICS_PORT        \
 	-e CGW_ALLOW_CERT_MISMATCH \
 	-d -t --network=host --name $2 $1 ucentral-cgw

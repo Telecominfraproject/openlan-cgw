@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose -f docker-compose.yml convert -c
+    kompose.version: 1.33.0 (3ce457399)
+  labels:
+    io.kompose.service: postgresql
+  name: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: postgresql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose -f docker-compose.yml convert -c
+        kompose.version: 1.33.0 (3ce457399)
+      labels:
+        io.kompose.network/docker-default: "true"
+        io.kompose.service: postgresql
+    spec:
+      containers:
+        - args:
+            - postgres
+            - -c
+            - max_connections=400
+            - -c
+            - shared_buffers=20MB
+          env:
+            - name: CGW_DB
+              valueFrom:
+                configMapKeyRef:
+                  key: CGW_DB
+                  name: postgresql-env
+            - name: CGW_DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  key: CGW_DB_PASSWORD
+                  name: postgresql-env
+            - name: CGW_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: CGW_DB_USER
+                  name: postgresql-env
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: postgresql-env
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_USER
+                  name: postgresql-env
+          image: postgres:latest
+          name: postgresql
+          ports:
+            - containerPort: 5432
+              hostPort: 5432
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /docker-entrypoint-initdb.d/init-db.sh
+              name: postgresql-cm0
+              subPath: init-db.sh
+      restartPolicy: Always
+      volumes:
+        - configMap:
+            items:
+              - key: init-db.sh
+                path: init-db.sh
+            name: postgresql-cm0
+          name: postgresql-cm0

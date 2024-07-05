@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package cgw.remote;
+
+service Remote {
+        rpc EnqueueNBAPIRequestStream(stream EnqueueRequest) returns (EnqueueResponse);
+}
+
+message EnqueueRequest {
+       string req = 1;
+       string key = 2;
+}
+
+message EnqueueResponse {
+        uint64 ret = 1;
+        string msg = 2;
+}

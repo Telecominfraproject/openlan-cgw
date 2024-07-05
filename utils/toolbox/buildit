@@ -1,0 +1,10 @@
+#!/bin/bash
+
+[ -z "$IMGTAG" ] && IMGTAG="latest"
+
+cd ..
+docker build \
+    -t tip-tip-wlan-cloud-ucentral.jfrog.io/cgw-toolbox:$IMGTAG \
+    -f toolbox/Dockerfile .
+docker push \
+    tip-tip-wlan-cloud-ucentral.jfrog.io/cgw-toolbox:$IMGTAG

@@ -1,0 +1,15 @@
+apiVersion: v1
+data:
+  PATRONI_REPLICATION_PASSWORD: replicate
+  PATRONI_REPLICATION_USERNAME: replicator
+  PATRONI_RESTAPI_PASSWORD: admin
+  PATRONI_RESTAPI_USERNAME: admin
+  PATRONI_SUPERUSER_PASSWORD: postgres
+  PATRONI_SUPERUSER_USERNAME: postgres
+  PATRONI_admin_OPTIONS: createdb,createrole
+  PATRONI_admin_PASSWORD: admin
+kind: ConfigMap
+metadata:
+  labels:
+    io.kompose.service: haproxy-patroni-env
+  name: patroni-env

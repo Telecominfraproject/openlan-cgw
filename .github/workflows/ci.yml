@@ -5,12 +5,14 @@ on:
     paths-ignore:
       - '**.md'
     branches:
+      - main
       - next
       - 'release/*'
     tags:
       - 'v*'
   pull_request:
     branches:
+      - main
       - next
       - 'release/*'
 
@@ -40,7 +42,7 @@ jobs:
         registry_password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
 
     - name: Notify on failure via Slack
-      if: failure() && github.ref == 'refs/heads/next'
+      if: failure() && github.ref == 'refs/heads/main'
       uses: rtCamp/action-slack-notify@v2
       env:
         SLACK_USERNAME: GitHub Actions failure notifier
@@ -51,7 +53,7 @@ jobs:
 
   trigger-deploy-to-dev:
     runs-on: ubuntu-latest
-    #if: github.ref == 'refs/heads/next'
+    #if: github.ref == 'refs/heads/main'
     if: github.ref == 'zzzzzzz'
     needs:
       - docker

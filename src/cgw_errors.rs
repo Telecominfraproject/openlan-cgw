@@ -17,6 +17,8 @@ pub enum Error {
 
     Tls(String),
 
+    Redis(String),
+
     UCentralParser(&'static str),
 
     UCentralMessagesQueue(&'static str),
@@ -62,9 +64,6 @@ pub enum Error {
 
     #[from]
     InvalidUri(warp::http::uri::InvalidUri),
-
-    #[from]
-    RedisAsync(redis_async::error::Error),
 
     #[from]
     StaticStr(&'static str),

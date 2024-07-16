@@ -74,6 +74,8 @@ CGW_DB_USER             - PSQL DB username (credentials) to use upon connect to 
 CGW_DB_PASS             - PSQL DB password (credentials) to use upon connect to DB
 CGW_REDIS_HOST          - IP or hostname of remote redis-db server to connect to
 CGW_REDIS_PORT          - PORT of remote redis-db server to connect to
+CGW_REDIS_USERNAME      - REDIS username (credentials) to use upon connect to
+CGW_REDIS_PASSWORD      - REDIS password (credentials) to use upon connect to
 CGW_LOG_LEVEL           - Log level to start CGW application with (debug, info)
 CGW_METRICS_PORT        - PORT of metrics to connect to
 CGW_CERTS_PATH          - Path to certificates located on host machine
@@ -97,6 +99,8 @@ declare -x CGW_KAFKA_PORT="9092"
 declare -x CGW_LOG_LEVEL="debug"
 declare -x CGW_REDIS_HOST="localhost"        # Redis server can be found at the local host
 declare -x CGW_REDIS_PORT="6379"
+declare -x CGW_REDIS_USERNAME="cgw"          # REDIS login credentials (username) - optional
+declare -x CGW_REDIS_PASSWORD="123"          # REDIS login credentials (password) - optional
 declare -x CGW_METRICS_PORT="8080"
 declare -x CGW_WSS_IP="0.0.0.0"              # Accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"

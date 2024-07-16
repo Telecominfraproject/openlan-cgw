@@ -304,6 +304,10 @@ pub struct CGWRedisArgs {
     pub redis_host: String,
     /// PORT to connect to REDIS
     pub redis_port: u16,
+    /// REDIS username
+    pub redis_username: Option<String>,
+    /// REDIS password
+    pub redis_password: Option<String>,
 }
 
 impl CGWRedisArgs {
@@ -335,9 +339,33 @@ impl CGWRedisArgs {
             Err(_) => CGW_DEFAULT_REDIS_PORT,
         };
 
+        let redis_username: Option<String> = match env::var("CGW_REDIS_USERNAME") {
+            Ok(username) => {
+                if username.is_empty() {
+                    None
+                } else {
+                    Some(username)
+                }
+            }
+            Err(_) => None,
+        };
+
+        let redis_password: Option<String> = match env::var("CGW_REDIS_PASSWORD") {
+            Ok(password) => {
+                if password.is_empty() {
+                    None
+                } else {
+                    Some(password)
+                }
+            }
+            Err(_) => None,
+        };
+
         Ok(CGWRedisArgs {
             redis_host,
             redis_port,
+            redis_username,
+            redis_password,
         })
     }
 }

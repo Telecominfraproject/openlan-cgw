@@ -1,4 +1,5 @@
 use crate::{
+    cgw_app_args::CGWRedisArgs,
     cgw_db_accessor::{CGWDBAccessor, CGWDBInfra, CGWDBInfrastructureGroup},
     cgw_device::{CGWDevice, CGWDeviceState},
     cgw_devices_cache::CGWDevicesCache,
@@ -17,7 +18,10 @@ use std::{
     sync::Arc,
 };
 
-use redis_async::resp_array;
+use redis::{
+    aio::MultiplexedConnection, Client, ConnectionInfo, RedisConnectionInfo, RedisResult,
+    ToRedisArgs,
+};
 
 use eui48::MacAddress;
 
@@ -137,10 +141,26 @@ pub struct CGWRemoteIface {
 #[derive(Clone)]
 pub struct CGWRemoteDiscovery {
     db_accessor: Arc<CGWDBAccessor>,
-    redis_client: redis_async::client::paired::PairedConnection,
+    redis_client: MultiplexedConnection,
     gid_to_cgw_cache: Arc<RwLock<HashMap<i32, i32>>>,
     remote_cgws_map: Arc<RwLock<HashMap<i32, CGWRemoteIface>>>,
     local_shard_id: i32,
+}
+
+fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
+    let redis_client_info = ConnectionInfo {
+        addr: redis::ConnectionAddr::Tcp(redis_args.redis_host.clone(), redis_args.redis_port),
+        redis: RedisConnectionInfo {
+            username: redis_args.redis_username.clone(),
+            password: redis_args.redis_password.clone(),
+            ..Default::default()
+        },
+    };
+
+    match redis::Client::open(redis_client_info) {
+        Ok(client) => Ok(client),
+        Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+    }
 }
 
 impl CGWRemoteDiscovery {
@@ -150,16 +170,22 @@ impl CGWRemoteDiscovery {
             app_args.redis_args.redis_host, app_args.redis_args.redis_port
         );
 
-        let redis_client = match redis_async::client::paired::paired_connect(
-            app_args.redis_args.redis_host.clone(),
-            app_args.redis_args.redis_port,
-        )
-        .await
-        {
+        let redis_client = match cgw_create_redis_client(&app_args.redis_args) {
             Ok(c) => c,
             Err(e) => {
                 error!(
                     "Can't create CGW Remote Discovery client: Redis client create failed ({:?})",
+                    e
+                );
+                return Err(Error::RemoteDiscovery("Redis client create failed"));
+            }
+        };
+
+        let redis_client = match redis_client.get_multiplexed_tokio_connection().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                error!(
+                    "Can't create CGW Remote Discovery client: Get Redis async connection failed ({})",
                     e
                 );
                 return Err(Error::RemoteDiscovery("Redis client create failed"));
@@ -215,33 +241,26 @@ impl CGWRemoteDiscovery {
             };
 
             let redis_req_data: Vec<String> = redisdb_shard_info.into();
+            let mut con = rc.redis_client.clone();
 
-            if let Err(e) = rc
-                .redis_client
-                .send::<i32>(resp_array![
-                    "DEL",
-                    format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)
-                ])
-                .await
-            {
+            let res: RedisResult<()> = redis::cmd("DEL")
+                .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
+                .query_async(&mut con)
+                .await;
+            if res.is_err() {
                 warn!(
-                    "Failed to destroy record about shard in REDIS, first launch? ({:?})",
-                    e
+                    "Failed to destroy record about shard in REDIS, first launch? ({})",
+                    res.err().unwrap()
                 );
             }
 
-            if let Err(e) = rc
-                .redis_client
-                .send::<String>(
-                    resp_array![
-                        "HSET",
-                        format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id)
-                    ]
-                    .append(redis_req_data),
-                )
-                .await
-            {
-                error!("Can't create CGW Remote Discovery client: Failed to create record about shard in REDIS: {:?}", e);
+            let res: RedisResult<()> = redis::cmd("HSET")
+                .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
+                .arg(redis_req_data.to_redis_args())
+                .query_async(&mut con)
+                .await;
+            if res.is_err() {
+                error!("Can't create CGW Remote Discovery client: Failed to create record about shard in REDIS: {}", res.err().unwrap());
                 return Err(Error::RemoteDiscovery(
                     "Failed to create record about shard in REDIS",
                 ));
@@ -301,50 +320,41 @@ impl CGWRemoteDiscovery {
 
         // Clear hashmap
         lock.clear();
+        let mut con = self.redis_client.clone();
 
-        let redis_keys: Vec<String> = match self
-            .redis_client
-            .send::<Vec<String>>(resp_array!["KEYS", format!("{}*", REDIS_KEY_GID)])
+        let redis_keys: Vec<String> = match redis::cmd("KEYS")
+            .arg(format!("{REDIS_KEY_GID}*"))
+            .query_async(&mut con)
             .await
         {
-            Err(_) => {
+            Err(e) => {
+                error!("Failed to sync gid to cgw map:\n{}", e);
                 return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
             }
-            Ok(r) => r,
+            Ok(keys) => keys,
         };
 
         for key in redis_keys {
-            let gid: i32 = match self
-                .redis_client
-                .send::<String>(resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_GID])
+            let gid: i32 = match redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_VALUE_GID)
+                .query_async(&mut con)
                 .await
             {
-                Ok(res) => {
-                    match res.parse::<i32>() {
-                        Ok(res) => res,
-                        Err(e) => {
-                            warn!("Found proper key '{key}' entry, but failed to parse GID from it:\n{e}");
-                            continue;
-                        }
-                    }
-                }
+                Ok(gid) => gid,
                 Err(e) => {
                     warn!("Found proper key '{key}' entry, but failed to fetch GID from it:\n{e}");
                     continue;
                 }
             };
-            let shard_id: i32 = match self
-                .redis_client
-                .send::<String>(resp_array!["HGET", &key, REDIS_KEY_GID_VALUE_SHARD_ID])
+
+            let shard_id: i32 = match redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_VALUE_SHARD_ID)
+                .query_async(&mut con)
                 .await
             {
-                Ok(res) => match res.parse::<i32>() {
-                    Ok(res) => res,
-                    Err(e) => {
-                        warn!("Found proper key '{key}' entry, but failed to parse SHARD_ID from it:\n{e}");
-                        continue;
-                    }
-                },
+                Ok(shard_id) => shard_id,
                 Err(e) => {
                     warn!("Found proper key '{key}' entry, but failed to fetch SHARD_ID from it:\n{e}");
                     continue;
@@ -399,20 +409,27 @@ impl CGWRemoteDiscovery {
         // Clear hashmap
         lock.clear();
 
-        let redis_keys: Vec<String> = self
-            .redis_client
-            .send::<Vec<String>>(resp_array![
-                "KEYS",
-                format!("{}*", REDIS_KEY_SHARD_ID_PREFIX)
-            ])
-            .await?;
+        let mut con = self.redis_client.clone();
+        let redis_keys: Vec<String> = match redis::cmd("KEYS")
+            .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}*"))
+            .query_async(&mut con)
+            .await
+        {
+            Ok(keys) => keys,
+            Err(e) => {
+                error!(
+                    "Can't sync remote CGW map: Failed to get shard record in REDIS: {}",
+                    e
+                );
+                return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
+            }
+        };
 
         for key in redis_keys {
-            match self
-                .redis_client
-                .send::<Vec<String>>(resp_array!["HGETALL", &key])
-                .await
-            {
+            let res: RedisResult<Vec<String>> =
+                redis::cmd("HGETALL").arg(&key).query_async(&mut con).await;
+
+            match res {
                 Ok(res) => {
                     let shrd: CGWREDISDBShard = CGWREDISDBShard::from(res);
                     if shrd == CGWREDISDBShard::default() {
@@ -464,14 +481,22 @@ impl CGWRemoteDiscovery {
     async fn increment_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<()> {
         debug!("Incrementing assigned groups num cgw_id_{cgw_id}");
 
-        self.redis_client
-            .send::<i32>(resp_array![
-                "HINCRBY",
-                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-                "1"
-            ])
-            .await?;
+        let mut con = self.redis_client.clone();
+        let res: RedisResult<()> = redis::cmd("HINCRBY")
+            .arg(format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX))
+            .arg(REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM)
+            .arg("1")
+            .query_async(&mut con)
+            .await;
+        if res.is_err() {
+            error!(
+                "Failed to increment assigned group number:\n{}",
+                res.err().unwrap()
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to increment assigned group number",
+            ));
+        }
 
         if cgw_id == self.local_shard_id {
             CGWMetrics::get_ref().change_counter(
@@ -485,14 +510,22 @@ impl CGWRemoteDiscovery {
     async fn decrement_cgw_assigned_groups_num(&self, cgw_id: i32) -> Result<()> {
         debug!("Decrementing assigned groups num cgw_id_{cgw_id}");
 
-        self.redis_client
-            .send::<i32>(resp_array![
-                "HINCRBY",
-                format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-                REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-                "-1"
-            ])
-            .await?;
+        let mut con = self.redis_client.clone();
+        let res: RedisResult<()> = redis::cmd("HINCRBY")
+            .arg(format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX))
+            .arg(REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM)
+            .arg("-1")
+            .query_async(&mut con)
+            .await;
+        if res.is_err() {
+            error!(
+                "Failed to decrement assigned group number:\n{}",
+                res.err().unwrap()
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to decrement assigned groups number",
+            ));
+        }
 
         if cgw_id == self.local_shard_id {
             CGWMetrics::get_ref().change_counter(
@@ -549,16 +582,27 @@ impl CGWRemoteDiscovery {
 
         let dst_cgw_id: i32 = self.get_infra_group_cgw_assignee().await?;
 
-        self.redis_client
-            .send::<String>(resp_array![
-                "HSET",
-                format!("{REDIS_KEY_GID}{gid}"),
-                REDIS_KEY_GID_VALUE_GID,
-                gid.to_string(),
-                REDIS_KEY_GID_VALUE_SHARD_ID,
-                dst_cgw_id.to_string()
-            ])
-            .await?;
+        let mut con = self.redis_client.clone();
+        let res: RedisResult<()> = redis::cmd("HSET")
+            .arg(format!("{REDIS_KEY_GID}{gid}"))
+            .arg(REDIS_KEY_GID_VALUE_GID)
+            .arg(gid.to_string())
+            .arg(REDIS_KEY_GID_VALUE_SHARD_ID)
+            .arg(dst_cgw_id.to_string())
+            .query_async(&mut con)
+            .await;
+
+        if res.is_err() {
+            error!(
+                "Failed to assign infra group {} to cgw {}:\n{}",
+                gid,
+                dst_cgw_id,
+                res.err().unwrap()
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to assign infra group to cgw",
+            ));
+        }
 
         self.gid_to_cgw_cache.write().await.insert(gid, dst_cgw_id);
 
@@ -568,11 +612,24 @@ impl CGWRemoteDiscovery {
     }
 
     pub async fn deassign_infra_group_to_cgw(&self, gid: i32) -> Result<()> {
-        self.redis_client
-            .send::<i64>(resp_array!["DEL", format!("{REDIS_KEY_GID}{gid}")])
-            .await?;
+        let mut con = self.redis_client.clone();
+        let res: RedisResult<()> = redis::cmd("DEL")
+            .arg(format!("{REDIS_KEY_GID}{gid}"))
+            .query_async(&mut con)
+            .await;
 
-        debug!("REDIS: deassigned gid{gid} from controlled CGW");
+        if res.is_err() {
+            error!(
+                "Failed to deassign infra group {}:\n{}",
+                gid,
+                res.err().unwrap()
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to deassign infra group to cgw",
+            ));
+        }
+
+        debug!("REDIS: deassigned gid {gid} from controlled CGW");
 
         self.gid_to_cgw_cache.write().await.remove(&gid);
 
@@ -799,18 +856,19 @@ impl CGWRemoteDiscovery {
         // Clear local cache
         self.gid_to_cgw_cache.write().await.clear();
 
+        let mut con = self.redis_client.clone();
         for (cgw_id, _val) in self.remote_cgws_map.read().await.iter() {
-            if let Err(e) = self
-                .redis_client
-                .send::<i32>(resp_array![
-                    "HSET",
-                    format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX),
-                    REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM,
-                    "0"
-                ])
-                .await
-            {
-                warn!("Failed to reset CGW{cgw_id} assigned group num count, e:{e}");
+            let res: RedisResult<()> = redis::cmd("HSET")
+                .arg(format!("{}{cgw_id}", REDIS_KEY_SHARD_ID_PREFIX))
+                .arg(REDIS_KEY_SHARD_VALUE_ASSIGNED_G_NUM)
+                .arg("0")
+                .query_async(&mut con)
+                .await;
+            if res.is_err() {
+                warn!(
+                    "Failed to reset CGW{cgw_id} assigned group num count, e:{}",
+                    res.err().unwrap()
+                );
             }
         }
 
@@ -835,12 +893,13 @@ impl CGWRemoteDiscovery {
     pub async fn cleanup_redis(&self) {
         debug!("Remove from Redis shard id {}", self.local_shard_id);
         // We are on de-init stage - ignore any errors on Redis clean-up
-        let _ = self
-            .redis_client
-            .send::<i32>(resp_array![
-                "DEL",
-                format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", self.local_shard_id)
-            ])
+        let mut con = self.redis_client.clone();
+        let _res: RedisResult<()> = redis::cmd("DEL")
+            .arg(format!(
+                "{REDIS_KEY_SHARD_ID_PREFIX}{}",
+                self.local_shard_id
+            ))
+            .query_async(&mut con)
             .await;
     }
 }

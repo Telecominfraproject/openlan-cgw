@@ -42,6 +42,9 @@ pub enum Error {
     TokioSync(tokio::sync::TryLockError),
 
     #[from]
+    Tokiofs(tokio::fs::ReadDir),
+
+    #[from]
     IpAddressParse(std::net::AddrParseError),
 
     #[from]

@@ -3,8 +3,13 @@ use crate::cgw_errors::{collect_results, Error, Result};
 
 use eui48::MacAddress;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+use std::fs;
+use std::io::BufRead;
+use std::path::Path;
 use std::{fs::File, io::BufReader, str::FromStr, sync::Arc};
 use tokio::net::TcpStream;
+use tokio_postgres_rustls::MakeRustlsConnect;
+use tokio_rustls::rustls;
 use tokio_rustls::{
     rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
     server::TlsStream,
@@ -13,6 +18,7 @@ use tokio_rustls::{
 use x509_parser::parse_x509_certificate;
 
 const CGW_TLS_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
+const CGW_TLS_NB_INFRA_CERTS_PATH: &str = "/etc/cgw/nb_infra/certs";
 
 pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'static>>> {
     let file = match File::open(cert_file) {
@@ -103,6 +109,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
 
     Err(Error::Tls("Failed to read peer comman name!".to_string()))
 }
+
 pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAcceptor> {
     // Read root/issuer certs.
     let cas_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_cas);
@@ -161,4 +168,54 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
 
     // Create the TLS acceptor.
     Ok(TlsAcceptor::from(Arc::new(config)))
+}
+
+pub async fn cgw_read_root_certs_dir() -> Result<Vec<u8>> {
+    let mut certs_vec = Vec::new();
+
+    // Read the directory entries
+    for entry in fs::read_dir(Path::new(CGW_TLS_NB_INFRA_CERTS_PATH))? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Check if the entry is a file and has a .crt extension (or other extensions if needed)
+        if path.is_file() {
+            let extension = path.extension().and_then(|ext| ext.to_str());
+            if extension == Some("crt") || extension == Some("pem") {
+                let cert_contents = fs::read(path)?;
+                certs_vec.extend(cert_contents);
+            }
+        }
+    }
+
+    Ok(certs_vec)
+}
+
+pub async fn cgw_get_root_certs_store() -> Result<RootCertStore> {
+    let certs = cgw_read_root_certs_dir().await?;
+
+    let buf = &mut certs.as_slice() as &mut dyn BufRead;
+    let certs = rustls_pemfile::certs(buf);
+    let mut root_cert_store = rustls::RootCertStore::empty();
+    for cert in certs.flatten() {
+        let _r = root_cert_store.add(cert);
+    }
+
+    Ok(root_cert_store)
+}
+
+pub async fn cgw_tls_create_db_connect() -> Result<MakeRustlsConnect> {
+    let root_store = match cgw_get_root_certs_store().await {
+        Ok(certs) => certs,
+        Err(e) => {
+            error!("{}", e.to_string());
+            return Err(e);
+        }
+    };
+
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    Ok(tokio_postgres_rustls::MakeRustlsConnect::new(config))
 }

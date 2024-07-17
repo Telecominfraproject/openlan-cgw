@@ -9,6 +9,7 @@ use crate::{
         CGWMetricsHealthComponentStatus,
     },
     cgw_remote_client::CGWRemoteClient,
+    cgw_tls::cgw_read_root_certs_dir,
     AppArgs,
 };
 
@@ -16,11 +17,12 @@ use std::{
     collections::HashMap,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
+    time::Duration,
 };
 
 use redis::{
     aio::MultiplexedConnection, Client, ConnectionInfo, RedisConnectionInfo, RedisResult,
-    ToRedisArgs,
+    TlsCertificates, ToRedisArgs,
 };
 
 use eui48::MacAddress;
@@ -147,9 +149,14 @@ pub struct CGWRemoteDiscovery {
     local_shard_id: i32,
 }
 
-fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
+async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
     let redis_client_info = ConnectionInfo {
-        addr: redis::ConnectionAddr::Tcp(redis_args.redis_host.clone(), redis_args.redis_port),
+        addr: redis::ConnectionAddr::TcpTls {
+            host: redis_args.redis_host.clone(),
+            port: redis_args.redis_port,
+            insecure: true,
+            tls_params: None,
+        },
         redis: RedisConnectionInfo {
             username: redis_args.redis_username.clone(),
             password: redis_args.redis_password.clone(),
@@ -157,7 +164,14 @@ fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
         },
     };
 
-    match redis::Client::open(redis_client_info) {
+    let root_cert = cgw_read_root_certs_dir().await.ok();
+
+    let tls_certs: TlsCertificates = TlsCertificates {
+        client_tls: None,
+        root_cert,
+    };
+
+    match redis::Client::build_with_tls(redis_client_info, tls_certs) {
         Ok(client) => Ok(client),
         Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
     }
@@ -170,7 +184,7 @@ impl CGWRemoteDiscovery {
             app_args.redis_args.redis_host, app_args.redis_args.redis_port
         );
 
-        let redis_client = match cgw_create_redis_client(&app_args.redis_args) {
+        let redis_client = match cgw_create_redis_client(&app_args.redis_args).await {
             Ok(c) => c,
             Err(e) => {
                 error!(
@@ -181,7 +195,13 @@ impl CGWRemoteDiscovery {
             }
         };
 
-        let redis_client = match redis_client.get_multiplexed_tokio_connection().await {
+        let redis_client = match redis_client
+            .get_multiplexed_tokio_connection_with_response_timeouts(
+                Duration::from_secs(1),
+                Duration::from_secs(5),
+            )
+            .await
+        {
             Ok(conn) => conn,
             Err(e) => {
                 error!(

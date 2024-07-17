@@ -80,38 +80,44 @@ CGW_LOG_LEVEL           - Log level to start CGW application with (debug, info)
 CGW_METRICS_PORT        - PORT of metrics to connect to
 CGW_CERTS_PATH          - Path to certificates located on host machine
 CGW_ALLOW_CERT_MISMATCH - Allow client certificate CN and device MAC address mismatch (used for OWLS)
+CGW_NB_INFRA_CERTS_DIR  - Path to NB infrastructure (Redis, PostgreSQL)certificates located on host machine
 ```
 
 Example of properly configured list of env variables to start CGW:
 ```console
 $ export | grep CGW
-declare -x CGW_DB_HOST="localhost"           # PSQL server is located at the local host
+declare -x CGW_DB_HOST="localhost"                       # PSQL server is located at the local host
 declare -x CGW_DB_PORT="5432"
-declare -x CGW_DB_USERNAME="cgw"             # PSQL login credentials (username) default 'cgw' will be used
-declare -x CGW_DB_PASS="123"                 # PSQL login credentials (password) default '123' will be used
-declare -x CGW_GRPC_LISTENING_IP="127.0.0.1" # Local default subnet is 127.0.0.1/24
+declare -x CGW_DB_USERNAME="cgw"                         # PSQL login credentials (username) default 'cgw' will be used
+declare -x CGW_DB_PASS="123"                             # PSQL login credentials (password) default '123' will be used
+declare -x CGW_GRPC_LISTENING_IP="127.0.0.1"             # Local default subnet is 127.0.0.1/24
 declare -x CGW_GRPC_LISTENING_PORT="50051"
 declare -x CGW_GRPC_PUBLIC_HOST="localhost"
 declare -x CGW_GRPC_PUBLIC_PORT="50051"
 declare -x CGW_ID="0"
-declare -x CGW_KAFKA_HOST="localhost"        # Kafka is located at the local host
+declare -x CGW_KAFKA_HOST="localhost"                    # Kafka is located at the local host
 declare -x CGW_KAFKA_PORT="9092"
 declare -x CGW_LOG_LEVEL="debug"
-declare -x CGW_REDIS_HOST="localhost"        # Redis server can be found at the local host
+declare -x CGW_REDIS_HOST="localhost"                    # Redis server can be found at the local host
 declare -x CGW_REDIS_PORT="6379"
-declare -x CGW_REDIS_USERNAME="cgw"          # REDIS login credentials (username) - optional
-declare -x CGW_REDIS_PASSWORD="123"          # REDIS login credentials (password) - optional
+declare -x CGW_REDIS_USERNAME="cgw"                      # REDIS login credentials (username) - optional
+declare -x CGW_REDIS_PASSWORD="123"                      # REDIS login credentials (password) - optional
 declare -x CGW_METRICS_PORT="8080"
-declare -x CGW_WSS_IP="0.0.0.0"              # Accept WSS connections at all interfaces / subnets
+declare -x CGW_WSS_IP="0.0.0.0"                          # Accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"
 declare -x CGW_WSS_CAS="cas.pem"
 declare -x CGW_WSS_CERT="cert.pem"
 declare -x CGW_WSS_KEY="key.pem"
-declare -x CGW_CERTS_PATH="/etc/ssl/certs"   # Path to certificates located on host machine
-declare -x CGW_ALLOW_CERT_MISMATCH="no"      # Allow client certificate CN and device MAC address mismatch
+declare -x CGW_CERTS_PATH="/etc/ssl/certs"               # Path to certificates located on host machine
+declare -x CGW_ALLOW_CERT_MISMATCH="no"                  # Allow client certificate CN and device MAC address mismatch
+declare -x CGW_NB_INFRA_CERTS_PATH="/etc/nb_infra_certs"
 ```
 # Certificates
-The CGW uses a number of certificates to provide security.
+The CGW uses two different sets of certificate configuration:
+1. AP/Switch connectivity (southbound)
+2. Infrastructure connectivity (northbound)
+
+The AP/Switch connectivity uses a number of certificates to provide security (mTLS).
 There are 2 types of certificates required for a normal deployment:
 1. Server certificates
 2. Client certificates
@@ -123,3 +129,7 @@ There are several environment variable to configure certificates path and names 
 2. CGW_WSS_KEY - CGW WSS Private Key
 3. CGW_WSS_CAS - Chain certificates to validate client (root/issuer)
 4. CGW_CERTS_PATH - path to certificates located on host machine
+
+The infrastructure connectivity use root certs store - the directory with trusted certificates
+The environemt variable to configure certificates path:
+1. CGW_NB_INFRA_CERTS_PATH - path to certificates located on host machine

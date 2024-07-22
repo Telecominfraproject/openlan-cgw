@@ -25,6 +25,8 @@ pub enum Error {
 
     AppArgsParser(String),
 
+    Runtime(String),
+
     // -- Externals
     #[from]
     Io(std::io::Error),

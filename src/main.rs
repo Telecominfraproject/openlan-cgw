@@ -11,6 +11,7 @@ mod cgw_nb_api_listener;
 mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
+mod cgw_runtime;
 mod cgw_tls;
 mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_messages_queue_manager;
@@ -25,6 +26,8 @@ extern crate log;
 extern crate lazy_static;
 
 use cgw_app_args::AppArgs;
+use cgw_runtime::cgw_initialize_runtimes;
+
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Handle, Runtime},
@@ -270,6 +273,12 @@ async fn main() -> Result<()> {
 
     // Configure logger
     setup_logger(args.log_level);
+
+    // Initialize runtimes
+    if let Err(e) = cgw_initialize_runtimes(args.wss_args.wss_t_num) {
+        error!("Failed to initialize CGW runtimes: {}", e.to_string());
+        return Err(e);
+    }
 
     if args.feature_topomap_enabled {
         warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPO MAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");

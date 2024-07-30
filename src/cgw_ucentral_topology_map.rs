@@ -2,7 +2,7 @@ use crate::{
     cgw_device::CGWDeviceType,
     cgw_ucentral_parser::{
         CGWUCentralEvent, CGWUCentralEventRealtimeEventType, CGWUCentralEventStateClientsType,
-        CGWUCentralEventType,
+        CGWUCentralEventStateLinks, CGWUCentralEventStatePort, CGWUCentralEventType,
     },
 };
 use petgraph::dot::{Config, Dot};
@@ -13,100 +13,90 @@ use petgraph::{
     Direction,
 };
 
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 
 use eui48::MacAddress;
 
-type WirelessClientBand = String;
-type WirelessClientSsid = String;
-
-// One 'slice' / part of edge (Mac + port);
-// To make a proper complete edge two parts needed:
-// SRC -> DST
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum CGWUCentralTopologySubEdgePort {
-    // Used in <SRC> subedge
-    PhysicalWiredPort(String),
-    WirelessPort,
-
-    // Used in <DST> subedge
-    // Wired client reported by AP (no dst port info available)
-    // TODO: Duplex speed?
-    WiredClient,
-    // Wieless client reported by AP: SSID + Band
-    WirelessClient(WirelessClientSsid, WirelessClientBand),
-
-    WiredFDBClient(u16),
-}
-
-impl fmt::Display for CGWUCentralTopologySubEdgePort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CGWUCentralTopologySubEdgePort::PhysicalWiredPort(port) => {
-                write!(f, "{port}")
-            }
-            CGWUCentralTopologySubEdgePort::WirelessPort => {
-                write!(f, "WirelessPort")
-            }
-            CGWUCentralTopologySubEdgePort::WiredClient => {
-                write!(f, "WiredClient")
-            }
-            CGWUCentralTopologySubEdgePort::WirelessClient(ssid, band) => {
-                write!(f, "WirelessClient({ssid},{band})")
-            }
-            CGWUCentralTopologySubEdgePort::WiredFDBClient(vid) => {
-                write!(f, "VLAN_{vid}")
-            }
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CGWUCentralTopologySubEdge {
-    pub serial: MacAddress,
-    pub port: CGWUCentralTopologySubEdgePort,
-}
-
-// Complete edge consisting of SRC -> DST 'sub-edges'
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CGWUCentralTopologyEdge(CGWUCentralTopologySubEdge, CGWUCentralTopologySubEdge);
-
-type EdgeCreationTimestamp = i64;
+type ClientLastSeenTimestamp = i64;
 
 // We have to track the 'origin' of any node we add to topo map,
 // because deletion decision should be made on the following basis:
 // - direct WSS connection should be always kept in the topo map,
 //   and only erased when disconnect happens;
-// - any nodes, that are added to topo map as 'clients' (lldp peers,
-//   wired and wireless clients, fdb info) should be deleted when the node
-//   that reported them gets deleted;
-//   however if 'client' node also exists in topo map, and is currently connected
-//   to CGW (WSS), then it should be left untouched;
+// - any nodes, that are added to topo map as lldp peers
+//   should be deleted when the node that reported them gets deleted;
 #[derive(Debug, Clone)]
 enum CGWUCentralTopologyMapNodeOrigin {
-    UCentralDevice,
+    UCentralDevice(CGWDeviceType),
     StateLLDPPeer,
-    StateWiredWireless,
 }
 
-// We have to track the 'origin' of any edge we add to topo map,
-// because deletion decision should be made on the following basis:
-// - 'client.leave' should remove edge (only if join timestamp < leave timestamp);
-// - 'client.join' should remove edge and create (potentially with new SRC node)
-//   a new edge with device/node that reports this event.
-//   Only, if join timestamp > <previous> join timestamp (state evt, realtime join evt)
-#[derive(Debug, Clone)]
-enum CGWUCentralTopologyMapEdgeOrigin {
-    StateLLDPPeer,
-    StateWiredWireless(EdgeCreationTimestamp),
+#[derive(Debug)]
+struct CGWUCentralTopologyMapConnectionParams {
+    mac: MacAddress,
+    last_seen: ClientLastSeenTimestamp,
+}
+
+#[derive(Debug)]
+struct CGWUCentralTopologyMapConnectionsData {
+    // Infra node list = list of mac addresses (clients, fdb entires,
+    // arp neighbors etc etc) reported on single port
+    infra_nodes_list: Vec<CGWUCentralTopologyMapConnectionParams>,
+
+    // (Optional) node parent that we know for sure we're directly
+    // connected to (LLDP data, for example); Could be either
+    // UCentral connected device, or lldp-peer that AP reports
+    // (it's also possible that this peer will reconnect later-on
+    // as a UCentral connect, but for some reason still haven't, and
+    // AP already _sees_ it).
+    // This is used whenever child node gets disconnected / removed:
+    // we have to make sure we remove _connection_ between UCentral
+    // node A (parent) with node B (child)
+    // In case if parent get's removed though, there's no need to notify parent,
+    // however. This is because whenever _child_ node sends a new state meessage,
+    // connection to _parent_ node will be deduced from that data (basically,
+    // update upon receiving new state message from AP for example).
+    //
+    // The _connection_ (edge) creation is parent-driven, however:
+    // In the following example AP1 is connected to SW1:
+    // SW1 < - > AP1
+    // In case if AP1 sends state data before SW1 doest, the internal data about
+    // wifi clients and so on will be populated, but the connection with SW1
+    // and AP1 will only 'appear' in the topo map once the switch sends a
+    // state message with explicitly stating, that it _sees_ the AP1 directly.
+    //
+    // The only exception is when AP reports uplink lldp peer and it's not
+    // a UCentral device / still not connected:
+    // then AP is responsible to firsly create lldp-peer-node, and report
+    // it as AP's parent (and also clear / remove it upon AP disconnect event,
+    // as the _knowledge_ about this lldp-peer-node comes _only_ from the AP
+    // itself)
+    parent_topology_node_mac: Option<MacAddress>,
+
+    // In case if AP/Switch detects non-ucentral downstream LLDP peers,
+    // it should track the list of them for later-on removal (in case if
+    // this ucentral device get's disconnected).
+    // Hashmap is used for O(1) access.
+    child_lldp_nodes: HashMap<MacAddress, ()>,
+}
+
+#[derive(Debug)]
+struct CGWUCentralTopologyMapConnections {
+    links_list: HashMap<CGWUCentralEventStatePort, CGWUCentralTopologyMapConnectionsData>,
 }
 
 #[derive(Debug)]
 struct CGWUCentralTopologyMapData {
-    node_idx_map: HashMap<MacAddress, (NodeIndex, CGWUCentralTopologyMapNodeOrigin)>,
-    edge_idx_map: HashMap<CGWUCentralTopologyEdge, (EdgeIndex, CGWUCentralTopologyMapEdgeOrigin)>,
-    graph: StableGraph<MacAddress, String>,
+    // Device nodes are only created upon receiving a new UCentral connection,
+    // or LLDP peer info.
+    topology_nodes: HashMap<
+        MacAddress,
+        (
+            CGWUCentralTopologyMapNodeOrigin,
+            CGWUCentralTopologyMapConnections,
+        ),
+    >,
 }
 
 #[derive(Debug)]
@@ -117,9 +107,7 @@ pub struct CGWUCentralTopologyMap {
 lazy_static! {
     pub static ref CGW_UCENTRAL_TOPOLOGY_MAP: CGWUCentralTopologyMap = CGWUCentralTopologyMap {
         data: Arc::new(RwLock::new(CGWUCentralTopologyMapData {
-            node_idx_map: HashMap::new(),
-            edge_idx_map: HashMap::new(),
-            graph: StableGraph::new(),
+            topology_nodes: HashMap::new(),
         }))
     };
 }
@@ -129,194 +117,249 @@ impl CGWUCentralTopologyMap {
         &CGW_UCENTRAL_TOPOLOGY_MAP
     }
 
-    pub async fn insert_device(&self, serial: &MacAddress) {
+    pub async fn insert_device(&self, topology_node_mac: &MacAddress, platform: &str) {
+        let device_type = match CGWDeviceType::from_str(platform) {
+            Ok(t) => t,
+            Err(_) => {
+                warn!(
+                    "Tried to insert {} into tomo map, but failed to parse it's platform string",
+                    topology_node_mac
+                );
+                return;
+            }
+        };
         let mut lock = self.data.write().await;
-        Self::add_node(
-            &mut lock,
-            serial,
-            CGWUCentralTopologyMapNodeOrigin::UCentralDevice,
+        let map_connections = CGWUCentralTopologyMapConnections {
+            links_list: HashMap::new(),
+        };
+
+        lock.topology_nodes.insert(
+            *topology_node_mac,
+            (
+                CGWUCentralTopologyMapNodeOrigin::UCentralDevice(device_type),
+                map_connections,
+            ),
         );
     }
 
-    pub async fn remove_device(&self, serial: &MacAddress) {
+    pub async fn remove_device(&self, topology_node_mac: &MacAddress) {
         let mut lock = self.data.write().await;
-        Self::remove_node(&mut lock, serial);
+        Self::clear_related_nodes(&mut lock, topology_node_mac);
+        lock.topology_nodes.remove(topology_node_mac);
     }
 
-    pub async fn process_state_message(&self, _device_type: &CGWDeviceType, evt: CGWUCentralEvent) {
-        let mut lock = self.data.write().await;
-
+    pub async fn process_state_message(&self, device_type: &CGWDeviceType, evt: CGWUCentralEvent) {
         if let CGWUCentralEventType::State(s) = evt.evt_type {
-            // To make sure any leftovers are handled, node that reports
-            // state message is getting purged and recreated:
-            // since state message hold <all> necessary information,
-            // we can safely purge all edge info and recreate it from
-            // the state message. Any missed / deleted by mistake
-            // edges will appear on the next iteration of state / realtime event
-            // processing.
-            Self::remove_node(&mut lock, &s.local_mac);
+            let topology_node_mac: &MacAddress = &s.local_mac;
+            // Clear any related (child, or parent nodes we explicitly
+            // created).
+            // The child/parent node can be explicitly created,
+            // if information about the node is only deduced from
+            // lldp peer information, and the underlying node is not
+            // a ucentral device.
+            {
+                let mut lock = self.data.write().await;
+                Self::clear_related_nodes(&mut lock, topology_node_mac);
+            }
 
-            // Re-create node with origin being UCentralDevice, as this
-            // device is directly connected to the CGW.
-            Self::add_node(
-                &mut lock,
-                &s.local_mac,
-                CGWUCentralTopologyMapNodeOrigin::UCentralDevice,
-            );
+            // Mac address of upstream node with local port we see the peer on
+            let mut upstream_lldp_node: Option<(MacAddress, CGWUCentralEventStatePort)> = None;
+            let mut downstream_lldp_nodes: HashMap<CGWUCentralEventStatePort, MacAddress> =
+                HashMap::new();
+            let mut nodes_to_create: Vec<(
+                MacAddress,
+                (
+                    CGWUCentralTopologyMapNodeOrigin,
+                    CGWUCentralTopologyMapConnections,
+                ),
+            )> = Vec::new();
 
-            // Start with LLDP info processing
-            for link in s.lldp_data.links {
-                let subedge_src = CGWUCentralTopologySubEdge {
-                    serial: s.local_mac,
-                    port: CGWUCentralTopologySubEdgePort::PhysicalWiredPort(link.local_port),
-                };
-                let subedge_dst = CGWUCentralTopologySubEdge {
-                    serial: link.remote_serial,
-                    port: CGWUCentralTopologySubEdgePort::PhysicalWiredPort(link.remote_port),
-                };
+            // Map connections that will be populated on behalf of device
+            // that sent the state data itself.
+            let mut map_connections = CGWUCentralTopologyMapConnections {
+                links_list: HashMap::new(),
+            };
 
-                // No duplicates can exists, since it's LLDP data
-                // (both uCentral and underlying LLDP agents do not
-                // support multiple LLDP clients over single link,
-                // so it's not expect to have duplicates here).
-                // Hence we have to try and remove any duplicates
-                // we can find (either based on SRC or DST device's
-                // subedge info.
-                Self::remove_edge(&mut lock, &subedge_src);
-                Self::remove_edge(&mut lock, &subedge_dst);
+            // Start with LLDP processing, as it's the backbone core
+            // of deducing whether we have some umanaged (non-ucentral)
+            // devices / nodes.
+            for (local_port, links) in s.lldp_data.links {
+                for link in links {
+                    let mut lldp_peer_map_connections = CGWUCentralTopologyMapConnections {
+                        links_list: HashMap::new(),
+                    };
+                    let mut lldp_peer_map_conn_data = CGWUCentralTopologyMapConnectionsData {
+                            infra_nodes_list: Vec::new(),
+                            parent_topology_node_mac: None,
+                            child_lldp_nodes: HashMap::new(),
+                    };
 
-                // Any neighbour seen in LLDP is added to the graph.
-                // Whenever parent (entity reporting the LLDP data)
-                // get's removed - neighbour nodes and connected
-                // edges will be purged.
-                Self::add_node(
-                    &mut lock,
-                    &link.remote_serial,
-                    CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer,
-                );
+                    if link.is_downstream {
+                        // We create this downstream node, which means we say that
+                        // we're the <parent> node for this lldp-downstream-node
+                        // to-be-created.
+                        lldp_peer_map_conn_data.parent_topology_node_mac = Some(*topology_node_mac);
+                        downstream_lldp_nodes.insert(local_port.clone(), link.remote_serial);
+                    } else {
+                        // Use only single upstream lldp peer (only 1 supported)
+                        if let None = upstream_lldp_node {
+                            debug!(
+                                "{} Found parent (lldp) upstream node: {} on local port {:?}",
+                                *topology_node_mac, link.remote_serial, local_port
+                            );
+                            upstream_lldp_node = Some((link.remote_serial, local_port.clone()));
 
-                if link.is_downstream {
-                    Self::add_edge(
-                        &mut lock,
-                        CGWUCentralTopologyEdge(subedge_src, subedge_dst),
-                        CGWUCentralTopologyMapEdgeOrigin::StateLLDPPeer,
-                    );
-                } else {
-                    Self::add_edge(
-                        &mut lock,
-                        CGWUCentralTopologyEdge(subedge_dst, subedge_src),
-                        CGWUCentralTopologyMapEdgeOrigin::StateLLDPPeer,
-                    );
+                            // We create this upstream node, which means we say that
+                            // we're the <child> node for this lldp-upstream-node
+                            // to-be-created. We also populate links of this node
+                            // with our - and only our single - mac address.
+                            let mut child_lldp_nodes: HashMap<MacAddress, ()> = HashMap::new();
+
+                            child_lldp_nodes.insert(*topology_node_mac, ());
+
+                            lldp_peer_map_conn_data.child_lldp_nodes = child_lldp_nodes;
+
+                            map_connections.links_list.insert(
+                                CGWUCentralEventStatePort::PhysicalWiredPort(
+                                    link.remote_port.clone(),
+                                ),
+                                lldp_peer_map_conn_data,
+                            );
+                        } else {
+                            // Already found one upstream peer, skip this one;
+                            continue;
+                        }
+                    }
+
+                    nodes_to_create.push((
+                        link.remote_serial,
+                        (
+                            CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer,
+                            lldp_peer_map_connections,
+                        ),
+                    ));
                 }
             }
 
-            // Clients data processing:
-            // add all nodes seen in clients;
-            // add new edges;
-            for link in &s.clients_data.links {
-                // Treat state timestamp as edge-creation timestamp only for
-                // events that do not report explicit connection timestamp
-                // (no association establishment timestamp for wired clients,
-                // however present for wireless for example).
-                let mut link_timestamp = s.timestamp;
-                let (subedge_src, subedge_dst) = {
-                    if let CGWUCentralEventStateClientsType::Wired(_) = link.client_type {
-                        // We can safely skip <Wired Client> MAC from adding if
-                        // it already exists (could be due to previous LLDP
-                        // info processed).
-                        if lock.node_idx_map.contains_key(&link.remote_serial) {
-                            continue;
-                        }
-                        (
-                            CGWUCentralTopologySubEdge {
-                                serial: s.local_mac,
-                                port: CGWUCentralTopologySubEdgePort::PhysicalWiredPort(
-                                    link.local_port.clone(),
-                                ),
-                            },
-                            CGWUCentralTopologySubEdge {
-                                serial: link.remote_serial,
-                                // TODO: Duplex speed?
-                                port: CGWUCentralTopologySubEdgePort::WiredClient,
-                            },
-                        )
-                    } else if let CGWUCentralEventStateClientsType::Wireless(ts, ssid, band) =
-                        &link.client_type
-                    {
-                        // Since wireless association explicitly reports the
-                        // timestamp for when link's been established, we can
-                        // use this value reported from AP.
-                        // For any other case (LLDP, wired), we use
-                        // the event's base timestamp value;
-                        link_timestamp = *ts;
-
-                        (
-                            CGWUCentralTopologySubEdge {
-                                serial: s.local_mac,
-                                port: CGWUCentralTopologySubEdgePort::WirelessPort,
-                            },
-                            CGWUCentralTopologySubEdge {
-                                serial: link.remote_serial,
-                                port: CGWUCentralTopologySubEdgePort::WirelessClient(
-                                    ssid.clone(),
-                                    band.clone(),
-                                ),
-                            },
-                        )
-                    } else if let CGWUCentralEventStateClientsType::FDBClient(vid) =
-                        &link.client_type
-                    {
-                        // We can safely skip <FDBClient> MAC from adding if
-                        // it already exists (could be due to previous LLDP
-                        // info processed).
-                        if lock.node_idx_map.contains_key(&link.remote_serial) {
-                            continue;
-                        }
-                        (
-                            CGWUCentralTopologySubEdge {
-                                serial: s.local_mac,
-                                port: CGWUCentralTopologySubEdgePort::PhysicalWiredPort(
-                                    link.local_port.clone(),
-                                ),
-                            },
-                            CGWUCentralTopologySubEdge {
-                                serial: link.remote_serial,
-                                port: CGWUCentralTopologySubEdgePort::WiredFDBClient(*vid),
-                            },
-                        )
-                    } else {
-                        continue;
-                    }
+            for (local_port, links) in s.clients_data.links.into_iter() {
+                let mut local_map_conn_data = CGWUCentralTopologyMapConnectionsData {
+                        infra_nodes_list: Vec::new(),
+                        parent_topology_node_mac: None,
+                        child_lldp_nodes: HashMap::new(),
                 };
 
-                // In case when client silently migrates from AP1 to AP2,
-                // we have to explicitly remove that <edge> from AP1,
-                // and 'migrate' it to AP2.
-                // Do this only using <subedge_dst>, to make sure
-                // we clear only unique destination (wifi client on band X,
-                // for example) edge counterparts.
-                // NOTE: deleting subedge will remove both SRC and DST
-                // from map, as map stores them separately.
-                Self::remove_edge(&mut lock, &subedge_dst);
+                // We're processing the link reports for the port that is
+                // also a port that <points> to upstream LLDP peer
+                if let Some((lldp_peer_mac, ref lldp_peer_local_port)) = upstream_lldp_node {
+                    if *lldp_peer_local_port == local_port {
+                        // Upstream link's been already handled;
+                        continue;
+                        //local_map_conn_data.parent_topology_node_mac = Some(lldp_peer_mac);
+                    }
+                }
 
-                Self::add_node(
-                    &mut lock,
-                    &link.remote_serial,
-                    CGWUCentralTopologyMapNodeOrigin::StateWiredWireless,
-                );
+                // Will be skipped, in case if upstream processing took
+                // place: it's not allowed by design to have the same
+                // mac be an upstream as well as downstream peer;
+                //
+                // We're processing the link reports for the port that is
+                // also a port that <points> to downstream LLDP peer.
+                // This means, that any entries reported by this port
+                // should be added to topo map on behalf of downstream
+                // lldp peer, not this device directly.
+                if let Some(lldp_peer_mac) = downstream_lldp_nodes.get(&local_port) {
+                    let mut downstream_lldp_peer_map_conn_data = CGWUCentralTopologyMapConnectionsData {
+                            infra_nodes_list: Vec::new(),
+                            parent_topology_node_mac: None,
+                            child_lldp_nodes: HashMap::new(),
+                    };
 
-                if link.is_downstream {
-                    Self::add_edge(
-                        &mut lock,
-                        CGWUCentralTopologyEdge(subedge_src, subedge_dst),
-                        CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(link_timestamp),
+                    // We made sure we filled downstream peer's
+                    // links_list data with macs we see on this port.
+                    // This means, that we don't need to add them
+                    // again to our device's local links_list.
+                    // We can continue processing next bulk of devices
+                    // on different port.
+                    for link_seen_on_port in links {
+
+                        // Treat state timestamp as edge-creation timestamp only for
+                        // events that do not report explicit connection timestamp
+                        // (no association establishment timestamp for wired clients,
+                        // however present for wireless for example).
+                        let mut link_timestamp = s.timestamp;
+
+                        downstream_lldp_peer_map_conn_data.infra_nodes_list.push(
+                            CGWUCentralTopologyMapConnectionParams {
+                                mac: link_seen_on_port.remote_serial,
+                                last_seen: link_timestamp,
+                            },
+                            );
+                    }
+
+                    map_connections
+                        .links_list
+                        .insert("unknown_infra_unknown_port".to_string(), downstream_lldp_peer_map_conn_data);
+                    local_map_conn_data.child_lldp_nodes.insert(lldp_peer_mac,());
+
+                    // We 'filled' downstream peers links with data we see on
+                    // this port (because, most-likely underlying peer is a
+                    // switch, and these mac's originate from it).
+                    // No need to fill <our> context with the same macs.
+                    continue;
+                }
+
+                for link_seen_on_port in links {
+                    // Treat state timestamp as edge-creation timestamp only for
+                    // events that do not report explicit connection timestamp
+                    // (no association establishment timestamp for wired clients,
+                    // however present for wireless for example).
+                    let mut link_timestamp = s.timestamp;
+
+                    local_map_conn_data.infra_nodes_list.push(
+                        CGWUCentralTopologyMapConnectionParams {
+                            mac: link_seen_on_port.remote_serial,
+                            last_seen: link_timestamp,
+                        },
                     );
+                }
+
+                map_connections
+                    .links_list
+                    .insert(local_port, local_map_conn_data);
+            }
+
+            // Also add _this_ node that reported state to the list of added nodes;
+            nodes_to_create.push((
+                *topology_node_mac,
+                (
+                    CGWUCentralTopologyMapNodeOrigin::UCentralDevice(*device_type),
+                    map_connections,
+                ),
+            ));
+
+            let mut lock = self.data.write().await;
+            for (node_mac, (node_origin, node_connections)) in nodes_to_create.into_iter() {
+                // Unconditionally insert/replace our node;
+                if node_mac == *topology_node_mac {
+                    Self::add_node(&mut lock, node_mac, node_origin, node_connections);
                 } else {
-                    Self::add_edge(
-                        &mut lock,
-                        CGWUCentralTopologyEdge(subedge_dst, subedge_src),
-                        CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(link_timestamp),
-                    );
+                    // Skip UCentral-device (not this device/node) controlled
+                    // topomap entries.
+                    // We only add nodes that we explicitly created.
+                    // On the next iteration of state data our lldp-peer-partners
+                    // will update topo map on their own, if we didn't here.
+                    if let Some((existing_node_origin, _)) = lock.topology_nodes.get(&node_mac)
+                    {
+                        if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice(_) =
+                            existing_node_origin
+                            {
+                                continue;
+                            }
+                    }
+
+                    // It's clear that this node is created by us in this iteration of
+                    // lldp parsing, so it's safe to add it.
+                    Self::add_node(&mut lock, node_mac, node_origin, node_connections);
                 }
             }
         }
@@ -327,431 +370,332 @@ impl CGWUCentralTopologyMap {
         _device_type: &CGWDeviceType,
         evt: CGWUCentralEvent,
     ) {
-        struct ExistingEdge {
-            idx: EdgeIndex,
-            timestamp: EdgeCreationTimestamp,
-            key: CGWUCentralTopologyEdge,
-        }
-        let mut lock = self.data.write().await;
-        let mut existing_edge: Option<ExistingEdge> = None;
+        // With realtime events, we want to make them absolutely synchronous:
+        // Since we could possibly handle <Join> event for a MAC that was
+        // previously present, but never received <Leave> for it,
+        // we want to traverse through the whole topo map (including
+        // infra node list) and find _which_ exactly node we should
+        // remove from which device's links list.
+        //
+        // Same applies for <Leave> event: it's possible that it's a
+        // late-leave message (client already joined another AP,
+        // and we successfully handled that event), we might want
+        // to check the timestamp of this message, with addition-timestamp
+        // of existing mac inside the infra node list and then decide upon.
+
+        //let mut lock = self.data.write().await;
 
         if let CGWUCentralEventType::RealtimeEvent(rt) = evt.evt_type {
             if let CGWUCentralEventRealtimeEventType::WirelessClientJoin(rt_j) = &rt.evt_type {
-                for key in lock.edge_idx_map.keys() {
-                    // Try to find <existing> edge:
-                    // we're looking for an edge with  wireless client
-                    // (<mac>) with specific (<band>) properties.
-                    // However, the check is global:
-                    // We do not care <which> AP reported the client initially:
-                    // since the new client can appear on any given AP that
-                    // is connected to us, we have to make sure that if
-                    // AP2 receives client.join, and client serial is already
-                    // associated with AP1, the connection edge between
-                    // AP1 and <client.serial> should be purged,
-                    // and then assigned to AP2.
-                    //
-                    // This only applies, however, to the join message.
-                    // Late-leave events should be ignored, in case if
-                    // client appears on new/other AP.
-                    if let CGWUCentralTopologySubEdgePort::WirelessClient(_, dst_band) = &key.1.port
-                    {
-                        if key.1.serial == rt_j.client && *dst_band == *rt_j.band {
-                            if let Some((
-                                edge_idx,
-                                CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
-                                    edge_timestamp,
-                                ),
-                            )) = lock.edge_idx_map.get(key)
-                            {
-                                existing_edge = Some(ExistingEdge {
-                                    idx: *edge_idx,
-                                    timestamp: *edge_timestamp,
-                                    key: key.to_owned(),
-                                });
-                                break;
-                            }
-                        }
-                    }
-                }
-                if let Some(e) = existing_edge {
-                    // New client joined, and new event timestamp is bigger (newer):
-                    //   - delete existing edge from map;
-                    //   - update graph;
-                    if rt.timestamp > e.timestamp {
-                        let _ = lock.graph.remove_edge(e.idx);
-
-                        // Remove SRC (tuple idx 0 == src) -> DST (idx 1 == dst) edge
-                        let mut edge = CGWUCentralTopologyEdge(e.key.0, e.key.1);
-                        let _ = lock.edge_idx_map.remove(&edge);
-
-                        // We do not delete the leaf-disconnected bode,
-                        // as we will try to recreate it later on anyways.
-
-                        // Remove DST (tuple idx 1 == dst) -> SRC (idx 0 == src) edge
-                        edge = CGWUCentralTopologyEdge(edge.1, edge.0);
-                        let _ = lock.edge_idx_map.remove(&edge);
-                    } else {
-                        warn!(
-                            "Received late join event: event ts {:?} vs existing edge ts {:?}",
-                            rt.timestamp, e.timestamp
-                        );
-                        // New event is a late-reported / processed event;
-                        // We can safely skip it;
-                        return;
-                    }
-                }
-
-                // Now simply update internall state:
-                //   - create node (if doesnt exist already)
-                //   - create edge;
-                //   - update graph;
-                Self::add_node(
-                    &mut lock,
-                    &rt_j.client,
-                    CGWUCentralTopologyMapNodeOrigin::StateWiredWireless,
-                );
-
-                let (subedge_src, subedge_dst) = {
-                    (
-                        CGWUCentralTopologySubEdge {
-                            serial: evt.serial,
-                            port: CGWUCentralTopologySubEdgePort::WirelessPort,
-                        },
-                        CGWUCentralTopologySubEdge {
-                            serial: rt_j.client,
-                            port: CGWUCentralTopologySubEdgePort::WirelessClient(
-                                rt_j.ssid.clone(),
-                                rt_j.band.clone(),
-                            ),
-                        },
-                    )
-                };
-                Self::add_edge(
-                    &mut lock,
-                    CGWUCentralTopologyEdge(subedge_src, subedge_dst),
-                    CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(rt.timestamp),
-                );
             } else if let CGWUCentralEventRealtimeEventType::WirelessClientLeave(rt_l) = rt.evt_type
             {
-                for key in lock.edge_idx_map.keys() {
-                    // Try to find <existing> edge:
-                    // we're looking for an edge with  wireless client
-                    // (<mac>) with specific (<band>) properties, which is also
-                    // reported by the <same> AP, as it's a leave event
-                    // (AP1 can't expect us to delete existing edge, if AP2
-                    // is already associated with this client)
-                    if let CGWUCentralTopologySubEdgePort::WirelessClient(_, dst_band) = &key.1.port
-                    {
-                        if key.1.serial == rt_l.client && *dst_band == *rt_l.band &&
-                           // Part that checks if AP that reports <client.leave> also
-                           // is associated with this client.
-                           // If not - it's a 'late' leave event that can be ignored.
-                           key.0.serial == evt.serial
-                        {
-                            if let Some((
-                                edge_idx,
-                                CGWUCentralTopologyMapEdgeOrigin::StateWiredWireless(
-                                    edge_timestamp,
-                                ),
-                            )) = lock.edge_idx_map.get(key)
-                            {
-                                existing_edge = Some(ExistingEdge {
-                                    idx: *edge_idx,
-                                    timestamp: *edge_timestamp,
-                                    key: key.to_owned(),
-                                });
-                                break;
-                            }
-                        }
-                    }
-                }
-                if let Some(e) = existing_edge {
-                    // We still have to check whether this leave message
-                    // is newer than the existing timestamp:
-                    // It's possible that state + leave events were shuffled,
-                    // in a way that leave gets processed only after state's
-                    // processing's been completed.
-                    // This results in a discardtion of the late leave event.
-                    if rt.timestamp > e.timestamp {
-                        let _ = lock.graph.remove_edge(e.idx);
-
-                        // Remove SRC (tuple idx 0 == src) -> DST (idx 1 == dst) edge
-                        let mut edge = CGWUCentralTopologyEdge(e.key.0, e.key.1);
-                        let _ = lock.edge_idx_map.remove(&edge);
-
-                        // Also remove dst node if it's a leaf-disconnected node
-                        Self::remove_disconnected_leaf_node(&mut lock, &edge.1.serial);
-
-                        // Remove DST (tuple idx 1 == dst) -> SRC (idx 0 == src) edge
-                        edge = CGWUCentralTopologyEdge(edge.1, edge.0);
-                        let _ = lock.edge_idx_map.remove(&edge);
-                    } else {
-                        warn!(
-                            "Received late leave event: event ts {:?} vs existing edge ts {:?}",
-                            rt.timestamp, e.timestamp
-                        );
-                        // New event is a late-reported / processed event;
-                        // We can safely skip it;
-                        return;
-                    }
-                }
             }
         }
     }
 
     fn add_node(
-        data: &mut CGWUCentralTopologyMapData,
-        node_mac: &MacAddress,
+        map_data: &mut CGWUCentralTopologyMapData,
+        node_mac: MacAddress,
         origin: CGWUCentralTopologyMapNodeOrigin,
-    ) -> NodeIndex {
-        match data.node_idx_map.get_mut(node_mac) {
-            None => {
-                let idx = data.graph.add_node(*node_mac);
-                let _ = data.node_idx_map.insert(*node_mac, (idx, origin));
-                idx
-            }
-
-            Some((idx, existing_origin)) => {
-                if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice = existing_origin {
-                    *idx
-                } else {
-                    *existing_origin = origin;
-                    *idx
-                }
-            }
-        }
-        // TODO: handle <already present in the map> case:
-        // this either means that we detected this node at some new
-        // position, or this is a "silent" reconnect / re-appearence;
-        // e.g. delete all connected edges, child nodes etc etc;
-    }
-
-    // Checks before removal, safe to call
-    fn remove_disconnected_leaf_node(data: &mut CGWUCentralTopologyMapData, node_mac: &MacAddress) {
-        let mut node_idx_to_remove: Option<NodeIndex> = None;
-
-        if let Some((node_idx, origin)) = data.node_idx_map.get(node_mac) {
-            // Skip this node, as it's origin is known from
-            // uCentral connection, not state data.
-            if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice = origin {
-                debug!("Not removing disconnected leaf {:?} - reason: uCentral device (direct connection to CGW)", node_mac);
-                return;
-            }
-
-            let mut edges = data
-                .graph
-                // We're interested only if there are <incoming> edges for
-                // this (potentially) disconnected leaf-node
-                .neighbors_directed(*node_idx, Direction::Incoming)
-                .detach();
-
-            if edges.next_edge(&data.graph).is_none() {
-                node_idx_to_remove = Some(*node_idx);
-            }
-        }
-
-        if let Some(node_idx) = node_idx_to_remove {
-            debug!("MAC {:?} is a disconnected leaf node, removing", node_mac);
-            data.node_idx_map.remove(node_mac);
-            data.graph.remove_node(node_idx);
-        }
-    }
-
-    fn remove_node(data: &mut CGWUCentralTopologyMapData, node_mac: &MacAddress) {
-        if let Some((node, _)) = data.node_idx_map.remove(node_mac) {
-            // 'Potential' list of nodes we can safely remove.
-            // Duplicates may exist, because multiple edges can originate
-            // from src node (AP, switch) to a single other node
-            // (for example client's connected both through
-            // the WiFi and the cable, or client's connected
-            // to the AP on multiple bands etc).
-            //
-            // Not every node from this list gets removed, as
-            // once again: node (client) can be connected to
-            // multiple APs at once on different bands,
-            // or client's seen for example both on WiFi
-            // and cable.
-            let mut nodes_to_remove: Vec<NodeIndex> = Vec::new();
-
-            let mut edges_to_remove: Vec<EdgeIndex> = Vec::new();
-            let mut map_edge_keys_to_remove: Vec<CGWUCentralTopologyEdge> = Vec::new();
-            let mut edges = [
-                data.graph
-                    .neighbors_directed(node, Direction::Outgoing)
-                    .detach(),
-                data.graph
-                    .neighbors_directed(node, Direction::Incoming)
-                    .detach(),
-            ];
-
-            while let Some(edge) = edges[0].next_edge(&data.graph) {
-                // We iterate over edges that are connected with this SRC
-                // node, and collect all the destination Node indexes,
-                // to check them afterwards whether they still have
-                // some edges connected to them.
-                // If not - we remove the nodes out off the internal map.
-                // NOTE: It's possible that two Websocket devices are
-                // connected and we'll try to remove DST node even though
-                // knowledge about this device's presence in our map
-                // originates from WSS  connection, not state message.
-                // However, internal map also has meta information
-                // about the origin of appearence in map, hence
-                // it solves the issue.
-                // (if node.origin == WSS then <do not remove node>)
-                //
-                // NOTE: we do this only for <Outgoing> neighbors
-                // From treeview-graph perspective, we're clearing <leaf>
-                // nodes that originate from this <node_mac> device.
-                if let Some((_, node_dst)) = data.graph.edge_endpoints(edge) {
-                    nodes_to_remove.push(node_dst);
-                }
-
-                data.graph.remove_edge(edge);
-                edges_to_remove.push(edge);
-            }
-
-            while let Some(edge) = edges[1].next_edge(&data.graph) {
-                data.graph.remove_edge(edge);
-                edges_to_remove.push(edge);
-            }
-
-            for node_idx in nodes_to_remove {
-                let mut node_edges = data
-                    .graph
-                    .neighbors_directed(node_idx, Direction::Incoming)
-                    .detach();
-
-                // Check if at least one edge is connecting this
-                // Node; If not - purge it, but only if this node
-                // has been added through the means of State message
-                // or realtime events.
-                //
-                // If it's an active WSS connection we have established,
-                // we should skip this node, as it's not our responsibility
-                // here to destroy it.
-                if node_edges.next_edge(&data.graph).is_none() {
-                    let mut node_to_remove: Option<&MacAddress> = None;
-                    if let Some(node_weight) = data.graph.node_weight(node_idx) {
-                        if let Some((_, origin)) = data.node_idx_map.get(node_weight) {
-                            // Skip this node, as it's origin is known from
-                            // uCentral connection, not state data.
-                            if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice = origin {
-                                debug!("Not removing disconnected leaf {:?} - reason: uCentral device (direct connection to CGW)", node_weight);
-                                continue;
-                            }
-
-                            node_to_remove = Some(node_weight);
-                        }
-                    }
-
-                    if let Some(node_mac) = node_to_remove {
-                        data.node_idx_map.remove(node_mac);
-                        data.graph.remove_node(node_idx);
-                    }
-                }
-            }
-
-            for (k, e) in &data.edge_idx_map {
-                for x in &edges_to_remove {
-                    if *x == e.0 {
-                        map_edge_keys_to_remove.push(k.to_owned());
-                    }
-                }
-            }
-
-            for key in map_edge_keys_to_remove {
-                data.edge_idx_map.remove(&key);
-            }
-            data.graph.remove_node(node);
-        }
-    }
-
-    fn add_edge(
-        data: &mut CGWUCentralTopologyMapData,
-        edge: CGWUCentralTopologyEdge,
-        origin: CGWUCentralTopologyMapEdgeOrigin,
+        connections: CGWUCentralTopologyMapConnections,
     ) {
-        let node_src_subedge: CGWUCentralTopologySubEdge = edge.0;
-        let node_dst_subedge: CGWUCentralTopologySubEdge = edge.1;
-        let (node_src_idx, node_dst_idx) = {
-            (
-                match data.node_idx_map.get(&node_src_subedge.serial) {
-                    Some((idx, _)) => *idx,
-                    None => {
-                        warn!(
-                            "Tried to add edge for non-existing node {:?}",
-                            node_src_subedge.serial
-                        );
-                        return;
-                    }
-                },
-                match data.node_idx_map.get(&node_dst_subedge.serial) {
-                    Some((idx, _)) => *idx,
-                    None => {
-                        warn!(
-                            "Tried to add edge for non-existing node {:?}",
-                            node_dst_subedge.serial
-                        );
-                        return;
-                    }
-                },
-            )
+        // This operation only covers non-ucentral-controlled devices,
+        // so it shouldn't affect UCentral-controlled node's add perf;
+        //
+        // Special case check / handling:
+        //              lldp                          lldp
+        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+        //
+        // We are inserting the <unknown lldp switch>.
+        // It's possible, that either UC_DEVICE_1 or UC_DEVICE_2 reported it,
+        // but with current design - with direct node replace fast approach - it
+        // means that we either lose parent or child relation.
+        //
+        // Try to restore it (if any) - basically, a merge operation.
+        //
+        // The downside is that we have to traverse through both child and
+        // parent nodes, and it could be potentially a case when we have to
+        // restore multiple relations: both parent and few child, consider
+        // the following example:
+        //
+        // -- 1.UC_DEVICE_1 reports <unknown lldp switch>, topomap state:
+        //      (parent)   lldp           (child)
+        //    UC_DEVICE_1 ------> <unknown lldp switch>
+        //
+        // -- 2.Some UC_DEVICE_2 connects to CGW, and it's also connected
+        //    to <unknown lldp switch>. Whenever UC_DEVICE_2 reports
+        //    it's state message, we have to make sure the topomap state
+        //    would be the following:
+        //
+        //      (parent)   lldp      (child, parent)     lldp   (child)
+        //    UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+        //
+        // -- 3.We do this, by making sure we <preserve> the data about
+        //    UC_DEVICE_1 <parent> connection in the <unknown lldp switch>
+        //
+        // -- 4.Same appliest for <preserving> child links;
+        //    Consider some UC_DEVICE_3 connects, and it's also connected
+        //    to the <unknown lldp switch>, the perfect topo map state
+        //    should be:
+        //
+        //      (parent)   lldp      (child, parent)     lldp   (child)
+        //    UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+        //                                 |
+        //                                 |             lldp   (child)
+        //                                 -------------------> UC_DEVICE_3
+        if let Some((old_node_origin, old_node_connections)) =
+            map_data.topology_nodes.remove(&node_mac)
+        {
+            if let CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer = old_node_origin {}
+        }
+
+        map_data
+            .topology_nodes
+            .insert(node_mac, (origin, connections));
+    }
+
+    fn clear_related_nodes(
+        map_data: &mut CGWUCentralTopologyMapData,
+        topology_node_mac: &MacAddress,
+    ) {
+        let mut nodes_to_remove: Vec<MacAddress> = Vec::new();
+
+        // Stored to later-on find grandparent macs of this particular
+        // child. Used to deduce whether <parent> should be removed alongside
+        // this <topology_node_mac> that is being processed.
+        let mut parent_node_macs: Vec<MacAddress> = Vec::new();
+
+        // Stored to later-on find grandchild macs of this particular
+        // child. Used to deduce whether <child> should be removed alongside
+        // this <topology_node_mac> that is being processed.
+        let mut child_node_macs: Vec<MacAddress> = Vec::new();
+
+        // Stored grandchild and grandparent related nodes to current
+        // <topology_node_mac> that is being cleared up.
+        //
+        // Grandchild hashmap: Key = parent, value = vec of child macs.
+        let mut grandchild_node_macs: HashMap<MacAddress, Vec<MacAddress>> = HashMap::new();
+        // Grandparent hashmap: Key = parent, value = vec of child macs.
+        let mut grandparent_node_macs: HashMap<MacAddress, Vec<MacAddress>> = HashMap::new();
+
+        // We found this node in our topo map:
+        //   - clear child nodes (if this node <owns> them directly)
+        //   - clear parent node (if this node <owns> it directly)
+        //
+        // First, try to fill parent / child macs into a vec for later
+        // traversal / checks.
+        if let Some((origin, connections)) = map_data.topology_nodes.get(topology_node_mac) {
+            nodes_to_remove.push(*topology_node_mac);
+            for link in connections.links_list.values() {
+                for child_mac in link.child_lldp_nodes.keys() {
+                    child_node_macs.push(*child_mac);
+                }
+
+                if let Some(parent_mac) = link.parent_topology_node_mac {
+                    parent_node_macs.push(parent_mac);
+                }
+            }
         };
 
-        let edge_idx = data.graph.add_edge(
-            node_src_idx,
-            node_dst_idx,
-            format!("{}<->{}", node_src_subedge.port, node_dst_subedge.port),
-        );
+        // Traverse through child nodes, find grandchild nodes (if any).
+        for child_mac in child_node_macs {
+            // Special case check / handling:
+            //   (parent)   lldp      (child, parent)     lldp   (child)
+            // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+            //
+            // For the UC_DEVICE_1, the child is <unknown lldp switch>,
+            // and grandchildren of UC_DEVICE_1 is also a UCentral device,
+            // (UC_DEVICE_2),
+            // which means if we're clearing related nodes for
+            // UC_DEVICE_1, we have to make sure we won't be deleting <all>
+            // child nodes (including <unknown lldp switch> and
+            // grandchildren UC_DEVICE_2).
 
-        data.edge_idx_map.insert(
-            CGWUCentralTopologyEdge(node_src_subedge.clone(), node_dst_subedge.clone()),
-            (edge_idx, origin.clone()),
-        );
-        data.edge_idx_map.insert(
-            CGWUCentralTopologyEdge(node_dst_subedge, node_src_subedge),
-            (edge_idx, origin.clone()),
-        );
-    }
+            if let Some((_, child_connections)) = map_data.topology_nodes.get_mut(&child_mac) {
+                for child_links in child_connections.links_list.values_mut() {
+                    if let Some(child_parent_mac) = child_links.parent_topology_node_mac {
+                        if child_parent_mac == *topology_node_mac {
+                            child_links.parent_topology_node_mac = None;
+                        }
+                    }
+                }
 
-    fn remove_edge(data: &mut CGWUCentralTopologyMapData, subedge: &CGWUCentralTopologySubEdge) {
-        let mut keys_to_remove: Vec<CGWUCentralTopologyEdge> = Vec::new();
+                for child_links in child_connections.links_list.values() {
+                    //   (parent)   lldp      (child, parent)     lldp   (child)
+                    // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                    //                     ^^^^^^^^^^^^^^^^^^^^^
+                    // <child_links> is pointing to <unknown lldp switch>
 
-        for key in data.edge_idx_map.keys() {
-            if key.0 == *subedge || key.1 == *subedge {
-                let key_to_remove = key.to_owned();
-                keys_to_remove.push(key_to_remove);
+                    for grandchild_mac in child_links.child_lldp_nodes.keys() {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        //                                                   ^^^^^^^^^^^
+                        // <grandchild_node> is pointing to UC_DEVICE_2
+
+                        if let Some(v) = grandchild_node_macs.get_mut(&child_mac) {
+                            v.push(*grandchild_mac);
+                        } else {
+                            grandchild_node_macs.insert(child_mac, vec![*grandchild_mac]);
+                        }
+                    }
+                }
             }
         }
 
-        if let Some(key) = keys_to_remove.first() {
-            if let Some((edge_idx, _)) = data.edge_idx_map.get(key) {
-                data.graph.remove_edge(*edge_idx);
+        // Traverse through parent nodes, find grandparent nodes (if any).
+        for parent_mac in parent_node_macs {
+            // Special case check / handling:
+            //   (parent)   lldp      (child, parent)     lldp   (child)
+            // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+            //
+            // For the UC_DEVICE_2, the parent is <unknown lldp switch>
+            // and grandparent in UC_DEVICE_1 which is also a UCentral
+            // device which means, if we're clearing related nodes for
+            // UC_DEVICE_2, we have to make sure we won't be deleting <all>
+            // parent nodes (including <unknown lldp switch> and
+            // grandparent UC_DEVICE_1).
+
+            if let Some((_, parent_connections)) = map_data.topology_nodes.get(&parent_mac) {
+                for parent_links in parent_connections.links_list.values() {
+                    //   (parent)   lldp      (child, parent)     lldp   (child)
+                    // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                    //                     ^^^^^^^^^^^^^^^^^^^^^
+                    // <parent_links> is pointing to <unknown lldp switch>
+
+                    if let Some(grandparent_mac) = parent_links.parent_topology_node_mac {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        // ^^^^^^^^^^^
+                        // <grandparent_mac> is pointing to UC_DEVICE_1
+                        if let Some(v) = grandparent_node_macs.get_mut(&parent_mac) {
+                            v.push(grandparent_mac);
+                        } else {
+                            grandparent_node_macs.insert(parent_mac.clone(), vec![grandparent_mac]);
+                        }
+                    }
+                }
             }
         }
 
-        for k in keys_to_remove {
-            let _ = data.edge_idx_map.remove(&k);
+        for (child_mac, grandchild_macs) in grandchild_node_macs.iter() {
+            let mut child_node_should_be_removed = true;
+
+            for grandchild_mac in grandchild_macs.iter() {
+                if let Some((grandchild_node_origin, _)) =
+                    map_data.topology_nodes.get(&grandchild_mac)
+                {
+                    if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice(_) =
+                        grandchild_node_origin
+                    {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        //                                                   ^^^^^^^^^^^
+                        // <childs_parent_node_origin> is pointing to UC_DEVICE_2 origin
+                        // and since it's a UCentral device, we can't delete
+                        // the UC_DEVICE_1 child (<unknown lldp switch>),
+                        // because the information about <unknown lldp switch>
+                        // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
+
+                        debug!(
+                            "Not removing child {} - has grandparent ucentral",
+                            child_mac
+                        );
+                        child_node_should_be_removed = false;
+                        break;
+                    }
+                }
+            }
+
+            //   (parent)   lldp      (child)
+            // UC_DEVICE_1 ------> <unknown lldp switch>
+            //                     ^^^^^^^^^^^^^^^^^^^^^
+            // <unknown lldp switch> is going to be removed, as it has
+            // only single direct UCentral parent (this) device.
+
+            if child_node_should_be_removed {
+                nodes_to_remove.push(*child_mac);
+            }
+        }
+
+        for (parent_mac, grandparent_macs) in grandchild_node_macs.iter() {
+            let mut parent_node_should_be_removed = true;
+
+            for grandparent_mac in grandparent_macs.iter() {
+                if let Some((grandparent_node_origin, _)) =
+                    map_data.topology_nodes.get(&grandparent_mac)
+                {
+                    if let CGWUCentralTopologyMapNodeOrigin::UCentralDevice(_) =
+                        grandparent_node_origin
+                    {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        // ^^^^^^^^^^^
+                        // <grandparent_node_origin> is pointing to UC_DEVICE_1 origin
+                        // and since it's a UCentral device, we can't delete
+                        // the UC_DEVICE_2 parent (<unknown lldp switch>),
+                        // because the information about <unknown lldp switch>
+                        // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
+
+                        debug!(
+                            "Not removing parent {} - has grandparent ucentral",
+                            parent_mac
+                        );
+                        parent_node_should_be_removed = false;
+
+                        break;
+                    }
+                }
+            }
+
+            //   (parent)             lldp   (child)
+            // <unknown lldp switch> ------> UC_DEVICE_1
+            // ^^^^^^^^^^^^^^^^^^^^^
+            //
+            // <unknown lldp switch> is going to be removed, as it has
+            // only single direct UCentral child (this) device.
+
+            if parent_node_should_be_removed {
+                nodes_to_remove.push(*parent_mac);
+            }
+        }
+
+        for node_to_remove in nodes_to_remove {
+            let mut node_should_be_removed = false;
+
+            if let Some((origin, _)) = map_data.topology_nodes.get(&node_to_remove) {
+                match origin {
+                    CGWUCentralTopologyMapNodeOrigin::UCentralDevice(_) => (),
+                    _ => node_should_be_removed = true,
+                }
+            }
+
+            if node_should_be_removed {
+                map_data.topology_nodes.remove(&node_to_remove);
+            }
         }
     }
 
     pub async fn debug_dump_map(&self) {
-        let lock = self.data.read().await;
-        let dotfmt = format!(
-            "{:?}",
-            Dot::with_attr_getters(
-                &lock.graph,
-                &[Config::NodeNoLabel, Config::EdgeNoLabel],
-                &|_, er| { format!("label = \"{}\"", er.weight()) },
-                &|_, nr| { format!("label = \"{}\" shape=\"record\"", nr.weight()) }
+        let mut lock = self.data.read().await;
+        debug!("Topo: {:?}", lock.topology_nodes);
+        /*
+            let lock = self.data.read().await;
+            let dotfmt = format!(
+                "{:?}",
+                Dot::with_attr_getters(
+                    &lock.graph,
+                    &[Config::NodeNoLabel, Config::EdgeNoLabel],
+                    &|_, er| { format!("label = \"{}\"", er.weight()) },
+                    &|_, nr| { format!("label = \"{}\" shape=\"record\"", nr.weight()) }
+                )
             )
-        )
-        .replace("digraph {", "digraph {\n\trankdir=LR;\n");
-        debug!(
-            "graph dump: {} {}\n{}",
-            lock.node_idx_map.len(),
-            lock.edge_idx_map.len(),
-            dotfmt
-        );
+            .replace("digraph {", "digraph {\n\trankdir=LR;\n");
+            debug!(
+                "graph dump: {} {}\n{}",
+                lock.node_idx_map.len(),
+                lock.edge_idx_map.len(),
+                dotfmt
+            );
+        */
     }
 }

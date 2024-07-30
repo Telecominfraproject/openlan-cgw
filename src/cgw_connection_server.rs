@@ -1167,6 +1167,8 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
+                    let device_platform: String = caps.platform.clone();
+
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -1315,7 +1317,9 @@ impl CGWConnectionServer {
 
                     if self.feature_topomap_enabled {
                         let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map.insert_device(&device_mac).await;
+                        topo_map
+                            .insert_device(&device_mac, device_platform.as_str())
+                            .await;
                     }
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);

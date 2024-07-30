@@ -70,6 +70,7 @@ pub struct CGWConnectionProcessor {
     pub idx: i64,
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
+    pub device_type: CGWDeviceType,
 }
 
 impl CGWConnectionProcessor {
@@ -81,6 +82,8 @@ impl CGWConnectionProcessor {
             idx: conn_idx,
             group_id: 0,
             feature_topomap_enabled: server.feature_topomap_enabled,
+            // Default to AP, it's safe, as later-on it will be changed
+            device_type: CGWDeviceType::CGWDeviceAP,
         };
 
         conn_processor
@@ -186,7 +189,8 @@ impl CGWConnectionProcessor {
         }
 
         self.serial = evt.serial;
-        let device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
+
+        self.device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
@@ -252,8 +256,7 @@ impl CGWConnectionProcessor {
             }
         }
 
-        self.process_connection(stream, sink, mbox_rx, device_type)
-            .await;
+        self.process_connection(stream, sink, mbox_rx).await;
 
         Ok(())
     }
@@ -261,7 +264,6 @@ impl CGWConnectionProcessor {
     async fn process_wss_rx_msg(
         &self,
         msg: std::result::Result<Message, tungstenite::error::Error>,
-        device_type: CGWDeviceType,
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
     ) -> Result<CGWConnectionState> {
@@ -276,12 +278,13 @@ impl CGWConnectionProcessor {
                 }
                 Text(payload) => {
                     if let Ok(evt) =
-                        cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
+                        cgw_ucentral_event_parse(&self.device_type, &payload, timestamp.timestamp())
                     {
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
+                            info!("Got state evt {:?}", evt);
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map.process_state_message(&device_type, evt).await;
+                                topo_map.process_state_message(&self.device_type, evt).await;
                                 topo_map.debug_dump_map().await;
                             }
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
@@ -305,7 +308,7 @@ impl CGWConnectionProcessor {
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
                                 topo_map
-                                    .process_device_topology_event(&device_type, evt)
+                                    .process_device_topology_event(&self.device_type, evt)
                                     .await;
                                 topo_map.debug_dump_map().await;
                             }
@@ -394,7 +397,6 @@ impl CGWConnectionProcessor {
         mut stream: SStream,
         mut sink: SSink,
         mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,
-        device_type: CGWDeviceType,
     ) {
         #[derive(Debug)]
         enum WakeupReason {
@@ -545,7 +547,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, device_type, &mut fsm_state, pending_req_id)
+                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id)
                         .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {

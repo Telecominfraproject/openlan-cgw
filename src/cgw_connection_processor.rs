@@ -19,6 +19,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -268,6 +269,7 @@ impl CGWConnectionProcessor {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
         let timestamp = Local::now();
+        let mut kafaka_msg: String = String::new();
 
         match msg {
             Ok(msg) => match msg {
@@ -278,7 +280,11 @@ impl CGWConnectionProcessor {
                     if let Ok(evt) =
                         cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
                     {
+                        kafaka_msg = payload.clone();
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
+                            if let Some(decompressed) = evt.decompressed.clone() {
+                                kafaka_msg = decompressed;
+                            }
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
                                 topo_map.process_state_message(&device_type, evt).await;
@@ -313,7 +319,7 @@ impl CGWConnectionProcessor {
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, payload)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafaka_msg)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {

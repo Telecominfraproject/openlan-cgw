@@ -162,6 +162,7 @@ pub fn cgw_ucentral_switch_parse_message(
                     log: params["log"].to_string(),
                     severity: serde_json::from_value(params["severity"].clone())?,
                 }),
+                decompressed: None,
             };
 
             return Ok(log_event);
@@ -216,6 +217,7 @@ pub fn cgw_ucentral_switch_parse_message(
                             links: clients_links,
                         },
                     }),
+                    decompressed: None,
                 };
 
                 return Ok(state_event);

@@ -146,6 +146,7 @@ pub enum CGWUCentralEventType {
 pub struct CGWUCentralEvent {
     pub serial: MacAddress,
     pub evt_type: CGWUCentralEventType,
+    pub decompressed: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -262,6 +263,7 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
             uuid: 1,
             capabilities: caps,
         }),
+        decompressed: None,
     };
 
     Ok(event)

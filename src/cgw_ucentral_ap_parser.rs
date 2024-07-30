@@ -378,6 +378,29 @@ fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result
                 }
             }
 
+            // Replace compressed data
+            let mut origin_msg = map.clone();
+            let params_value = match Value::from_str(unzipped_data.as_str()) {
+                Ok(val) => val,
+                Err(_e) => {
+                    return Err(Error::ConnectionProcessor(
+                        "Failed to cast decompressed message to JSON Value",
+                    ));
+                }
+            };
+            if let Some(value) = origin_msg.get_mut("params") {
+                *value = params_value;
+            }
+
+            let kafka_msg = match serde_json::to_string(&origin_msg) {
+                Ok(msg) => msg,
+                Err(_e) => {
+                    return Err(Error::ConnectionProcessor(
+                        "Failed to create decompressed Event message",
+                    ));
+                }
+            };
+
             let state_event = CGWUCentralEvent {
                 serial,
                 evt_type: CGWUCentralEventType::State(CGWUCentralEventState {
@@ -388,6 +411,7 @@ fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result
                         links: clients_links,
                     },
                 }),
+                decompressed: Some(kafka_msg),
             };
 
             return Ok(state_event);
@@ -438,6 +462,7 @@ fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result
                     links: clients_links,
                 },
             }),
+            decompressed: None,
         };
 
         return Ok(state_event);
@@ -655,6 +680,7 @@ fn parse_realtime_event_data(
                         },
                     ),
                 }),
+                decompressed: None,
             })
         }
         "client.leave" => {
@@ -734,6 +760,7 @@ fn parse_realtime_event_data(
                         },
                     ),
                 }),
+                decompressed: None,
             })
         }
         _ => {
@@ -775,6 +802,7 @@ pub fn cgw_ucentral_ap_parse_message(message: &str, timestamp: i64) -> Result<CG
                     log: params["log"].to_string(),
                     severity: serde_json::from_value(params["severity"].clone())?,
                 }),
+                decompressed: None,
             };
 
             return Ok(log_event);
@@ -802,6 +830,7 @@ pub fn cgw_ucentral_ap_parse_message(message: &str, timestamp: i64) -> Result<CG
                     uuid: 1,
                     capabilities: caps,
                 }),
+                decompressed: None,
             };
 
             return Ok(connect_event);
@@ -822,6 +851,7 @@ pub fn cgw_ucentral_ap_parse_message(message: &str, timestamp: i64) -> Result<CG
         let reply_event = CGWUCentralEvent {
             serial: Default::default(),
             evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+            decompressed: None,
         };
 
         return Ok(reply_event);

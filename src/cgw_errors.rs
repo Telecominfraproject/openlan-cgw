@@ -17,6 +17,8 @@ pub enum Error {
 
     Tls(String),
 
+    Redis(String),
+
     UCentralParser(&'static str),
 
     UCentralMessagesQueue(&'static str),
@@ -38,6 +40,9 @@ pub enum Error {
 
     #[from]
     TokioSync(tokio::sync::TryLockError),
+
+    #[from]
+    Tokiofs(tokio::fs::ReadDir),
 
     #[from]
     IpAddressParse(std::net::AddrParseError),
@@ -62,9 +67,6 @@ pub enum Error {
 
     #[from]
     InvalidUri(warp::http::uri::InvalidUri),
-
-    #[from]
-    RedisAsync(redis_async::error::Error),
 
     #[from]
     StaticStr(&'static str),

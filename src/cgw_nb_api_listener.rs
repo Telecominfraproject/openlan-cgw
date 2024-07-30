@@ -1,6 +1,6 @@
+use crate::cgw_app_args::CGWKafkaArgs;
 use crate::cgw_device::OldNew;
 use crate::cgw_ucentral_parser::CGWDeviceChange;
-use crate::AppArgs;
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 use crate::cgw_errors::{Error, Result};
@@ -347,24 +347,21 @@ struct CGWCNCConsumer {
 }
 
 impl CGWCNCConsumer {
-    pub fn new(app_args: &AppArgs) -> Result<Self> {
-        let consum: CGWCNCConsumerType = Self::create_consumer(app_args)?;
+    pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Self> {
+        let consum: CGWCNCConsumerType = Self::create_consumer(cgw_id, kafka_args)?;
         Ok(CGWCNCConsumer { c: consum })
     }
 
-    fn create_consumer(app_args: &AppArgs) -> Result<CGWCNCConsumerType> {
+    fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<CGWCNCConsumerType> {
         let context = CustomContext;
 
         let consumer: CGWCNCConsumerType = match ClientConfig::new()
             .set("group.id", GROUP_ID)
-            .set(
-                "client.id",
-                GROUP_ID.to_string() + &app_args.cgw_id.to_string(),
-            )
-            .set("group.instance.id", app_args.cgw_id.to_string())
+            .set("client.id", GROUP_ID.to_string() + &cgw_id.to_string())
+            .set("group.instance.id", cgw_id.to_string())
             .set(
                 "bootstrap.servers",
-                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
+                kafka_args.kafka_host.clone() + ":" + &kafka_args.kafka_port.to_string(),
             )
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
@@ -383,7 +380,7 @@ impl CGWCNCConsumer {
 
         debug!(
             "(consumer) (producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_host, app_args.kafka_port,
+            kafka_args.kafka_host, kafka_args.kafka_port,
         );
 
         if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
@@ -399,16 +396,16 @@ impl CGWCNCConsumer {
 }
 
 impl CGWCNCProducer {
-    pub fn new(app_args: &AppArgs) -> Result<Self> {
-        let prod: CGWCNCProducerType = Self::create_producer(app_args)?;
+    pub fn new(kafka_args: &CGWKafkaArgs) -> Result<Self> {
+        let prod: CGWCNCProducerType = Self::create_producer(kafka_args)?;
         Ok(CGWCNCProducer { p: prod })
     }
 
-    fn create_producer(app_args: &AppArgs) -> Result<CGWCNCProducerType> {
+    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWCNCProducerType> {
         let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
-                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
+                kafka_args.kafka_host.clone() + ":" + &kafka_args.kafka_port.to_string(),
             )
             .set("message.timeout.ms", "5000")
             .create()
@@ -422,7 +419,7 @@ impl CGWCNCProducer {
 
         debug!(
             "(producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_host, app_args.kafka_port,
+            kafka_args.kafka_host, kafka_args.kafka_port,
         );
 
         Ok(producer)
@@ -438,7 +435,11 @@ pub struct CGWNBApiClient {
 }
 
 impl CGWNBApiClient {
-    pub fn new(app_args: &AppArgs, cgw_tx: &CGWConnectionServerMboxTx) -> Result<Arc<Self>> {
+    pub fn new(
+        cgw_id: i32,
+        kafka_args: &CGWKafkaArgs,
+        cgw_tx: &CGWConnectionServerMboxTx,
+    ) -> Result<Arc<Self>> {
         let working_runtime_h = Builder::new_multi_thread()
             .worker_threads(1)
             .thread_name("cgw-nb-api-l")
@@ -449,11 +450,11 @@ impl CGWNBApiClient {
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(app_args)?,
+            prod: CGWCNCProducer::new(kafka_args)?,
         });
 
         let cl_clone = cl.clone();
-        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(app_args)?;
+        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(cgw_id, kafka_args)?;
         cl.working_runtime_handle.spawn(async move {
             loop {
                 let cl_clone = cl_clone.clone();

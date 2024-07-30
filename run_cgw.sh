@@ -36,6 +36,7 @@ DEFAULT_REDIS_PORT=6379
 DEFAULT_METRICS_PORT=8080
 
 CONTAINTER_CERTS_VOLUME="/etc/cgw/certs"
+CONTAINTER_NB_INFRA_CERTS_VOLUME="/etc/cgw/nb_infra/certs"
 
 DEFAULT_ALLOW_CERT_MISMATCH="no"
 
@@ -65,6 +66,15 @@ export CGW_REDIS_PORT="${CGW_REDIS_PORT:-$DEFAULT_REDIS_PORT}"
 export CGW_METRICS_PORT="${CGW_METRICS_PORT:-$DEFAULT_METRICS_PORT}"
 export CGW_CERTS_PATH="${CGW_CERTS_PATH:-$DEFAULT_CERTS_PATH}"
 export CGW_ALLOW_CERT_MISMATCH="${CGW_ALLOW_CERT_MISMATCH:-$DEFAULT_ALLOW_CERT_MISMATCH}"
+export CGW_NB_INFRA_CERTS_PATH="${CGW_NB_INFRA_CERTS_PATH:-$DEFAULT_CERTS_PATH}"
+
+if [ -z "${!CGW_REDIS_USERNAME}" ]; then
+	export CGW_REDIS_USERNAME="${CGW_REDIS_USERNAME}"
+fi
+
+if [ -z "${!CGW_REDIS_PASSWORD}" ]; then
+	export CGW_REDIS_PASSWORD="${CGW_REDIS_PASSWORD}"
+fi
 
 echo "Starting CGW..."
 echo "CGW LOG LEVEL              : $CGW_LOG_LEVEL"
@@ -84,34 +94,38 @@ echo "CGW REDIS HOST/PORT        : $CGW_REDIS_HOST:$CGW_REDIS_PORT"
 echo "CGW METRICS PORT           : $CGW_METRICS_PORT"
 echo "CGW CERTS PATH             : $CGW_CERTS_PATH"
 echo "CGW ALLOW CERT MISMATCH    : $CGW_ALLOW_CERT_MISMATCH"
+echo "CGW NB INFRA CERTS PATH    : $CGW_NB_INFRA_CERTS_PATH"
 
 docker run \
-	--cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
-	-v $CGW_CERTS_PATH:$CONTAINTER_CERTS_VOLUME \
-	-e CGW_LOG_LEVEL           \
-	-e CGW_ID                  \
-	-e CGW_WSS_IP              \
-	-e CGW_WSS_PORT            \
-	-e DEFAULT_WSS_THREAD_NUM  \
-	-e CGW_WSS_CAS             \
-	-e CGW_WSS_CERT            \
-	-e CGW_WSS_KEY             \
-	-e CGW_GRPC_LISTENING_IP   \
-	-e CGW_GRPC_LISTENING_PORT \
-	-e CGW_GRPC_PUBLIC_HOST    \
-	-e CGW_GRPC_PUBLIC_PORT    \
-	-e CGW_KAFKA_HOST          \
-	-e CGW_KAFKA_PORT          \
-	-e CGW_KAFKA_CONSUME_TOPIC \
-	-e CGW_KAFKA_PRODUCE_TOPIC \
-	-e CGW_DB_NAME             \
-	-e CGW_DB_HOST             \
-	-e CGW_DB_PORT             \
-	-e CGW_DB_USERNAME         \
-	-e CGW_DB_PASSWORD         \
-	-e CGW_REDIS_HOST          \
-	-e CGW_REDIS_PORT          \
+	--cap-add=SYS_PTRACE --security-opt seccomp=unconfined        \
+	-v $CGW_CERTS_PATH:$CONTAINTER_CERTS_VOLUME                   \
+	-v $CGW_NB_INFRA_CERTS_PATH:$CONTAINTER_NB_INFRA_CERTS_VOLUME \
+	-e CGW_LOG_LEVEL              \
+	-e CGW_ID                     \
+	-e CGW_WSS_IP                 \
+	-e CGW_WSS_PORT               \
+	-e DEFAULT_WSS_THREAD_NUM     \
+	-e CGW_WSS_CAS                \
+	-e CGW_WSS_CERT               \
+	-e CGW_WSS_KEY                \
+	-e CGW_GRPC_LISTENING_IP      \
+	-e CGW_GRPC_LISTENING_PORT    \
+	-e CGW_GRPC_PUBLIC_HOST       \
+	-e CGW_GRPC_PUBLIC_PORT       \
+	-e CGW_KAFKA_HOST             \
+	-e CGW_KAFKA_PORT             \
+	-e CGW_KAFKA_CONSUME_TOPIC    \
+	-e CGW_KAFKA_PRODUCE_TOPIC    \
+	-e CGW_DB_NAME                \
+	-e CGW_DB_HOST                \
+	-e CGW_DB_PORT                \
+	-e CGW_DB_USERNAME            \
+	-e CGW_DB_PASSWORD            \
+	-e CGW_REDIS_HOST             \
+	-e CGW_REDIS_PORT             \
+	-e CGW_REDIS_USERNAME         \
+	-e CGW_REDIS_PASSWORD         \
 	-e CGW_FEATURE_TOPOMAP_ENABLE \
-	-e CGW_METRICS_PORT        \
-	-e CGW_ALLOW_CERT_MISMATCH \
+	-e CGW_METRICS_PORT           \
+	-e CGW_ALLOW_CERT_MISMATCH    \
 	-d -t --network=host --name $2 $1 ucentral-cgw

@@ -85,12 +85,11 @@ pub enum Error {
     Empty(()),
 }
 
-impl ToString for Error {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::AppArgsParser(message) => message.clone(),
-            Error::Tls(message) => message.clone(),
-            _ => format!("{:?}", self),
+            Error::AppArgsParser(message) | Error::Tls(message) => write!(f, "{}", message),
+            _ => write!(f, "{:?}", self),
         }
     }
 }

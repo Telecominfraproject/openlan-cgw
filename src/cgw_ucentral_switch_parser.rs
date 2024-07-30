@@ -1,19 +1,19 @@
 use eui48::MacAddress;
 use serde_json::Value;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::cgw_errors::{Error, Result};
 
 use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClients,
     CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventType,
-    CGWUCentralJRPCMessage,
+    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
+    CGWUCentralEventType, CGWUCentralJRPCMessage,
 };
 
 fn parse_lldp_data(
     data: &Value,
-    links: &mut Vec<CGWUCentralEventStateLinks>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>>,
     upstream_port: &Option<String>,
 ) -> Result<()> {
     if let Value::Object(map) = data {
@@ -52,18 +52,22 @@ fn parse_lldp_data(
                     }
                 };
 
-                links.push(CGWUCentralEventStateLinks {
-                    local_port,
+                let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
+                let clients_data = CGWUCentralEventStateLinks {
                     remote_serial,
                     remote_port,
                     is_downstream,
-                });
+                };
+
+                links.insert(local_port, vec![clients_data]);
             }
         }
     }
 
     Ok(())
 }
+
 /*
 Example of "mac-forwarding-table" in json format:
 ...
@@ -74,10 +78,9 @@ Example of "mac-forwarding-table" in json format:
     },
 ...
 */
-
 fn parse_fdb_data(
     data: &Value,
-    links: &mut Vec<CGWUCentralEventStateClients>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
     upstream_port: &Option<String>,
 ) -> Result<()> {
     if let Value::Object(map) = data {
@@ -90,6 +93,15 @@ fn parse_fdb_data(
                     }
                 }
 
+                let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
+                // We iterate on a per-port basis, means this is our first
+                // iteration on this particular port, safe to create empty
+                // vec and populate it later on.
+                links.insert(local_port.clone(), Vec::new());
+
+                let mut existing_vec = links.get_mut(&local_port);
+
                 for (k, v) in port.iter() {
                     let vid = {
                         match u16::from_str(k.as_str()) {
@@ -100,19 +112,27 @@ fn parse_fdb_data(
                             }
                         }
                     };
+
                     if let Value::Array(macs) = v {
                         for mac in macs.iter() {
                             let remote_serial =
                                 MacAddress::from_str(mac.as_str().ok_or_else(|| {
                                     Error::UCentralParser("Failed to parse mac address")
                                 })?)?;
-                            links.push(CGWUCentralEventStateClients {
+
+                            let clients_data = CGWUCentralEventStateClients {
                                 client_type: CGWUCentralEventStateClientsType::FDBClient(vid),
-                                local_port: local_port.clone(),
                                 remote_serial,
                                 remote_port: format!("<VLAN{}>", vid),
                                 is_downstream: true,
-                            });
+                            };
+
+                            if let Some(ref mut existing_vec) = existing_vec {
+                                existing_vec.push(clients_data);
+                            } else {
+                                warn!("Unexpected: tried to push clients_data {:?}:{}, while hashmap entry (key) for it does not exist",
+                                      local_port, clients_data.remote_port);
+                            }
                         }
                     }
                 }
@@ -178,13 +198,19 @@ pub fn cgw_ucentral_switch_parse_message(
                         Error::UCentralParser("Failed to parse serial from params")
                     })?)?;
                 let mut upstream_port: Option<String> = None;
-                let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
+                let mut lldp_links: HashMap<
+                    CGWUCentralEventStatePort,
+                    Vec<CGWUCentralEventStateLinks>,
+                > = HashMap::new();
 
                 // We can reuse <clients> logic as used in AP, it's safe and OK
                 // since under the hood FDB macs are basically
                 // switch's <wired clients>, where underlying client type
                 // (FDBClient) will have all additional met info, like VID
-                let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
+                let mut clients_links: HashMap<
+                    CGWUCentralEventStatePort,
+                    Vec<CGWUCentralEventStateClients>,
+                > = HashMap::new();
 
                 if feature_topomap_enabled {
                     if state_map.contains_key("default-gateway") {

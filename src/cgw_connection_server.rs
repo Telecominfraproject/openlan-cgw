@@ -206,7 +206,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -225,7 +225,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -244,7 +244,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -263,7 +263,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -282,7 +282,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -301,7 +301,7 @@ impl CGWConnectionServer {
                 return Err(Error::ConnectionServer(format!(
                     "Failed to get runtime type {:?}, err: {}",
                     CGWRuntimeType::WssRxTx,
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -361,7 +361,7 @@ impl CGWConnectionServer {
                 );
                 return Err(Error::ConnectionServer(format!(
                     "Failed to retrieve json config validators: {}",
-                    e.to_string()
+                    e
                 )));
             }
         };
@@ -422,6 +422,12 @@ impl CGWConnectionServer {
                 )
                 .await;
         });
+
+        if server.feature_topomap_enabled {
+            info!("Topomap enabled, starting queue processor...");
+            let topo_map = CGWUCentralTopologyMap::get_ref();
+            topo_map.start(&server.wss_rx_tx_runtime).await;
+        }
 
         Ok(server)
     }
@@ -839,6 +845,32 @@ impl CGWConnectionServer {
                         .await
                     {
                         Ok(()) => {
+                            // We try to help free topomap memory usage
+                            // by notifying it whenever GID get's destroyed.
+                            // Howover, for allocation we let topo map
+                            // handle it's mem alloc whenever necessary
+                            // on it's own, when data from specific gid
+                            // arrives - we rely on topo map to
+                            // allocate necessary structures on it's own.
+                            //
+                            // In this way, we make sure that we handle
+                            // properly the GID resoration scenario:
+                            // if CGW restarts and loads GID info from
+                            // DB, there would be no notification about
+                            // create/del, and there's no need to
+                            // oflload this responsibility to
+                            // remote_discovery module for example,
+                            // due to the fact that CGW is not designed
+                            // for management of redis without CGW knowledge:
+                            // if something disrupts the redis state / sql
+                            // state without CGW's prior knowledge,
+                            // it's not a responsibility of CGW to be aware
+                            // of such changes and handle it correspondingly.
+                            if self.feature_topomap_enabled {
+                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                topo_map.remove_gid(gid).await;
+                            }
+
                             if let Ok(resp) =
                                 cgw_construct_infra_group_delete_response(gid, uuid, true, None)
                             {
@@ -1248,7 +1280,7 @@ impl CGWConnectionServer {
                                                     if let Ok(resp) = cgw_construct_device_enqueue_response(
                                                         uuid,
                                                         false,
-                                                        Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\n{}", e.to_string())),
+                                                        Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\n{}", e)),
                                                     ) {
                                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                                     } else {
@@ -1388,6 +1420,8 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
+                    let device_platform: String = caps.platform.clone();
+
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -1551,7 +1585,9 @@ impl CGWConnectionServer {
 
                     if self.feature_topomap_enabled {
                         let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map.insert_device(&device_mac).await;
+                        topo_map
+                            .insert_device(&device_mac, device_platform.as_str(), device_group_id)
+                            .await;
                     }
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
@@ -1562,6 +1598,7 @@ impl CGWConnectionServer {
                         let _ = conn_processor_mbox_tx_clone.send(msg);
                     });
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
+                    let mut device_group_id: i32 = 0;
                     // Insert device to disconnected device list
                     {
                         let queue_lock = CGW_MESSAGES_QUEUE.read().await;
@@ -1576,6 +1613,7 @@ impl CGWConnectionServer {
 
                     let mut devices_cache = self.devices_cache.write().await;
                     if let Some(device) = devices_cache.get_device_mut(&device_mac) {
+                        device_group_id = device.get_device_group_id();
                         if device.get_device_remains_in_db() {
                             device.set_device_state(CGWDeviceState::CGWDeviceDisconnected);
                         } else {
@@ -1585,7 +1623,9 @@ impl CGWConnectionServer {
 
                     if self.feature_topomap_enabled {
                         let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map.remove_device(&device_mac).await;
+                        topo_map
+                            .remove_device(&device_mac, device_group_id, self.clone())
+                            .await;
                     }
 
                     CGWMetrics::get_ref().change_counter(

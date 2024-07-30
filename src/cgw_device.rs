@@ -48,12 +48,13 @@ pub struct CGWDeviceCapabilities {
 
 impl CGWDeviceCapabilities {
     pub fn update_device_capabilities(&mut self, new_capabilities: &CGWDeviceCapabilities) {
-        self.firmware = new_capabilities.firmware.clone();
+        self.firmware.clone_from(&new_capabilities.firmware);
         self.uuid = new_capabilities.uuid;
-        self.compatible = new_capabilities.compatible.clone();
-        self.model = new_capabilities.model.clone();
-        self.platform = new_capabilities.platform.clone();
-        self.label_macaddr = new_capabilities.label_macaddr.clone();
+        self.compatible.clone_from(&new_capabilities.compatible);
+        self.model.clone_from(&new_capabilities.model);
+        self.platform.clone_from(&new_capabilities.platform);
+        self.label_macaddr
+            .clone_from(&new_capabilities.label_macaddr);
     }
 }
 

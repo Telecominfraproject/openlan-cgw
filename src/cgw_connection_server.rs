@@ -8,6 +8,7 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_device_del_response, cgw_construct_rebalance_group_response,
     cgw_construct_unassigned_infra_connection_msg,
 };
+use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
     CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
@@ -33,15 +34,13 @@ use crate::cgw_errors::{Error, Result};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::TcpStream,
-    runtime::{Builder, Runtime},
+    runtime::Runtime,
     sync::{
         mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
     time::{sleep, Duration},
 };
-
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::{Map, Value};
 
@@ -185,58 +184,119 @@ impl CGWNBApiParsedMsg {
 
 impl CGWConnectionServer {
     pub async fn new(app_args: &AppArgs) -> Result<Arc<Self>> {
-        let wss_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(app_args.wss_args.wss_t_num)
-                .thread_name_fn(|| {
-                    static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
-                    let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
-                    format!("cgw-wss-t-{}", id)
-                })
-                .thread_stack_size(3 * 1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let internal_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let nb_api_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox-nbapi")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let relay_msg_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-relay-mbox-nbapi")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let nb_api_mbox_tx_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox-nbapi-tx")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let queue_timeout_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-queue-timeout")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
+        let wss_runtime_handle = match cgw_get_runtime(CGWRuntimeType::WssRxTx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
+
+        let internal_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxInternal) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
+
+        let nb_api_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxNbApiRx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
+
+        let nb_api_mbox_tx_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxNbApiTx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
+
+        let relay_msg_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxRelay) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
+
+        let queue_timeout_handle = match cgw_get_runtime(CGWRuntimeType::QueueTimeout) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e.to_string()
+                )));
+            }
+        };
 
         let (internal_tx, internal_rx) = unbounded_channel::<CGWConnectionServerReqMsg>();
         let (nb_api_tx, nb_api_rx) = unbounded_channel::<CGWConnectionNBAPIReqMsg>();

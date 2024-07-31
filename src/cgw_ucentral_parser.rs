@@ -329,11 +329,16 @@ pub fn cgw_ucentral_parse_command_message(message: &str) -> Result<CGWUCentralCo
 
 pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
+    feature_topomap_enabled: bool,
     message: &str,
     timestamp: i64,
 ) -> Result<CGWUCentralEvent> {
     match device_type {
-        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(message, timestamp),
-        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(message, timestamp),
+        CGWDeviceType::CGWDeviceAP => {
+            cgw_ucentral_ap_parse_message(feature_topomap_enabled, message, timestamp)
+        }
+        CGWDeviceType::CGWDeviceSwitch => {
+            cgw_ucentral_switch_parse_message(feature_topomap_enabled, message, timestamp)
+        }
     }
 }

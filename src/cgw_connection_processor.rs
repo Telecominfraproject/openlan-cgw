@@ -277,9 +277,12 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
-                    if let Ok(evt) =
-                        cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
-                    {
+                    if let Ok(evt) = cgw_ucentral_event_parse(
+                        &device_type,
+                        self.feature_topomap_enabled,
+                        &payload,
+                        timestamp.timestamp(),
+                    ) {
                         kafaka_msg = payload.clone();
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
                             if let Some(decompressed) = evt.decompressed.clone() {

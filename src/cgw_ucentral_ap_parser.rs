@@ -304,7 +304,11 @@ fn parse_link_state_data(
     }
 }
 
-fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result<CGWUCentralEvent> {
+fn parse_state_event_data(
+    feature_topomap_enabled: bool,
+    map: CGWUCentralJRPCMessage,
+    timestamp: i64,
+) -> Result<CGWUCentralEvent> {
     if !map.contains_key("params") {
         return Err(Error::UCentralParser(
             "Invalid state event received: params is missing",
@@ -350,30 +354,32 @@ fn parse_state_event_data(map: CGWUCentralJRPCMessage, timestamp: i64) -> Result
             let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
             let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
 
-            if state_map.contains_key("lldp-peers") {
-                if let Value::Object(v) = &state_map["lldp-peers"] {
-                    parse_lldp_data(v, &mut lldp_links)?;
+            if feature_topomap_enabled {
+                if state_map.contains_key("lldp-peers") {
+                    if let Value::Object(v) = &state_map["lldp-peers"] {
+                        parse_lldp_data(v, &mut lldp_links)?;
+                    }
                 }
-            }
 
-            let mut upstream_ifaces: Vec<String> = Vec::new();
-            let mut downstream_ifaces: Vec<String> = Vec::new();
+                let mut upstream_ifaces: Vec<String> = Vec::new();
+                let mut downstream_ifaces: Vec<String> = Vec::new();
 
-            if state_map.contains_key("link-state") {
-                if let Value::Object(obj) = &state_map["link-state"] {
-                    parse_link_state_data(obj, &mut upstream_ifaces, &mut downstream_ifaces);
+                if state_map.contains_key("link-state") {
+                    if let Value::Object(obj) = &state_map["link-state"] {
+                        parse_link_state_data(obj, &mut upstream_ifaces, &mut downstream_ifaces);
+                    }
                 }
-            }
 
-            if let Value::Array(arr) = &state_map["interfaces"] {
-                for interface in arr {
-                    if let Value::Object(iface) = interface {
-                        parse_interface_data(
-                            iface,
-                            &mut clients_links,
-                            &upstream_ifaces,
-                            timestamp,
-                        )?;
+                if let Value::Array(arr) = &state_map["interfaces"] {
+                    for interface in arr {
+                        if let Value::Object(iface) = interface {
+                            parse_interface_data(
+                                iface,
+                                &mut clients_links,
+                                &upstream_ifaces,
+                                timestamp,
+                            )?;
+                        }
                     }
                 }
             }
@@ -770,7 +776,11 @@ fn parse_realtime_event_data(
     }
 }
 
-pub fn cgw_ucentral_ap_parse_message(message: &str, timestamp: i64) -> Result<CGWUCentralEvent> {
+pub fn cgw_ucentral_ap_parse_message(
+    feature_topomap_enabled: bool,
+    message: &str,
+    timestamp: i64,
+) -> Result<CGWUCentralEvent> {
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
@@ -835,9 +845,15 @@ pub fn cgw_ucentral_ap_parse_message(message: &str, timestamp: i64) -> Result<CG
 
             return Ok(connect_event);
         } else if method == "state" {
-            return parse_state_event_data(map, timestamp);
+            return parse_state_event_data(feature_topomap_enabled, map, timestamp);
         } else if method == "event" {
-            return parse_realtime_event_data(map, timestamp);
+            if feature_topomap_enabled {
+                return parse_realtime_event_data(map, timestamp);
+            } else {
+                return Err(Error::UCentralParser(
+                    "Received unexpected event while topo map feature is disabled",
+                ));
+            }
         }
     } else if map.contains_key("result") {
         if !map.contains_key("id") {

@@ -1449,7 +1449,7 @@ mod tests {
     #[test]
     fn can_parse_connect_event() -> Result<()> {
         let msg = get_connect_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(msg, 0)?;
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(false, msg, 0)?;
 
         match event.evt_type {
             CGWUCentralEventType::Connect(_) => {
@@ -1467,7 +1467,7 @@ mod tests {
 
     fn can_parse_log_event() -> Result<()> {
         let msg = get_log_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(msg, 0)?;
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(false, msg, 0)?;
 
         match event.evt_type {
             CGWUCentralEventType::Log(_) => {

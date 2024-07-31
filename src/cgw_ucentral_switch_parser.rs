@@ -124,6 +124,7 @@ fn parse_fdb_data(
 }
 
 pub fn cgw_ucentral_switch_parse_message(
+    feature_topomap_enabled: bool,
     message: &str,
     timestamp: i64,
 ) -> Result<CGWUCentralEvent> {
@@ -185,26 +186,28 @@ pub fn cgw_ucentral_switch_parse_message(
                 // (FDBClient) will have all additional met info, like VID
                 let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
 
-                if state_map.contains_key("default-gateway") {
-                    if let Value::Array(default_gw) = &state_map["default-gateway"] {
-                        if let Some(gw) = default_gw.first() {
-                            if let Value::String(port) = &gw["out-port"] {
-                                upstream_port = Some(port.as_str().to_string());
+                if feature_topomap_enabled {
+                    if state_map.contains_key("default-gateway") {
+                        if let Value::Array(default_gw) = &state_map["default-gateway"] {
+                            if let Some(gw) = default_gw.first() {
+                                if let Value::String(port) = &gw["out-port"] {
+                                    upstream_port = Some(port.as_str().to_string());
+                                }
                             }
                         }
                     }
-                }
 
-                if state_map.contains_key("lldp-peers") {
-                    parse_lldp_data(&state_map["lldp-peers"], &mut lldp_links, &upstream_port)?;
-                }
+                    if state_map.contains_key("lldp-peers") {
+                        parse_lldp_data(&state_map["lldp-peers"], &mut lldp_links, &upstream_port)?;
+                    }
 
-                if state_map.contains_key("mac-forwarding-table") {
-                    parse_fdb_data(
-                        &state_map["mac-forwarding-table"],
-                        &mut clients_links,
-                        &upstream_port,
-                    )?;
+                    if state_map.contains_key("mac-forwarding-table") {
+                        parse_fdb_data(
+                            &state_map["mac-forwarding-table"],
+                            &mut clients_links,
+                            &upstream_port,
+                        )?;
+                    }
                 }
 
                 let state_event = CGWUCentralEvent {

@@ -1,4 +1,11 @@
-use std::{env, net::Ipv4Addr, str::FromStr};
+use std::{
+    env,
+    net::Ipv4Addr,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
+
+use url::Url;
 
 use crate::{
     cgw_errors::{Error, Result},
@@ -31,6 +38,8 @@ const CGW_DEFAULT_REDIS_PORT: u16 = 6379;
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
 const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
 const CGW_DEFAULT_TOPOMAP_STATE: bool = false;
+const CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI: &str = "https://raw.githubusercontent.com/Telecominfraproject/wlan-ucentral-schema/main/ucentral.schema.json";
+const CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI: &str = "https://raw.githubusercontent.com/Telecominfraproject/ols-ucentral-schema/main/ucentral.schema.json";
 
 pub struct CGWWSSArgs {
     /// Number of thread in a threadpool dedicated for handling secure websocket connections
@@ -394,6 +403,107 @@ impl CGWMetricsArgs {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum CGWValionSchemaRef {
+    SchemaUri(Url),
+    SchemaPath(PathBuf),
+}
+
+#[derive(Clone)]
+pub struct CGWValidationSchemaArgs {
+    // URI to AP data model schema
+    pub ap_schema_uri: CGWValionSchemaRef,
+    // URI to Switch data model schema
+    pub switch_schema_uri: CGWValionSchemaRef,
+}
+
+impl CGWValidationSchemaArgs {
+    fn parse() -> Result<CGWValidationSchemaArgs> {
+        let ap_schema_uri: CGWValionSchemaRef = match env::var("CGW_UCENTRAL_AP_DATAMODEL_URI") {
+            Ok(uri) => {
+                // CGW_UCENTRAL_AP_DATAMODEL_URI is set
+                if Path::new(&uri).exists() {
+                    // CGW_UCENTRAL_AP_DATAMODEL_URI - is path to local file and file exist
+                    match PathBuf::from_str(&uri) {
+                        Ok(path) => CGWValionSchemaRef::SchemaPath(path),
+                        Err(e) => {
+                            return Err(Error::AppArgsParser(format!(
+                                "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
+                                uri, e
+                            )));
+                        }
+                    }
+                } else {
+                    match Url::parse(&uri) {
+                        Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                        Err(e) => {
+                            return Err(Error::AppArgsParser(format!(
+                                                    "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
+                                                    uri, e
+                                                )));
+                        }
+                    }
+                }
+            }
+            // Environment variable was not set - use default
+            Err(_e) => match Url::parse(CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI) {
+                // CGW_UCENTRAL_AP_DATAMODEL_URI was not set - try to use default
+                Ok(uri) => CGWValionSchemaRef::SchemaUri(uri),
+                Err(e) => {
+                    return Err(Error::AppArgsParser(format!(
+                                            "Failed to parse default CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
+                                            CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI, e
+                                        )));
+                }
+            },
+        };
+
+        let switch_schema_uri: CGWValionSchemaRef = match env::var(
+            "CGW_UCENTRAL_SWITCH_DATAMODEL_URI",
+        ) {
+            Ok(uri) => {
+                // CGW_UCENTRAL_SWITCH_DATAMODEL_URI is set
+                if Path::new(&uri).exists() {
+                    match PathBuf::from_str(&uri) {
+                        Ok(path) => CGWValionSchemaRef::SchemaPath(path),
+                        Err(e) => {
+                            return Err(Error::AppArgsParser(format!(
+                                "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {}, err: {}",
+                                uri, e
+                            )));
+                        }
+                    }
+                } else {
+                    match Url::parse(&uri) {
+                        Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                        Err(e) => {
+                            return Err(Error::AppArgsParser(format!(
+                                                    "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {}, err: {}",
+                                                    uri, e
+                                                )));
+                        }
+                    }
+                }
+            }
+            // Environment variable was not set - use default
+            Err(_e) => match Url::from_str(CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI) {
+                Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                Err(e) => {
+                    return Err(Error::AppArgsParser(format!(
+                                            "Failed to parse default CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid value: {}, err: {}",
+                                            CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI, e
+                                        )));
+                }
+            },
+        };
+
+        Ok(CGWValidationSchemaArgs {
+            ap_schema_uri,
+            switch_schema_uri,
+        })
+    }
+}
+
 pub struct AppArgs {
     /// Loglevel of application
     pub log_level: AppCoreLogLevel,
@@ -415,6 +525,8 @@ pub struct AppArgs {
     pub redis_args: CGWRedisArgs,
 
     pub metrics_args: CGWMetricsArgs,
+
+    pub validation_schema: CGWValidationSchemaArgs,
 }
 
 impl AppArgs {
@@ -456,6 +568,7 @@ impl AppArgs {
         let db_args = CGWDBArgs::parse()?;
         let redis_args = CGWRedisArgs::parse()?;
         let metrics_args = CGWMetricsArgs::parse()?;
+        let validation_schema = CGWValidationSchemaArgs::parse()?;
 
         Ok(AppArgs {
             log_level,
@@ -467,6 +580,7 @@ impl AppArgs {
             db_args,
             redis_args,
             metrics_args,
+            validation_schema,
         })
     }
 }

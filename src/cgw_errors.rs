@@ -21,6 +21,8 @@ pub enum Error {
 
     UCentralParser(&'static str),
 
+    UCentralValidator(String),
+
     UCentralMessagesQueue(&'static str),
 
     AppArgsParser(String),

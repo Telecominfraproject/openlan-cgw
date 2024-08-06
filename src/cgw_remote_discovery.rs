@@ -151,12 +151,18 @@ pub struct CGWRemoteDiscovery {
 
 async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
     let redis_client_info = ConnectionInfo {
-        addr: redis::ConnectionAddr::TcpTls {
-            host: redis_args.redis_host.clone(),
-            port: redis_args.redis_port,
-            insecure: true,
-            tls_params: None,
+        addr: match redis_args.redis_tls {
+            true => redis::ConnectionAddr::TcpTls {
+                host: redis_args.redis_host.clone(),
+                port: redis_args.redis_port,
+                insecure: true,
+                tls_params: None,
+            },
+            false => {
+                redis::ConnectionAddr::Tcp(redis_args.redis_host.clone(), redis_args.redis_port)
+            }
         },
+
         redis: RedisConnectionInfo {
             username: redis_args.redis_username.clone(),
             password: redis_args.redis_password.clone(),
@@ -164,16 +170,24 @@ async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
         },
     };
 
-    let root_cert = cgw_read_root_certs_dir().await.ok();
+    match redis_args.redis_tls {
+        true => {
+            let root_cert = cgw_read_root_certs_dir().await.ok();
 
-    let tls_certs: TlsCertificates = TlsCertificates {
-        client_tls: None,
-        root_cert,
-    };
+            let tls_certs: TlsCertificates = TlsCertificates {
+                client_tls: None,
+                root_cert,
+            };
 
-    match redis::Client::build_with_tls(redis_client_info, tls_certs) {
-        Ok(client) => Ok(client),
-        Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+            match redis::Client::build_with_tls(redis_client_info, tls_certs) {
+                Ok(client) => Ok(client),
+                Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+            }
+        }
+        false => match redis::Client::open(redis_client_info) {
+            Ok(client) => Ok(client),
+            Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+        },
     }
 }
 

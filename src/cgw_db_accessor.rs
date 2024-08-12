@@ -8,6 +8,7 @@ use crate::{
 
 use eui48::MacAddress;
 
+use tokio_postgres::NoTls;
 use tokio_postgres::{row::Row, Client};
 
 #[derive(Clone)]
@@ -60,46 +61,77 @@ impl CGWDBAccessor {
             user = db_args.db_username,
             db = db_args.db_name,
             pass = db_args.db_password,
-            sslmode = "require",
+            sslmode = match db_args.db_tls {
+                true => "require",
+                false => "disable",
+            }
         );
         debug!(
             "Trying to connect to remote db ({}:{})...\nConn args {}",
             db_args.db_host, db_args.db_port, conn_str
         );
 
-        let tls = match cgw_tls_create_db_connect().await {
-            Ok(tls_connect) => tls_connect,
-            Err(e) => {
-                error!(
-                    "Failed to build TLS connection with remote DB, reason: {}",
-                    e.to_string()
-                );
-                return Err(Error::DbAccessor(
-                    "Failed to build TLS connection with remote DB",
-                ));
-            }
-        };
+        let client: Client;
+        if db_args.db_tls {
+            let tls = match cgw_tls_create_db_connect().await {
+                Ok(tls_connect) => tls_connect,
+                Err(e) => {
+                    error!(
+                        "Failed to build TLS connection with remote DB, reason: {}",
+                        e.to_string()
+                    );
+                    return Err(Error::DbAccessor(
+                        "Failed to build TLS connection with remote DB",
+                    ));
+                }
+            };
 
-        let (client, connection) = match tokio_postgres::connect(&conn_str, tls).await {
-            Ok((cl, conn)) => (cl, conn),
-            Err(e) => {
-                error!("Failed to establish connection with DB, reason: {:?}", e);
-                return Err(Error::DbAccessor("Failed to establish connection with DB"));
-            }
-        };
+            let (db_client, connection) = match tokio_postgres::connect(&conn_str, tls).await {
+                Ok((cl, conn)) => (cl, conn),
+                Err(e) => {
+                    error!("Failed to establish connection with DB, reason: {:?}", e);
+                    return Err(Error::DbAccessor("Failed to establish connection with DB"));
+                }
+            };
 
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                let err_msg = format!("Connection to DB broken: {}", e);
-                error!("{}", err_msg);
-                CGWMetrics::get_ref()
-                    .change_component_health_status(
-                        CGWMetricsHealthComponent::DBConnection,
-                        CGWMetricsHealthComponentStatus::NotReady(err_msg),
-                    )
-                    .await;
-            }
-        });
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    let err_msg = format!("Connection to DB broken: {}", e);
+                    error!("{}", err_msg);
+                    CGWMetrics::get_ref()
+                        .change_component_health_status(
+                            CGWMetricsHealthComponent::DBConnection,
+                            CGWMetricsHealthComponentStatus::NotReady(err_msg),
+                        )
+                        .await;
+                }
+            });
+
+            client = db_client;
+        } else {
+            let (db_client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {
+                Ok((cl, conn)) => (cl, conn),
+                Err(e) => {
+                    error!("Failed to establish connection with DB, reason: {:?}", e);
+                    return Err(Error::DbAccessor("Failed to establish connection with DB"));
+                }
+            };
+
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    let err_msg = format!("Connection to DB broken: {}", e);
+                    error!("{}", err_msg);
+                    CGWMetrics::get_ref()
+                        .change_component_health_status(
+                            CGWMetricsHealthComponent::DBConnection,
+                            CGWMetricsHealthComponentStatus::NotReady(err_msg),
+                        )
+                        .await;
+                }
+            });
+
+            client = db_client;
+        }
 
         tokio::spawn(async move {
             CGWMetrics::get_ref()

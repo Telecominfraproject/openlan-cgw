@@ -72,15 +72,20 @@ CGW_DB_HOST             - IP or hostname of remote database server to connect to
 CGW_DB_PORT             - PORT of remote database server to connect to
 CGW_DB_USER             - PSQL DB username (credentials) to use upon connect to DB
 CGW_DB_PASS             - PSQL DB password (credentials) to use upon connect to DB
+CGW_DB_TLS              - Utilize TLS connection with DB server
 CGW_REDIS_HOST          - IP or hostname of remote redis-db server to connect to
 CGW_REDIS_PORT          - PORT of remote redis-db server to connect to
 CGW_REDIS_USERNAME      - REDIS username (credentials) to use upon connect to
 CGW_REDIS_PASSWORD      - REDIS password (credentials) to use upon connect to
+CGW_REDIS_TLS           - Utilize TLS connection with REDIS server
 CGW_LOG_LEVEL           - Log level to start CGW application with (debug, info)
 CGW_METRICS_PORT        - PORT of metrics to connect to
 CGW_CERTS_PATH          - Path to certificates located on host machine
 CGW_ALLOW_CERT_MISMATCH - Allow client certificate CN and device MAC address mismatch (used for OWLS)
-CGW_NB_INFRA_CERTS_DIR  - Path to NB infrastructure (Redis, PostgreSQL)certificates located on host machine
+CGW_NB_INFRA_CERTS_DIR  - Path to NB infrastructure (Redis, PostgreSQL) certificates located on host machine
+CGW_NB_INFRA_TLS        - Utilize TLS connection with NB infrastructure (Redis, PostgreSQL)
+                          If set enabled - the CGW_DB_TLS and CGW_REDIS_TLS values will be ignored and
+                          the TLS connection will be used for Redis and PostgreSQL connection
 ```
 
 Example of properly configured list of env variables to start CGW:
@@ -90,6 +95,7 @@ declare -x CGW_DB_HOST="localhost"                       # PSQL server is locate
 declare -x CGW_DB_PORT="5432"
 declare -x CGW_DB_USERNAME="cgw"                         # PSQL login credentials (username) default 'cgw' will be used
 declare -x CGW_DB_PASS="123"                             # PSQL login credentials (password) default '123' will be used
+declare -x CGW_DB_TLS="no"
 declare -x CGW_GRPC_LISTENING_IP="127.0.0.1"             # Local default subnet is 127.0.0.1/24
 declare -x CGW_GRPC_LISTENING_PORT="50051"
 declare -x CGW_GRPC_PUBLIC_HOST="localhost"
@@ -102,6 +108,7 @@ declare -x CGW_REDIS_HOST="localhost"                    # Redis server can be f
 declare -x CGW_REDIS_PORT="6379"
 declare -x CGW_REDIS_USERNAME="cgw"                      # REDIS login credentials (username) - optional
 declare -x CGW_REDIS_PASSWORD="123"                      # REDIS login credentials (password) - optional
+declare -x CGW_REDIS_TLS="no"
 declare -x CGW_METRICS_PORT="8080"
 declare -x CGW_WSS_IP="0.0.0.0"                          # Accept WSS connections at all interfaces / subnets
 declare -x CGW_WSS_PORT="15002"
@@ -111,6 +118,7 @@ declare -x CGW_WSS_KEY="key.pem"
 declare -x CGW_CERTS_PATH="/etc/ssl/certs"               # Path to certificates located on host machine
 declare -x CGW_ALLOW_CERT_MISMATCH="no"                  # Allow client certificate CN and device MAC address mismatch
 declare -x CGW_NB_INFRA_CERTS_PATH="/etc/nb_infra_certs"
+declare -x CGW_NB_INFRA_TLS="no"
 ```
 # Certificates
 The CGW uses two different sets of certificate configuration:

@@ -26,11 +26,14 @@ const CGW_DEFAULT_DB_PORT: u16 = 6379;
 const CGW_DEFAULT_DB_NAME: &str = "cgw";
 const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
 const CGW_DEFAULT_DB_PASSWORD: &str = "123";
+const CGW_DEFAULT_DB_TLS: &str = "no";
 const CGW_DEFAULT_REDIS_HOST: &str = "localhost";
 const CGW_DEFAULT_REDIS_PORT: u16 = 6379;
+const CGW_DEFAULT_REDIS_TLS: &str = "no";
 const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
 const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
 const CGW_DEFAULT_TOPOMAP_STATE: bool = false;
+const CGW_DEFAULT_NB_INFRA_TLS: &str = "no";
 
 pub struct CGWWSSArgs {
     /// Number of thread in a threadpool dedicated for handling secure websocket connections
@@ -252,6 +255,8 @@ pub struct CGWDBArgs {
     pub db_username: String,
     /// DB user password use with connection to in DB (PSQL)
     pub db_password: String,
+    /// Utilize TLS connection with DB server
+    pub db_tls: bool,
 }
 
 impl CGWDBArgs {
@@ -289,12 +294,16 @@ impl CGWDBArgs {
         let db_password: String =
             env::var("CGW_DB_PASSWORD").unwrap_or(CGW_DEFAULT_DB_PASSWORD.to_string());
 
+        let db_tls_var: String = env::var("CGW_DB_TLS").unwrap_or(CGW_DEFAULT_DB_TLS.to_string());
+        let db_tls = db_tls_var == "yes";
+
         Ok(CGWDBArgs {
             db_host,
             db_port,
             db_name,
             db_username,
             db_password,
+            db_tls,
         })
     }
 }
@@ -308,6 +317,8 @@ pub struct CGWRedisArgs {
     pub redis_username: Option<String>,
     /// REDIS password
     pub redis_password: Option<String>,
+    /// Utilize TLS connection with DB server
+    pub redis_tls: bool,
 }
 
 impl CGWRedisArgs {
@@ -361,11 +372,16 @@ impl CGWRedisArgs {
             Err(_) => None,
         };
 
+        let redis_tls_var: String =
+            env::var("CGW_REDIS_TLS").unwrap_or(CGW_DEFAULT_REDIS_TLS.to_string());
+        let redis_tls = redis_tls_var == "yes";
+
         Ok(CGWRedisArgs {
             redis_host,
             redis_port,
             redis_username,
             redis_password,
+            redis_tls,
         })
     }
 }
@@ -403,6 +419,9 @@ pub struct AppArgs {
 
     /// Topomap featue status (enabled/disabled)
     pub feature_topomap_enabled: bool,
+
+    /// Utilize TLS connection with NB infrastructure (Redis, PostgreSQL)
+    pub nb_infra_tls: bool,
 
     pub wss_args: CGWWSSArgs,
 
@@ -450,17 +469,27 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_TOPOMAP_STATE,
         };
 
+        let nb_infra_tls_var: String =
+            env::var("CGW_NB_INFRA_TLS").unwrap_or(CGW_DEFAULT_NB_INFRA_TLS.to_string());
+        let nb_infra_tls = nb_infra_tls_var == "yes";
+
         let wss_args = CGWWSSArgs::parse()?;
         let grpc_args = CGWGRPCArgs::parse()?;
         let kafka_args = CGWKafkaArgs::parse()?;
-        let db_args = CGWDBArgs::parse()?;
-        let redis_args = CGWRedisArgs::parse()?;
+        let mut db_args = CGWDBArgs::parse()?;
+        let mut redis_args = CGWRedisArgs::parse()?;
         let metrics_args = CGWMetricsArgs::parse()?;
+
+        if nb_infra_tls {
+            redis_args.redis_tls = nb_infra_tls;
+            db_args.db_tls = nb_infra_tls;
+        }
 
         Ok(AppArgs {
             log_level,
             cgw_id,
             feature_topomap_enabled,
+            nb_infra_tls,
             wss_args,
             grpc_args,
             kafka_args,

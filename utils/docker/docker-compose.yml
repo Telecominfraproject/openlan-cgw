@@ -33,31 +33,21 @@ services:
     ports:
       - "5432:5432"
     user: postgres
-    command: >
-      bash -c "
-        chown 999:999 /var/lib/postgresql/certs/server.key &&
-        chmod 600 /var/lib/postgresql/certs/server.key &&
-        postgres -c max_connections=400 -c shared_buffers=20MB -c ssl=on -c ssl_cert_file=/var/lib/postgresql/certs/server.crt -c ssl_key_file=/var/lib/postgresql/certs/server.key
-      "
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=400"
+      - "-c"
+      - "shared_buffers=20MB"
     env_file:
       - postgresql.env
     restart: always
     volumes:
       - ./postgresql/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
-      - ./certs/:/var/lib/postgresql/certs/
 
   redis:
     image: 'bitnami/redis:latest'
     ports:
       - "6379:6379"
-    volumes:
-      - ./certs:/usr/local/etc/certs
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_PORT_NUMBER=0
-      - REDIS_TLS_ENABLED=yes
-      - REDIS_TLS_PORT_NUMBER=6379
-      - REDIS_TLS_CERT_FILE=/usr/local/etc/certs/server.crt
-      - REDIS_TLS_KEY_FILE=/usr/local/etc/certs/server_redis.key
-      - REDIS_TLS_CA_DIR=/usr/local/etc/certs
-      - REDIS_TLS_AUTH_CLIENTS=no

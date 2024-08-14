@@ -1,7 +1,7 @@
 use crate::{
     cgw_app_args::CGWRedisArgs,
     cgw_db_accessor::{CGWDBAccessor, CGWDBInfra, CGWDBInfrastructureGroup},
-    cgw_device::{CGWDevice, CGWDeviceState},
+    cgw_device::{CGWDevice, CGWDeviceState, CGWDeviceType},
     cgw_devices_cache::CGWDevicesCache,
     cgw_errors::{Error, Result},
     cgw_metrics::{
@@ -427,6 +427,7 @@ impl CGWRemoteDiscovery {
                 devices_cache.add_device(
                     &item.mac,
                     &CGWDevice::new(
+                        CGWDeviceType::default(),
                         CGWDeviceState::CGWDeviceDisconnected,
                         item.infra_group_id,
                         true,
@@ -757,13 +758,14 @@ impl CGWRemoteDiscovery {
                         let mut devices_cache = cache.write().await;
                         let device_mac = infras[i];
 
-                        if let Some(device) = devices_cache.get_device(&device_mac) {
+                        if let Some(device) = devices_cache.get_device_mut(&device_mac) {
                             device.set_device_group_id(gid);
                             device.set_device_remains_in_db(true);
                         } else {
                             devices_cache.add_device(
                                 &device_mac,
                                 &CGWDevice::new(
+                                    CGWDeviceType::default(),
                                     CGWDeviceState::CGWDeviceDisconnected,
                                     gid,
                                     true,
@@ -816,7 +818,7 @@ impl CGWRemoteDiscovery {
                     } else {
                         let mut devices_cache = cache.write().await;
                         let device_mac = infras[i];
-                        if let Some(device) = devices_cache.get_device(&device_mac) {
+                        if let Some(device) = devices_cache.get_device_mut(&device_mac) {
                             if device.get_device_state() == CGWDeviceState::CGWDeviceConnected {
                                 device.set_device_remains_in_db(false);
                                 device.set_device_group_id(0);

@@ -166,6 +166,7 @@ pub struct CGWConnectionServer {
 
 enum CGWNBApiParsedMsgType {
     InfrastructureGroupCreate,
+    InfrastructureGroupCreateToShard(i32),
     InfrastructureGroupDelete,
     InfrastructureGroupInfraAdd(Vec<MacAddress>),
     InfrastructureGroupInfraDel(Vec<MacAddress>),
@@ -451,6 +452,13 @@ impl CGWConnectionServer {
             r#type: String,
             infra_group_id: String,
             infra_name: String,
+            uuid: Uuid,
+        }
+        #[derive(Debug, Serialize, Deserialize)]
+        struct InfraGroupCreateToShard {
+            r#type: String,
+            infra_group_id: String,
+            infra_name: String,
             infra_shard_id: i32,
             uuid: Uuid,
         }
@@ -501,6 +509,16 @@ impl CGWConnectionServer {
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupCreate,
+                ));
+            }
+            "infrastructure_group_create_to_shard" => {
+                let json_msg: InfraGroupCreateToShard = serde_json::from_str(pload).ok()?;
+                return Some(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
+                        json_msg.infra_shard_id,
+                    ),
                 ));
             }
             "infrastructure_group_delete" => {
@@ -699,7 +717,11 @@ impl CGWConnectionServer {
                         reserved_size: 1000i32,
                         actual_size: 0i32,
                     };
-                    match self.cgw_remote_discovery.create_infra_group(&group).await {
+                    match self
+                        .cgw_remote_discovery
+                        .create_infra_group(&group, None)
+                        .await
+                    {
                         Ok(_dst_cgw_id) => {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
@@ -730,8 +752,61 @@ impl CGWConnectionServer {
                             } else {
                                 error!("Failed to construct infra_group_create message");
                             }
+                        }
+                    }
+                    // This type of msg is handled in place, not added to buf
+                    // for later processing.
+                    continue;
+                } else if let CGWNBApiParsedMsg {
+                    uuid,
+                    gid,
+                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(shard_id),
+                } = parsed_msg
+                {
+                    // DB stuff - create group for remote shards to be aware of change
+                    let group = CGWDBInfrastructureGroup {
+                        id: gid,
+                        reserved_size: 1000i32,
+                        actual_size: 0i32,
+                    };
+                    match self
+                        .cgw_remote_discovery
+                        .create_infra_group(&group, Some(shard_id))
+                        .await
+                    {
+                        Ok(_dst_cgw_id) => {
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
+                                gid,
+                                String::default(),
+                                uuid,
+                                true,
+                                None,
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Create group gid {gid}, uuid {uuid} request failed, reason: {:?}",
+                                e
+                            );
 
-                            warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
+                                gid,
+                                String::default(),
+                                uuid,
+                                false,
+                                Some(format!(
+                                    "Failed to create new group to shard id {}: {:?}",
+                                    shard_id, e
+                                )),
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
                         }
                     }
                     // This type of msg is handled in place, not added to buf

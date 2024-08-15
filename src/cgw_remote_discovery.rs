@@ -590,32 +590,51 @@ impl CGWRemoteDiscovery {
             }
         }
 
-        warn!(
-            "Every available CGW is exceeding capacity+threshold limit, using least loaded one..."
-        );
-        if let Some(least_loaded_cgw) = lock
-            .iter()
-            .min_by(|a, b| {
-                a.1.shard
-                    .assigned_groups_num
-                    .cmp(&b.1.shard.assigned_groups_num)
-            })
-            .map(|(_k, _v)| _v)
-        {
-            warn!("Found least loaded CGW id: {}", least_loaded_cgw.shard.id);
-            return Ok(least_loaded_cgw.shard.id);
-        }
-
         Err(Error::RemoteDiscovery(
             "Unexpected: Failed to find the least loaded CGW shard",
         ))
     }
 
-    async fn assign_infra_group_to_cgw(&self, gid: i32) -> Result<i32> {
+    async fn validate_infra_group_cgw_assignee(&self, shard_id: i32) -> Result<i32> {
+        let lock = self.remote_cgws_map.read().await;
+
+        match lock.get(&shard_id) {
+            Some(instance) => {
+                let max_capacity: i32 = instance.shard.capacity + instance.shard.threshold;
+                if instance.shard.assigned_groups_num < max_capacity {
+                    debug!("Found CGW shard to assign group to (id {})", shard_id);
+                    Ok(shard_id)
+                } else {
+                    Err(Error::RemoteDiscovery(
+                        "Unexpected: Failed to find the least loaded CGW shard",
+                    ))
+                }
+            }
+            None => Err(Error::RemoteDiscovery(
+                "Unexpected: Failed to find CGW shard",
+            )),
+        }
+    }
+
+    async fn assign_infra_group_to_cgw(&self, gid: i32, shard_id: Option<i32>) -> Result<i32> {
         // Delete key (if exists), recreate with new owner
         let _ = self.deassign_infra_group_to_cgw(gid).await;
 
-        let dst_cgw_id: i32 = self.get_infra_group_cgw_assignee().await?;
+        // Sync CGWs to get lates data
+        if let Err(e) = self.sync_remote_cgw_map().await {
+            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync remote CGW info from REDIS",
+            ));
+        }
+
+        let dst_cgw_id: i32 = match shard_id {
+            Some(dest_shard_id) => {
+                self.validate_infra_group_cgw_assignee(dest_shard_id)
+                    .await?
+            }
+            None => self.get_infra_group_cgw_assignee().await?,
+        };
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HSET")
@@ -671,15 +690,20 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn create_infra_group(&self, g: &CGWDBInfrastructureGroup) -> Result<i32> {
+    pub async fn create_infra_group(
+        &self,
+        g: &CGWDBInfrastructureGroup,
+        dest_shard_id: Option<i32>,
+    ) -> Result<i32> {
         //TODO: transaction-based insert/assigned_group_num update (DB)
         self.db_accessor.insert_new_infra_group(g).await?;
 
-        let shard_id: i32 = match self.assign_infra_group_to_cgw(g.id).await {
+        let shard_id: i32 = match self.assign_infra_group_to_cgw(g.id, dest_shard_id).await {
             Ok(v) => v,
-            Err(_e) => {
+            Err(e) => {
+                error!("Assign group to CGW shard failed! Err: {}", e.to_string());
                 let _ = self.db_accessor.delete_infra_group(g.id).await;
-                return Err(Error::RemoteDiscovery("Assign group to CGW shard failed"));
+                return Err(e);
             }
         };
 
@@ -911,7 +935,7 @@ impl CGWRemoteDiscovery {
         for i in groups.iter() {
             let _ = self.sync_remote_cgw_map().await;
             let _ = self.sync_gid_to_cgw_map().await;
-            match self.assign_infra_group_to_cgw(i.id).await {
+            match self.assign_infra_group_to_cgw(i.id, None).await {
                 Ok(shard_id) => {
                     debug!("Rebalancing: assigned {} to shard {}", i.id, shard_id);
                     let _ = self.increment_cgw_assigned_groups_num(shard_id).await;

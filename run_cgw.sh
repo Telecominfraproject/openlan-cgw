@@ -2,6 +2,8 @@
 
 DEFAULT_ID=0
 DEFAULT_LOG_LEVEL="info"
+DEFAULT_GROUPS_CAPACITY=1000
+DEFAULT_GROUPS_THRESHOLD=50
 
 # By default - use default subnet's SRC ip to listen to gRPC requests
 DEFAULT_GRPC_LISTENING_IP="0.0.0.0"
@@ -48,6 +50,8 @@ DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI="https://raw.githubusercontent.com/Telecom
 
 export CGW_LOG_LEVEL="${CGW_LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
 export CGW_ID="${CGW_ID:-$DEFAULT_ID}"
+export CGW_GROUPS_CAPACITY="${CGW_GROUPS_CAPACITY:-$DEFAULT_GROUPS_CAPACITY}"
+export CGW_GROUPS_THRESHOLD="${CGW_GROUPS_THRESHOLD:-$DEFAULT_GROUPS_THRESHOLD}"
 export CGW_WSS_IP="${CGW_WSS_IP:-$DEFAULT_WSS_IP}"
 export CGW_WSS_PORT="${CGW_WSS_PORT:-$DEFAULT_WSS_PORT}"
 export DEFAULT_WSS_THREAD_NUM="${DEFAULT_WSS_THREAD_NUM:-$DEFAULT_WSS_T_NUM}"
@@ -90,6 +94,7 @@ fi
 echo "Starting CGW..."
 echo "CGW LOG LEVEL                     : $CGW_LOG_LEVEL"
 echo "CGW ID                            : $CGW_ID"
+echo "CGW GROUPS CAPACITY/THRESHOLD     : $CGW_GROUPS_CAPACITY:$CGW_GROUPS_THRESHOLD"
 echo "CGW WSS THREAD NUM                : $DEFAULT_WSS_THREAD_NUM"
 echo "CGW WSS IP/PORT                   : $CGW_WSS_IP:$CGW_WSS_PORT"
 echo "CGW WSS CAS                       : $CGW_WSS_CAS"
@@ -118,6 +123,8 @@ docker run \
 	-v $CGW_NB_INFRA_CERTS_PATH:$CONTAINTER_NB_INFRA_CERTS_VOLUME \
 	-e CGW_LOG_LEVEL                     \
 	-e CGW_ID                            \
+	-e CGW_GROUPS_CAPACITY               \
+	-e CGW_GROUPS_THRESHOLD              \
 	-e CGW_WSS_IP                        \
 	-e CGW_WSS_PORT                      \
 	-e DEFAULT_WSS_THREAD_NUM            \

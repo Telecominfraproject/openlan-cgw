@@ -116,7 +116,7 @@ impl CGWMetrics {
         &CGW_METRICS
     }
 
-    pub async fn start(&self, port: u16) -> Result<()> {
+    pub async fn start(&self, port: u16,  capacity: i64, threshold: i64) -> Result<()> {
         let mut started = self.started.lock().await;
 
         if *started {
@@ -146,10 +146,8 @@ impl CGWMetrics {
             CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
         );
 
-        // TODO: remove: W/A for now, as currently capacity / threshold
-        // is non-configurable
-        GROUPS_CAPACITY.set(1000i64);
-        GROUPS_THRESHOLD.set(50i64);
+        GROUPS_CAPACITY.set(capacity);
+        GROUPS_THRESHOLD.set(threshold);
 
         tokio::spawn(async move {
             if let Err(err) = register_custom_metrics() {

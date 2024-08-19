@@ -270,8 +270,8 @@ impl CGWRemoteDiscovery {
                 server_host: app_args.grpc_args.grpc_public_host.clone(),
                 server_port: app_args.grpc_args.grpc_public_port,
                 assigned_groups_num: 0i32,
-                capacity: 1000i32,
-                threshold: 50i32,
+                capacity: app_args.cgw_groups_capacity,
+                threshold: app_args.cgw_groups_threshold,
             };
 
             let redis_req_data: Vec<String> = redisdb_shard_info.into();

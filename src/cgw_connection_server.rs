@@ -591,14 +591,9 @@ impl CGWConnectionServer {
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
 
             for mac in mac_list.iter() {
-                match connmap_r_lock.get(mac) {
-                    Some(c) => {
-                        let _ = c.send(msg.clone());
-                        debug!("Notified {mac} about GID change (->{new_gid})");
-                    }
-                    None => {
-                        warn!("Wanted to notify {mac} about GID change (->{new_gid}), but device doesn't exist in map (Not connected still?)");
-                    }
+                if let Some(c) = connmap_r_lock.get(mac) {
+                    let _ = c.send(msg.clone());
+                    debug!("Notified {mac} about GID change (->{new_gid})");
                 }
             }
         });

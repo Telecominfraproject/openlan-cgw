@@ -303,7 +303,11 @@ async fn main() -> Result<()> {
     // Make sure metrics are available <before> any of the components
     // starts up;
     CGWMetrics::get_ref()
-        .start(args.metrics_args.metrics_port, args.cgw_groups_capacity.into(), args.cgw_groups_threshold.into())
+        .start(
+            args.metrics_args.metrics_port,
+            args.cgw_groups_capacity.into(),
+            args.cgw_groups_threshold.into(),
+        )
         .await?;
     let app = Arc::new(AppCore::new(args).await?);
 

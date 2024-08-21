@@ -9,6 +9,7 @@ on:
       - main
       - next
       - 'release/*'
+      - 'test_scale_testing'
     tags:
       - 'v*'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - main
       - next
       - 'release/*'
+      - 'test_scale_testing'
 
 defaults:
   run:

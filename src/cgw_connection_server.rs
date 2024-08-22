@@ -381,8 +381,11 @@ impl CGWConnectionServer {
         });
 
         let server_clone = server.clone();
+        let ifras_capacity = app_args.cgw_group_infras_capacity;
         server.mbox_nb_api_runtime_handle.spawn(async move {
-            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+            server_clone
+                .process_internal_nb_api_mbox(nb_api_rx, ifras_capacity)
+                .await;
         });
 
         server.queue_timeout_handle.spawn(async move {
@@ -602,6 +605,7 @@ impl CGWConnectionServer {
     async fn process_internal_nb_api_mbox(
         self: Arc<Self>,
         mut rx_mbox: CGWConnectionServerNBAPIMboxRx,
+        infras_capacity: i32,
     ) {
         debug!("process_nb_api_mbox entry");
 
@@ -709,7 +713,7 @@ impl CGWConnectionServer {
                     // DB stuff - create group for remote shards to be aware of change
                     let group = CGWDBInfrastructureGroup {
                         id: gid,
-                        reserved_size: 1000i32,
+                        reserved_size: infras_capacity,
                         actual_size: 0i32,
                     };
                     match self

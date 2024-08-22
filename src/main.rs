@@ -307,6 +307,7 @@ async fn main() -> Result<()> {
             args.metrics_args.metrics_port,
             args.cgw_groups_capacity.into(),
             args.cgw_groups_threshold.into(),
+            args.cgw_group_infras_capacity.into(),
         )
         .await?;
     let app = Arc::new(AppCore::new(args).await?);

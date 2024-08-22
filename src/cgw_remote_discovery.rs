@@ -744,6 +744,8 @@ impl CGWRemoteDiscovery {
             device_cache.del_device(key);
         }
 
+        CGWMetrics::get_ref().delete_group_counter(gid).await;
+
         Ok(())
     }
 

@@ -119,7 +119,7 @@ pub fn cgw_construct_infra_group_create_response(
     error_message: Option<String>,
 ) -> Result<String> {
     let group_create = InfraGroupCreateResponse {
-        r#type: "infrastructure_group_create",
+        r#type: "infrastructure_group_create_response",
         infra_group_id,
         infra_name,
         uuid,
@@ -137,7 +137,7 @@ pub fn cgw_construct_infra_group_delete_response(
     error_message: Option<String>,
 ) -> Result<String> {
     let group_delete = InfraGroupDeleteResponse {
-        r#type: "infrastructure_group_delete",
+        r#type: "infrastructure_group_delete_response",
         infra_group_id,
         uuid,
         success,

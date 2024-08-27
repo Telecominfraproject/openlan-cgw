@@ -382,6 +382,10 @@ impl CGWConnectionServer {
 
         let server_clone = server.clone();
         let ifras_capacity = app_args.cgw_group_infras_capacity;
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupInfrasCapacity,
+            CGWMetricsCounterOpType::Set(ifras_capacity.into()),
+        );
         server.mbox_nb_api_runtime_handle.spawn(async move {
             server_clone
                 .process_internal_nb_api_mbox(nb_api_rx, ifras_capacity)

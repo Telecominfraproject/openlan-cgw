@@ -95,13 +95,9 @@ impl fmt::Display for CGWMetricsHealthComponentStatus {
 pub enum CGWMetricsCounterType {
     ActiveCGWNum,
     GroupsAssignedNum,
-    #[allow(dead_code)]
     GroupsCapacity,
-    #[allow(dead_code)]
     GroupsThreshold,
-    #[allow(dead_code)]
     GroupInfrasCapacity,
-    #[allow(dead_code)]
     GroupInfrasAssignedNum,
     ConnectionsNum,
 }
@@ -127,13 +123,7 @@ impl CGWMetrics {
         &CGW_METRICS
     }
 
-    pub async fn start(
-        &self,
-        port: u16,
-        groups_capacity: i64,
-        groups_threshold: i64,
-        infras_capacity: i64,
-    ) -> Result<()> {
+    pub async fn start(&self, port: u16) -> Result<()> {
         let mut started = self.started.lock().await;
 
         if *started {
@@ -162,10 +152,6 @@ impl CGWMetrics {
             CGWMetricsHealthComponent::ConnectionServer,
             CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
         );
-
-        GROUPS_CAPACITY.set(groups_capacity);
-        GROUPS_THRESHOLD.set(groups_threshold);
-        GROUP_INFRAS_CAPACITY.set(infras_capacity);
 
         tokio::spawn(async move {
             if let Err(err) = register_custom_metrics() {

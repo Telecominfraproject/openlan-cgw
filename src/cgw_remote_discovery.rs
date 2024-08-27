@@ -276,6 +276,16 @@ impl CGWRemoteDiscovery {
                 threshold: app_args.cgw_groups_threshold,
             };
 
+            CGWMetrics::get_ref().change_counter(
+                CGWMetricsCounterType::GroupsCapacity,
+                CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+            );
+
+            CGWMetrics::get_ref().change_counter(
+                CGWMetricsCounterType::GroupsThreshold,
+                CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+            );
+
             let redis_req_data: Vec<String> = redisdb_shard_info.into();
             let mut con = rc.redis_client.clone();
 

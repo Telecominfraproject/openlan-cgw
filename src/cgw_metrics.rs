@@ -27,6 +27,13 @@ lazy_static! {
         "Max threshold (extra capacity) of groups this shard can handle"
     )
     .expect("metric can be created");
+    pub static ref GROUP_INFRAS_CAPACITY: IntGauge = IntGauge::new(
+        "cgw_group_ifras_capacity",
+        "Max limit (capacity) of infras the group can handle"
+    )
+    .expect("metric can be created");
+    pub static ref GROUP_INFRAS_ASSIGNED_NUM: Arc<RwLock<HashMap<i32, IntGauge>>> =
+        Arc::new(RwLock::new(HashMap::new()));
     pub static ref CONNECTIONS_NUM: IntGauge = IntGauge::new(
         "cgw_connections_num",
         "Number of successfully established WSS connections (underlying Infra connections)"
@@ -88,10 +95,10 @@ impl fmt::Display for CGWMetricsHealthComponentStatus {
 pub enum CGWMetricsCounterType {
     ActiveCGWNum,
     GroupsAssignedNum,
-    #[allow(dead_code)]
     GroupsCapacity,
-    #[allow(dead_code)]
     GroupsThreshold,
+    GroupInfrasCapacity,
+    GroupInfrasAssignedNum,
     ConnectionsNum,
 }
 
@@ -146,11 +153,6 @@ impl CGWMetrics {
             CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
         );
 
-        // TODO: remove: W/A for now, as currently capacity / threshold
-        // is non-configurable
-        GROUPS_CAPACITY.set(1000i64);
-        GROUPS_THRESHOLD.set(50i64);
-
         tokio::spawn(async move {
             if let Err(err) = register_custom_metrics() {
                 warn!("Failed to register CGW Metrics: {:?}", err);
@@ -199,12 +201,17 @@ impl CGWMetrics {
             },
             CGWMetricsCounterType::GroupsCapacity => {
                 if let CGWMetricsCounterOpType::Set(v) = op {
-                    ACTIVE_CGW_NUM.set(v);
+                    GROUPS_CAPACITY.set(v);
                 }
             }
             CGWMetricsCounterType::GroupsThreshold => {
                 if let CGWMetricsCounterOpType::Set(v) = op {
-                    ACTIVE_CGW_NUM.set(v);
+                    GROUPS_THRESHOLD.set(v);
+                }
+            }
+            CGWMetricsCounterType::GroupInfrasCapacity => {
+                if let CGWMetricsCounterOpType::Set(v) = op {
+                    GROUP_INFRAS_CAPACITY.set(v);
                 }
             }
             CGWMetricsCounterType::ConnectionsNum => match op {
@@ -216,6 +223,51 @@ impl CGWMetrics {
                 }
                 _ => {}
             },
+            _ => {}
+        }
+    }
+
+    pub async fn change_group_counter(
+        &self,
+        group_id: i32,
+        counter: CGWMetricsCounterType,
+        op: CGWMetricsCounterOpType,
+    ) {
+        if let CGWMetricsCounterType::GroupInfrasAssignedNum = counter {
+            let mut lock = GROUP_INFRAS_ASSIGNED_NUM.write().await;
+
+            if let Some(counter) = lock.get(&group_id) {
+                match op {
+                    CGWMetricsCounterOpType::Inc => {
+                        counter.inc();
+                    }
+                    CGWMetricsCounterOpType::Dec => {
+                        counter.dec();
+                    }
+                    _ => {}
+                }
+            } else if let Ok(counter) = IntGauge::new(
+                format!("cgw_group_{group_id}_infras_assigned_num"),
+                "Number of infras assigned to this particular group",
+            ) {
+                if REGISTRY.register(Box::new(counter.clone())).is_ok() {
+                    counter.set(1);
+                    lock.insert(group_id, counter);
+                } else {
+                    error!("Failed to register GroupInfrasAssignedNum metric for GID {group_id}");
+                }
+            } else {
+                error!("Failed to create GroupInfrasAssignedNum metric for GID {group_id}");
+            }
+        }
+    }
+
+    pub async fn delete_group_counter(&self, group_id: i32) {
+        let mut lock = GROUP_INFRAS_ASSIGNED_NUM.write().await;
+        if let Some(counter) = lock.remove(&group_id) {
+            if let Err(e) = REGISTRY.unregister(Box::new(counter)) {
+                error!("Failed to deregister GroupInfrasAssignedNum metric for GID {group_id}. Err: {e}");
+            }
         }
     }
 }
@@ -228,6 +280,8 @@ fn register_custom_metrics() -> Result<()> {
     REGISTRY.register(Box::new(GROUPS_CAPACITY.clone()))?;
 
     REGISTRY.register(Box::new(GROUPS_THRESHOLD.clone()))?;
+
+    REGISTRY.register(Box::new(GROUP_INFRAS_CAPACITY.clone()))?;
 
     REGISTRY.register(Box::new(CONNECTIONS_NUM.clone()))?;
 

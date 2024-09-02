@@ -381,8 +381,15 @@ impl CGWConnectionServer {
         });
 
         let server_clone = server.clone();
+        let ifras_capacity = app_args.cgw_group_infras_capacity;
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupInfrasCapacity,
+            CGWMetricsCounterOpType::Set(ifras_capacity.into()),
+        );
         server.mbox_nb_api_runtime_handle.spawn(async move {
-            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+            server_clone
+                .process_internal_nb_api_mbox(nb_api_rx, ifras_capacity)
+                .await;
         });
 
         server.queue_timeout_handle.spawn(async move {
@@ -591,14 +598,9 @@ impl CGWConnectionServer {
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
 
             for mac in mac_list.iter() {
-                match connmap_r_lock.get(mac) {
-                    Some(c) => {
-                        let _ = c.send(msg.clone());
-                        debug!("Notified {mac} about GID change (->{new_gid})");
-                    }
-                    None => {
-                        warn!("Wanted to notify {mac} about GID change (->{new_gid}), but device doesn't exist in map (Not connected still?)");
-                    }
+                if let Some(c) = connmap_r_lock.get(mac) {
+                    let _ = c.send(msg.clone());
+                    debug!("Notified {mac} about GID change (->{new_gid})");
                 }
             }
         });
@@ -607,6 +609,7 @@ impl CGWConnectionServer {
     async fn process_internal_nb_api_mbox(
         self: Arc<Self>,
         mut rx_mbox: CGWConnectionServerNBAPIMboxRx,
+        infras_capacity: i32,
     ) {
         debug!("process_nb_api_mbox entry");
 
@@ -714,7 +717,7 @@ impl CGWConnectionServer {
                     // DB stuff - create group for remote shards to be aware of change
                     let group = CGWDBInfrastructureGroup {
                         id: gid,
-                        reserved_size: 1000i32,
+                        reserved_size: infras_capacity,
                         actual_size: 0i32,
                     };
                     match self

@@ -56,6 +56,9 @@ And thus the run script utilizes the following list of *enviroment* variables th
 The following list is a list of enviroment variables you can define to configure cgw-app behavior in certain way:
 ```
 CGW_ID                            - Shard ID
+CGW_GROUPS_CAPACITY               - The CGW instance groups capacity
+CGW_GROUPS_THRESHOLD              - The CGW instance groups threshold
+CGW_GROUP_INFRAS_CAPACITY         - The devices capacity for group
 CGW_GRPC_LISTENING_IP             - IP to bind gRPC server to (listens for gRPC requests from remote CGWs)
 CGW_GRPC_LISTENING_PORT           - Port to bind gRPC server to (listens for gRPC requests from remote CGWs)
 CGW_GRPC_PUBLIC_HOST              - IP or hostname for Redis record (remote CGWs will connect to this particular shard through provided host record;
@@ -125,6 +128,9 @@ declare -x CGW_NB_INFRA_CERTS_PATH="/etc/nb_infra_certs"
 declare -x CGW_NB_INFRA_TLS="no"
 declare -x CGW_UCENTRAL_AP_DATAMODEL_URI="https://raw.githubusercontent.com/Telecominfraproject/wlan-ucentral-schema/main/ucentral.schema.json"
 declare -x CGW_UCENTRAL_SWITCH_DATAMODEL_URI="https://raw.githubusercontent.com/Telecominfraproject/ols-ucentral-schema/main/ucentral.schema.json"
+declare -x CGW_GROUPS_CAPACITY=1000
+declare -x CGW_GROUPS_THRESHOLD=50
+declare -x CGW_GROUP_INFRAS_CAPACITY=2000
 ```
 # Certificates
 The CGW uses two different sets of certificate configuration:

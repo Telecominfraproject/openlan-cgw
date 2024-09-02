@@ -13,6 +13,9 @@ use crate::{
 };
 
 const CGW_DEFAULT_ID: i32 = 0;
+const CGW_DEFAULT_GROUPS_CAPACITY: i32 = 1000;
+const CGW_DEFAULT_GROUPS_THRESHOLD: i32 = 50;
+const CGW_DEFAULT_GROUP_INFRAS_CAPACITY: i32 = 2000;
 const CGW_DEFAULT_WSS_T_NUM: usize = 4;
 const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
 const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
@@ -527,6 +530,15 @@ pub struct AppArgs {
     /// CGW unique identifier (i32)
     pub cgw_id: i32,
 
+    /// CGW groups capacity (i32)
+    pub cgw_groups_capacity: i32,
+
+    /// CGW groups threshold (i32)
+    pub cgw_groups_threshold: i32,
+
+    /// CGW group infras capacity (i32)
+    pub cgw_group_infras_capacity: i32,
+
     /// Topomap featue status (enabled/disabled)
     pub feature_topomap_enabled: bool,
 
@@ -576,6 +588,45 @@ impl AppArgs {
             Err(_) => CGW_DEFAULT_ID,
         };
 
+        let cgw_groups_capacity: i32 = match env::var("CGW_GROUPS_CAPACITY") {
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
+            Err(_) => CGW_DEFAULT_GROUPS_CAPACITY,
+        };
+
+        let cgw_groups_threshold: i32 = match env::var("CGW_GROUPS_THRESHOLD") {
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
+            Err(_) => CGW_DEFAULT_GROUPS_THRESHOLD,
+        };
+
+        let cgw_group_infras_capacity: i32 = match env::var("CGW_GROUP_INFRAS_CAPACITY") {
+            Ok(val) => match val.parse() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Err(Error::AppArgsParser(format!(
+                        "Failed to parse CGW_GROUP_INFRAS_CAPACITY! Invalid value: {}",
+                        val
+                    )));
+                }
+            },
+            Err(_) => CGW_DEFAULT_GROUP_INFRAS_CAPACITY,
+        };
+
         let feature_topomap_enabled: bool = match env::var("CGW_FEATURE_TOPOMAP_ENABLE") {
             Ok(_) => true,
             Err(_) => CGW_DEFAULT_TOPOMAP_STATE,
@@ -610,6 +661,9 @@ impl AppArgs {
             redis_args,
             metrics_args,
             validation_schema,
+            cgw_groups_capacity,
+            cgw_groups_threshold,
+            cgw_group_infras_capacity,
         })
     }
 }

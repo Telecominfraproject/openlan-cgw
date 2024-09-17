@@ -340,20 +340,31 @@ impl CGWConnectionServer {
             }
         };
 
-        let config_validator =
-            match CGWUCentralConfigValidators::new(app_args.validation_schema.clone()) {
-                Ok(validator) => validator,
-                Err(e) => {
-                    error!(
-                        "Can't create CGW Connection server: Config validator create failed: {}",
-                        e.to_string(),
-                    );
-                    return Err(Error::ConnectionServer(format!(
-                        "Can't create CGW Connection server: Config validator create failed: {}",
-                        e.to_string(),
-                    )));
-                }
-            };
+        // TODO: proper fix.
+        // Ugly W/A for now;
+        // The reason behind this change (W/A), is that underlying validator
+        // uses sync call, which panics (due to it being called in async
+        // context).
+        // The proper fix would to be refactor all constructors to be sync,
+        // but use spawn_blocking where needed in contextes that rely on the
+        // underlying async calls.
+        let app_args_clone = app_args.validation_schema.clone();
+        let get_config_validator_fut = tokio::task::spawn_blocking(move || {
+            CGWUCentralConfigValidators::new(app_args_clone).unwrap()
+        });
+        let config_validator = match get_config_validator_fut.await {
+            Ok(res) => res,
+            Err(e) => {
+                error!(
+                    "Failed to retrieve json config validators: {}",
+                    e.to_string()
+                );
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to retrieve json config validators: {}",
+                    e.to_string()
+                )));
+            }
+        };
 
         let server = Arc::new(CGWConnectionServer {
             allow_mismatch: app_args.wss_args.allow_mismatch,

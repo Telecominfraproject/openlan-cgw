@@ -50,6 +50,19 @@ use cgw_tls::cgw_tls_create_acceptor;
 
 use crate::cgw_errors::{Error, Result};
 
+use libc::{
+    c_int, setsockopt, IPPROTO_TCP, SOL_SOCKET, SO_KEEPALIVE, TCP_KEEPCNT, TCP_KEEPIDLE,
+    TCP_KEEPINTVL,
+};
+
+use std::os::unix::io::AsRawFd;
+
+use tokio::net::TcpStream;
+
+const CGW_TCP_KEEPALIVE_TIMEOUT: u32 = 60;
+const CGW_TCP_KEEPALIVE_COUNT: u32 = 5;
+const CGW_TCP_KEEPALIVE_INTERVAL: u32 = 15;
+
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
     /// Print debug-level messages and above
@@ -159,6 +172,98 @@ impl AppCore {
     }
 }
 
+async fn cgw_set_tcp_keepalive_options(stream: TcpStream) -> Result<TcpStream> {
+    // Convert Tokio's TcpStream to std::net::TcpStream
+    let std_stream = match stream.into_std() {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Tokio TcpStream into Std TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Tokio TcpStream into Std TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    // Get the raw file descriptor (socket)
+    let raw_fd = std_stream.as_raw_fd();
+
+    // Set the socket option to enable TCP keepalive
+    let keepalive: c_int = 1;
+    unsafe {
+        if setsockopt(
+            raw_fd,
+            SOL_SOCKET,
+            SO_KEEPALIVE,
+            &keepalive as *const _ as *const _,
+            std::mem::size_of_val(&keepalive) as u32,
+        ) != 0
+        {
+            error!("Failed to enable TCP keepalive");
+            return Err(Error::Tcp("Failed to enable TCP keepalive".to_string()));
+        }
+    }
+
+    // Set the TCP_KEEPIDLE option (keepalive time)
+    unsafe {
+        if setsockopt(
+            raw_fd,
+            IPPROTO_TCP,
+            TCP_KEEPIDLE,
+            &(CGW_TCP_KEEPALIVE_TIMEOUT as c_int) as *const _ as *const _,
+            std::mem::size_of_val(&CGW_TCP_KEEPALIVE_TIMEOUT) as u32,
+        ) != 0
+        {
+            error!("Failed to set TCP_KEEPIDLE");
+            return Err(Error::Tcp("Failed to set TCP_KEEPIDLE".to_string()));
+        }
+    }
+
+    // Set the TCP_KEEPINTVL option (keepalive interval)
+    unsafe {
+        if setsockopt(
+            raw_fd,
+            IPPROTO_TCP,
+            TCP_KEEPINTVL,
+            &(CGW_TCP_KEEPALIVE_INTERVAL as c_int) as *const _ as *const _,
+            std::mem::size_of_val(&CGW_TCP_KEEPALIVE_INTERVAL) as u32,
+        ) != 0
+        {
+            error!("Failed to set TCP_KEEPINTVL");
+            return Err(Error::Tcp("Failed to set TCP_KEEPINTVL".to_string()));
+        }
+    }
+
+    // Set the TCP_KEEPCNT option (keepalive probes count)
+    unsafe {
+        if setsockopt(
+            raw_fd,
+            IPPROTO_TCP,
+            TCP_KEEPCNT,
+            &(CGW_TCP_KEEPALIVE_COUNT as c_int) as *const _ as *const _,
+            std::mem::size_of_val(&CGW_TCP_KEEPALIVE_COUNT) as u32,
+        ) != 0
+        {
+            error!("Failed to set TCP_KEEPCNT");
+            return Err(Error::Tcp("Failed to set TCP_KEEPCNT".to_string()));
+        }
+    }
+
+    // Convert the std::net::TcpStream back to Tokio's TcpStream
+    let stream = match TcpStream::from_std(std_stream) {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Std TcpStream into Tokio TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Std TcpStream into Tokio TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    Ok(stream)
+}
+
 async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     debug!("server_loop entry");
 
@@ -214,7 +319,18 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                     }
                 };
 
-                info!("ACK conn: {}", conn_idx);
+                let socket = match cgw_set_tcp_keepalive_options(socket).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!(
+                            "Failed to set TCP keepalive options. Error: {}",
+                            e.to_string()
+                        );
+                        break;
+                    }
+                };
+
+                info!("ACK conn: {}, remote address: {}", conn_idx, remote_addr);
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone

@@ -13,13 +13,13 @@ use crate::cgw_ucentral_parser::{
     CGWUCentralEventRealtimeEventWClientJoin, CGWUCentralEventRealtimeEventWClientLeave,
     CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
     CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventType,
-    CGWUCentralJRPCMessage,
+    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
+    CGWUCentralEventType, CGWUCentralJRPCMessage,
 };
 
 fn parse_lldp_data(
     lldp_peers: &Map<String, Value>,
-    links: &mut Vec<CGWUCentralEventStateLinks>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>>,
 ) -> Result<()> {
     let directions = [
         (
@@ -54,12 +54,15 @@ fn parse_lldp_data(
                 .ok_or_else(|| Error::UCentralParser("Failed to prase port"))?
                 .to_string();
 
-            links.push(CGWUCentralEventStateLinks {
-                local_port,
+            let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
+            let clients_data = CGWUCentralEventStateLinks {
                 remote_serial,
                 remote_port,
                 is_downstream,
-            });
+            };
+
+            links.insert(local_port, vec![clients_data]);
         }
     }
 
@@ -108,7 +111,7 @@ fn parse_wireless_ssids_info(
 
 fn parse_wireless_clients_data(
     ssids: &Vec<Value>,
-    links: &mut Vec<CGWUCentralEventStateClients>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
     upstream_ifaces: &[String],
     ssids_map: &HashMap<String, (String, String)>,
     timestamp: i64,
@@ -172,23 +175,28 @@ fn parse_wireless_clients_data(
                             })?;
                         }
 
-                        links.push(CGWUCentralEventStateClients {
+                        let local_port = CGWUCentralEventStatePort::WirelessPort(ssid, band);
+
+                        let clients_data = CGWUCentralEventStateClients {
                             client_type: CGWUCentralEventStateClientsType::Wireless(
                                 // Track timestamp of initial connection:
                                 // if we receive state evt <now>, substract
                                 // connected since from it, to get
                                 // original connection timestamp.
                                 timestamp - ts,
-                                ssid,
-                                band,
                             ),
-                            local_port: local_port.clone(),
                             remote_serial,
                             // TODO: rework remote_port to have Band, RSSI, chan etc
                             // for an edge.
                             remote_port: "<Wireless-client>".to_string(),
                             is_downstream: true,
-                        });
+                        };
+
+                        if let Some(ref mut existing_vec) = links.get_mut(&local_port) {
+                            existing_vec.push(clients_data);
+                        } else {
+                            links.insert(local_port, vec![clients_data]);
+                        }
                     }
                 }
             }
@@ -200,7 +208,7 @@ fn parse_wireless_clients_data(
 
 fn parse_wired_clients_data(
     clients: &Vec<Value>,
-    links: &mut Vec<CGWUCentralEventStateClients>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
     upstream_ifaces: &[String],
     timestamp: i64,
 ) -> Result<()> {
@@ -241,23 +249,30 @@ fn parse_wired_clients_data(
             continue;
         }
 
+        let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
         let remote_serial = MacAddress::from_str(
             client["mac"]
                 .as_str()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse mac address"))?,
         )?;
 
-        links.push(CGWUCentralEventStateClients {
+        let clients_data: CGWUCentralEventStateClients = CGWUCentralEventStateClients {
             // Wired clients don't have <connected since> data.
             // Treat <now> as latest connected ts.
             client_type: CGWUCentralEventStateClientsType::Wired(timestamp),
-            local_port,
             remote_serial,
             // TODO: rework remote_port to have speed / duplex characteristics
             // for an edge.
             remote_port: "<Wired-client>".to_string(),
             is_downstream: true,
-        });
+        };
+
+        if let Some(ref mut existing_vec) = links.get_mut(&local_port) {
+            existing_vec.push(clients_data);
+        } else {
+            links.insert(local_port, vec![clients_data]);
+        }
     }
 
     Ok(())
@@ -265,7 +280,7 @@ fn parse_wired_clients_data(
 
 fn parse_interface_data(
     interface: &Map<String, Value>,
-    links: &mut Vec<CGWUCentralEventStateClients>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
     upstream_ifaces: &[String],
     timestamp: i64,
 ) -> Result<()> {
@@ -351,8 +366,14 @@ fn parse_state_event_data(
         )?;
 
         if let Value::Object(state_map) = &state_map["state"] {
-            let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
-            let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
+            let mut lldp_links: HashMap<
+                CGWUCentralEventStatePort,
+                Vec<CGWUCentralEventStateLinks>,
+            > = HashMap::new();
+            let mut clients_links: HashMap<
+                CGWUCentralEventStatePort,
+                Vec<CGWUCentralEventStateClients>,
+            > = HashMap::new();
 
             if feature_topomap_enabled {
                 if state_map.contains_key("lldp-peers") {
@@ -432,8 +453,12 @@ fn parse_state_event_data(
                 .as_str()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse mac address"))?,
         )?;
-        let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
-        let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
+        let mut lldp_links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>> =
+            HashMap::new();
+        let mut clients_links: HashMap<
+            CGWUCentralEventStatePort,
+            Vec<CGWUCentralEventStateClients>,
+        > = HashMap::new();
 
         if state_map.contains_key("lldp-peers") {
             if let Value::Object(v) = &state_map["lldp-peers"] {

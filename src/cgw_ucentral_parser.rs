@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 use std::str::FromStr;
+use std::{collections::HashMap, fmt};
 
 use eui48::MacAddress;
 
@@ -116,7 +117,6 @@ pub struct CGWUCentralEventConnect {
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLinks {
-    pub local_port: String,
     #[serde(skip)]
     pub remote_serial: MacAddress,
     pub remote_port: String,
@@ -127,8 +127,8 @@ pub struct CGWUCentralEventStateLinks {
 pub enum CGWUCentralEventStateClientsType {
     // Timestamp
     Wired(i64),
-    // Timestamp, Ssid, Band
-    Wireless(i64, String, String),
+    // Timestamp
+    Wireless(i64),
     // VID
     FDBClient(u16),
 }
@@ -136,7 +136,6 @@ pub enum CGWUCentralEventStateClientsType {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateClients {
     pub client_type: CGWUCentralEventStateClientsType,
-    pub local_port: String,
     #[serde(skip)]
     pub remote_serial: MacAddress,
     pub remote_port: String,
@@ -146,13 +145,42 @@ pub struct CGWUCentralEventStateClients {
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLLDPData {
     // links reported by the device:
-    pub links: Vec<CGWUCentralEventStateLinks>,
+    // local port (key), vector of links (value)
+    pub links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateClientsData {
     // links reported by the device (wired and wireless):
-    pub links: Vec<CGWUCentralEventStateClients>,
+    // Composed into hashmap of Port(key), and vector of links
+    // seen on this particular port.
+    pub links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
+}
+
+// One 'slice' / part of edge (Mac + port);
+// To make a proper complete edge two parts needed:
+// SRC -> DST
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize, Serialize)]
+pub enum CGWUCentralEventStatePort {
+    // Physical port description (port name)
+    #[serde(skip)]
+    PhysicalWiredPort(String),
+    // Wirelss port description (ssid, band)
+    #[serde(skip)]
+    WirelessPort(String, String),
+}
+
+impl fmt::Display for CGWUCentralEventStatePort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CGWUCentralEventStatePort::PhysicalWiredPort(port) => {
+                write!(f, "{port}")
+            }
+            CGWUCentralEventStatePort::WirelessPort(ssid, band) => {
+                write!(f, "WirelessClient({ssid},{band})")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]

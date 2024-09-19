@@ -17,7 +17,7 @@ use rdkafka::{
     consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
     producer::{FutureProducer, FutureRecord},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{
@@ -109,6 +109,35 @@ pub struct ForeignInfraConnection {
     pub infra_group_infra_device: MacAddress,
     pub reporter_shard_id: i32,
     pub group_owner_shard_id: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientJoinMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub infra_group_infra_device: MacAddress,
+    pub ssid: String,
+    pub band: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientLeaveMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub infra_group_infra_device: MacAddress,
+    pub band: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientMigrateMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub to_infra_group_infra_device: MacAddress,
+    pub to_ssid: String,
+    pub to_band: String,
 }
 
 pub fn cgw_construct_infra_group_create_response(
@@ -270,6 +299,61 @@ pub fn cgw_construct_foreign_infra_connection_msg(
     };
 
     Ok(serde_json::to_string(&foreign_infra_msg)?)
+}
+
+pub fn cgw_construct_client_join_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    infra_group_infra_device: MacAddress,
+    ssid: String,
+    band: String,
+) -> Result<String> {
+    let client_join_msg = APClientJoinMessage {
+        r#type: "ap_client_join",
+        infra_group_id,
+        client,
+        infra_group_infra_device,
+        ssid,
+        band,
+    };
+
+    Ok(serde_json::to_string(&client_join_msg)?)
+}
+
+pub fn cgw_construct_client_leave_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    infra_group_infra_device: MacAddress,
+    band: String,
+) -> Result<String> {
+    let client_join_msg = APClientLeaveMessage {
+        r#type: "ap_client_leave",
+        infra_group_id,
+        client,
+        infra_group_infra_device,
+        band,
+    };
+
+    Ok(serde_json::to_string(&client_join_msg)?)
+}
+
+pub fn cgw_construct_client_migrate_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    to_infra_group_infra_device: MacAddress,
+    to_ssid: String,
+    to_band: String,
+) -> Result<String> {
+    let client_migrate_msg = APClientMigrateMessage {
+        r#type: "ap_client_migrate",
+        infra_group_id,
+        client,
+        to_infra_group_infra_device,
+        to_ssid,
+        to_band,
+    };
+
+    Ok(serde_json::to_string(&client_migrate_msg)?)
 }
 
 struct CustomContext;

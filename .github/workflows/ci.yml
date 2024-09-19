@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - next
+      - testing
       - 'release/*'
     tags:
       - 'v*'
@@ -15,6 +16,7 @@ on:
     branches:
       - main
       - next
+      - testing
       - 'release/*'
 
 defaults:
@@ -52,10 +54,9 @@ jobs:
         SLACK_ICON: https://raw.githubusercontent.com/quintessence/slack-icons/master/images/github-logo-slack-icon.png
         SLACK_TITLE: Docker build failed for OWGW service
 
-  trigger-deploy-to-dev:
+  trigger-deploy-to-qa:
     runs-on: ubuntu-latest
-    #if: github.ref == 'refs/heads/main'
-    if: github.ref == 'zzzzzzz'
+    if: github.ref == 'refs/heads/test_scaling'
     needs:
       - docker
     steps:
@@ -73,4 +74,26 @@ jobs:
         workflow: cgw-dev-deployment.yaml
         token: ${{ secrets.WLAN_TESTING_PAT }}
         ref: master
-        inputs: '{"just_component": "true"}'
+        inputs: '{"upgrade": "true", "cgw_version": "test_scaling", "cgw_image": "test_scaling", "config_name": "default", "namespace":"openwifi-devcgw", "cluster": "tip-wlan-qa", "region": "us-east-2"}'
+
+  trigger-deploy-to-dev:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - docker
+    steps:
+    - name: Checkout actions repo
+      uses: actions/checkout@v4
+      with:
+        repository: Telecominfraproject/.github
+        path: github
+
+    - name: Trigger deployment of the latest version to dev instance and wait for result
+      uses: ./github/composite-actions/trigger-workflow-and-wait
+      with:
+        owner: Telecominfraproject
+        repo: wlan-testing
+        workflow: cgw-dev-deployment.yaml
+        token: ${{ secrets.WLAN_TESTING_PAT }}
+        ref: master
+        inputs: '{"upgrade": "true", "cgw_version": "main", "cgw_image": "main", "config_name": "cgw01", "namespace":"openlan-cgw01", "cluster": "tip-wlan-main", "region": "ap-south-1"}'

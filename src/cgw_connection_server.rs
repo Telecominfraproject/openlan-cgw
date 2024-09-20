@@ -1,5 +1,5 @@
 use crate::cgw_device::{
-    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState,
+    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
 };
 use crate::cgw_nb_api_listener::{
     cgw_construct_device_capabilities_changed_msg, cgw_construct_device_enqueue_response,
@@ -8,11 +8,14 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_device_del_response, cgw_construct_rebalance_group_response,
     cgw_construct_unassigned_infra_connection_msg,
 };
+use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
     CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
 };
-use crate::cgw_ucentral_parser::cgw_ucentral_parse_command_message;
+use crate::cgw_ucentral_parser::{
+    cgw_ucentral_parse_command_message, CGWUCentralCommandType, CGWUCentralConfigValidators,
+};
 use crate::cgw_ucentral_topology_map::CGWUCentralTopologyMap;
 use crate::AppArgs;
 
@@ -30,18 +33,17 @@ use crate::{
 
 use crate::cgw_errors::{Error, Result};
 
+use std::str::FromStr;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::TcpStream,
-    runtime::{Builder, Runtime},
+    runtime::Runtime,
     sync::{
         mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
     time::{sleep, Duration},
 };
-
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::{Map, Value};
 
@@ -153,6 +155,10 @@ pub struct CGWConnectionServer {
     // Key: device MAC, Value: Device
     devices_cache: Arc<RwLock<CGWDevicesCache>>,
 
+    // UCentral command messages validators
+    // for access points and switches
+    config_validator: CGWUCentralConfigValidators,
+
     // User-supplied arguments can disable state/realtime events
     // processing by underlying connections processors.
     pub feature_topomap_enabled: bool,
@@ -160,6 +166,7 @@ pub struct CGWConnectionServer {
 
 enum CGWNBApiParsedMsgType {
     InfrastructureGroupCreate,
+    InfrastructureGroupCreateToShard(i32),
     InfrastructureGroupDelete,
     InfrastructureGroupInfraAdd(Vec<MacAddress>),
     InfrastructureGroupInfraDel(Vec<MacAddress>),
@@ -185,65 +192,127 @@ impl CGWNBApiParsedMsg {
 
 impl CGWConnectionServer {
     pub async fn new(app_args: &AppArgs) -> Result<Arc<Self>> {
-        let wss_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(app_args.wss_t_num)
-                .thread_name_fn(|| {
-                    static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
-                    let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
-                    format!("cgw-wss-t-{}", id)
-                })
-                .thread_stack_size(3 * 1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let internal_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let nb_api_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox-nbapi")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let relay_msg_mbox_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-relay-mbox-nbapi")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let nb_api_mbox_tx_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-mbox-nbapi-tx")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
-        let queue_timeout_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("cgw-queue-timeout")
-                .thread_stack_size(1024 * 1024)
-                .enable_all()
-                .build()?,
-        );
+        let wss_runtime_handle = match cgw_get_runtime(CGWRuntimeType::WssRxTx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
+
+        let internal_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxInternal) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
+
+        let nb_api_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxNbApiRx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
+
+        let nb_api_mbox_tx_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxNbApiTx) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
+
+        let relay_msg_mbox_runtime_handle = match cgw_get_runtime(CGWRuntimeType::MboxRelay) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
+
+        let queue_timeout_handle = match cgw_get_runtime(CGWRuntimeType::QueueTimeout) {
+            Ok(ret_runtime) => match ret_runtime {
+                Some(runtime) => runtime,
+                None => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to find runtime type {:?}",
+                        CGWRuntimeType::WssRxTx
+                    )));
+                }
+            },
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get runtime type {:?}, err: {}",
+                    CGWRuntimeType::WssRxTx,
+                    e
+                )));
+            }
+        };
 
         let (internal_tx, internal_rx) = unbounded_channel::<CGWConnectionServerReqMsg>();
         let (nb_api_tx, nb_api_rx) = unbounded_channel::<CGWConnectionNBAPIReqMsg>();
 
         // Give NB API client a handle where it can do a TX (CLIENT -> CGW_SERVER)
         // RX is handled in internal_mbox of CGW_Server
-        let nb_api_c = match CGWNBApiClient::new(app_args, &nb_api_tx) {
+        let nb_api_c = match CGWNBApiClient::new(app_args.cgw_id, &app_args.kafka_args, &nb_api_tx)
+        {
             Ok(c) => c,
             Err(e) => {
                 error!(
@@ -271,8 +340,34 @@ impl CGWConnectionServer {
             }
         };
 
+        // TODO: proper fix.
+        // Ugly W/A for now;
+        // The reason behind this change (W/A), is that underlying validator
+        // uses sync call, which panics (due to it being called in async
+        // context).
+        // The proper fix would to be refactor all constructors to be sync,
+        // but use spawn_blocking where needed in contextes that rely on the
+        // underlying async calls.
+        let app_args_clone = app_args.validation_schema.clone();
+        let get_config_validator_fut = tokio::task::spawn_blocking(move || {
+            CGWUCentralConfigValidators::new(app_args_clone).unwrap()
+        });
+        let config_validator = match get_config_validator_fut.await {
+            Ok(res) => res,
+            Err(e) => {
+                error!(
+                    "Failed to retrieve json config validators: {}",
+                    e.to_string()
+                );
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to retrieve json config validators: {}",
+                    e
+                )));
+            }
+        };
+
         let server = Arc::new(CGWConnectionServer {
-            allow_mismatch: app_args.allow_mismatch,
+            allow_mismatch: app_args.wss_args.allow_mismatch,
             local_cgw_id: app_args.cgw_id,
             connmap: CGWConnMap::new(),
             wss_rx_tx_runtime: wss_runtime_handle,
@@ -287,6 +382,7 @@ impl CGWConnectionServer {
             mbox_relay_msg_runtime_handle: relay_msg_mbox_runtime_handle,
             devices_cache: Arc::new(RwLock::new(CGWDevicesCache::new())),
             feature_topomap_enabled: app_args.feature_topomap_enabled,
+            config_validator,
         });
 
         let server_clone = server.clone();
@@ -296,8 +392,15 @@ impl CGWConnectionServer {
         });
 
         let server_clone = server.clone();
+        let ifras_capacity = app_args.cgw_group_infras_capacity;
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupInfrasCapacity,
+            CGWMetricsCounterOpType::Set(ifras_capacity.into()),
+        );
         server.mbox_nb_api_runtime_handle.spawn(async move {
-            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+            server_clone
+                .process_internal_nb_api_mbox(nb_api_rx, ifras_capacity)
+                .await;
         });
 
         server.queue_timeout_handle.spawn(async move {
@@ -319,6 +422,12 @@ impl CGWConnectionServer {
                 )
                 .await;
         });
+
+        if server.feature_topomap_enabled {
+            info!("Topomap enabled, starting queue processor...");
+            let topo_map = CGWUCentralTopologyMap::get_ref();
+            topo_map.start(&server.wss_rx_tx_runtime).await;
+        }
 
         Ok(server)
     }
@@ -364,6 +473,13 @@ impl CGWConnectionServer {
     fn parse_nbapi_msg(&self, pload: &str) -> Option<CGWNBApiParsedMsg> {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreate {
+            r#type: String,
+            infra_group_id: String,
+            infra_name: String,
+            uuid: Uuid,
+        }
+        #[derive(Debug, Serialize, Deserialize)]
+        struct InfraGroupCreateToShard {
             r#type: String,
             infra_group_id: String,
             infra_name: String,
@@ -417,6 +533,16 @@ impl CGWConnectionServer {
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupCreate,
+                ));
+            }
+            "infrastructure_group_create_to_shard" => {
+                let json_msg: InfraGroupCreateToShard = serde_json::from_str(pload).ok()?;
+                return Some(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
+                        json_msg.infra_shard_id,
+                    ),
                 ));
             }
             "infrastructure_group_delete" => {
@@ -489,14 +615,9 @@ impl CGWConnectionServer {
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
 
             for mac in mac_list.iter() {
-                match connmap_r_lock.get(&mac) {
-                    Some(c) => {
-                        let _ = c.send(msg.clone());
-                        debug!("Notified {mac} about GID change (->{new_gid})");
-                    }
-                    None => {
-                        warn!("Wanted to notify {mac} about GID change (->{new_gid}), but device doesn't exist in map (Not connected still?)");
-                    }
+                if let Some(c) = connmap_r_lock.get(mac) {
+                    let _ = c.send(msg.clone());
+                    debug!("Notified {mac} about GID change (->{new_gid})");
                 }
             }
         });
@@ -505,6 +626,7 @@ impl CGWConnectionServer {
     async fn process_internal_nb_api_mbox(
         self: Arc<Self>,
         mut rx_mbox: CGWConnectionServerNBAPIMboxRx,
+        infras_capacity: i32,
     ) {
         debug!("process_nb_api_mbox entry");
 
@@ -612,10 +734,14 @@ impl CGWConnectionServer {
                     // DB stuff - create group for remote shards to be aware of change
                     let group = CGWDBInfrastructureGroup {
                         id: gid,
-                        reserved_size: 1000i32,
+                        reserved_size: infras_capacity,
                         actual_size: 0i32,
                     };
-                    match self.cgw_remote_discovery.create_infra_group(&group).await {
+                    match self
+                        .cgw_remote_discovery
+                        .create_infra_group(&group, None)
+                        .await
+                    {
                         Ok(_dst_cgw_id) => {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
@@ -646,8 +772,61 @@ impl CGWConnectionServer {
                             } else {
                                 error!("Failed to construct infra_group_create message");
                             }
+                        }
+                    }
+                    // This type of msg is handled in place, not added to buf
+                    // for later processing.
+                    continue;
+                } else if let CGWNBApiParsedMsg {
+                    uuid,
+                    gid,
+                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(shard_id),
+                } = parsed_msg
+                {
+                    // DB stuff - create group for remote shards to be aware of change
+                    let group = CGWDBInfrastructureGroup {
+                        id: gid,
+                        reserved_size: 1000i32,
+                        actual_size: 0i32,
+                    };
+                    match self
+                        .cgw_remote_discovery
+                        .create_infra_group(&group, Some(shard_id))
+                        .await
+                    {
+                        Ok(_dst_cgw_id) => {
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
+                                gid,
+                                String::default(),
+                                uuid,
+                                true,
+                                None,
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Create group gid {gid}, uuid {uuid} request failed, reason: {:?}",
+                                e
+                            );
 
-                            warn!("Create group gid {gid} received, but it already exists, uuid {uuid}");
+                            if let Ok(resp) = cgw_construct_infra_group_create_response(
+                                gid,
+                                String::default(),
+                                uuid,
+                                false,
+                                Some(format!(
+                                    "Failed to create new group to shard id {}: {:?}",
+                                    shard_id, e
+                                )),
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                            } else {
+                                error!("Failed to construct infra_group_create message");
+                            }
                         }
                     }
                     // This type of msg is handled in place, not added to buf
@@ -666,6 +845,32 @@ impl CGWConnectionServer {
                         .await
                     {
                         Ok(()) => {
+                            // We try to help free topomap memory usage
+                            // by notifying it whenever GID get's destroyed.
+                            // Howover, for allocation we let topo map
+                            // handle it's mem alloc whenever necessary
+                            // on it's own, when data from specific gid
+                            // arrives - we rely on topo map to
+                            // allocate necessary structures on it's own.
+                            //
+                            // In this way, we make sure that we handle
+                            // properly the GID resoration scenario:
+                            // if CGW restarts and loads GID info from
+                            // DB, there would be no notification about
+                            // create/del, and there's no need to
+                            // oflload this responsibility to
+                            // remote_discovery module for example,
+                            // due to the fact that CGW is not designed
+                            // for management of redis without CGW knowledge:
+                            // if something disrupts the redis state / sql
+                            // state without CGW's prior knowledge,
+                            // it's not a responsibility of CGW to be aware
+                            // of such changes and handle it correspondingly.
+                            if self.feature_topomap_enabled {
+                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                topo_map.remove_gid(gid).await;
+                            }
+
                             if let Ok(resp) =
                                 cgw_construct_infra_group_delete_response(gid, uuid, true, None)
                             {
@@ -1043,16 +1248,64 @@ impl CGWConnectionServer {
                             // 1. Parse message from NB
                             if let Ok(parsed_cmd) = cgw_ucentral_parse_command_message(&msg.clone())
                             {
-                                let queue_msg: CGWUCentralMessagesQueueItem =
-                                    CGWUCentralMessagesQueueItem::new(parsed_cmd, msg);
+                                if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure {
+                                    // 2. Get device type
+                                    let devices_cache = self.devices_cache.read().await;
+                                    match devices_cache.get_device(&device_mac) {
+                                        Some(dev) => {
+                                            let device_type = dev.get_device_type();
+                                            match self
+                                                .config_validator
+                                                .validate_config_message(&msg, device_type)
+                                            {
+                                                Ok(()) => {
+                                                    let queue_msg: CGWUCentralMessagesQueueItem =
+                                                        CGWUCentralMessagesQueueItem::new(
+                                                            parsed_cmd, msg,
+                                                        );
 
-                                // 2. Add message to queue
-                                {
-                                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                                    let _ =
-                                        queue_lock.push_device_message(device_mac, queue_msg).await;
+                                                    // 3. Add message to queue
+                                                    {
+                                                        let queue_lock =
+                                                            CGW_MESSAGES_QUEUE.read().await;
+                                                        let _ = queue_lock
+                                                            .push_device_message(
+                                                                device_mac, queue_msg,
+                                                            )
+                                                            .await;
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    error!("Failed to validate config message! Invalid configure message for device: {device_mac}");
+                                                    if let Ok(resp) = cgw_construct_device_enqueue_response(
+                                                        uuid,
+                                                        false,
+                                                        Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\n{}", e)),
+                                                    ) {
+                                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                                    } else {
+                                                        error!("Failed to construct device_enqueue message");
+                                                    }
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
+                                            continue;
+                                        }
+                                    }
                                 }
                             } else {
+                                if let Ok(resp) = cgw_construct_device_enqueue_response(
+                                    uuid,
+                                    false,
+                                    Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
+                                ) {
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                } else {
+                                    error!("Failed to construct device_enqueue message");
+                                }
                                 error!("Failed to parse UCentral command");
                             }
                         }
@@ -1167,6 +1420,8 @@ impl CGWConnectionServer {
                     conn_processor_mbox_tx,
                 ) = msg
                 {
+                    let device_platform: String = caps.platform.clone();
+
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -1198,14 +1453,23 @@ impl CGWConnectionServer {
                         connmap_w_lock.len() + 1
                     );
 
+                    let device_type = match CGWDeviceType::from_str(caps.platform.as_str()) {
+                        Ok(dev_type) => dev_type,
+                        Err(_e) => {
+                            error!("Failed to parse device {device_mac} type!");
+                            CGWDeviceType::CGWDeviceUnknown
+                        }
+                    };
+
                     // Received new connection - check if infra exist in cache
                     // If exists - it already should have assigned group
                     // If not - simply add to cache - set gid == 0, devices should't remain in DB
                     let mut devices_cache = self.devices_cache.write().await;
                     let mut device_group_id: i32 = 0;
-                    if let Some(device) = devices_cache.get_device(&device_mac) {
+                    if let Some(device) = devices_cache.get_device_mut(&device_mac) {
                         device_group_id = device.get_device_group_id();
                         device.set_device_state(CGWDeviceState::CGWDeviceConnected);
+                        device.set_device_type(device_type);
 
                         let group_id = device.get_device_group_id();
                         if let Some(group_owner_id) = self
@@ -1295,7 +1559,13 @@ impl CGWConnectionServer {
 
                         devices_cache.add_device(
                             &device_mac,
-                            &CGWDevice::new(CGWDeviceState::CGWDeviceConnected, 0, false, caps),
+                            &CGWDevice::new(
+                                device_type,
+                                CGWDeviceState::CGWDeviceConnected,
+                                0,
+                                false,
+                                caps,
+                            ),
                         );
 
                         if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
@@ -1315,7 +1585,9 @@ impl CGWConnectionServer {
 
                     if self.feature_topomap_enabled {
                         let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map.insert_device(&device_mac).await;
+                        topo_map
+                            .insert_device(&device_mac, device_platform.as_str(), device_group_id)
+                            .await;
                     }
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
@@ -1326,6 +1598,7 @@ impl CGWConnectionServer {
                         let _ = conn_processor_mbox_tx_clone.send(msg);
                     });
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
+                    let mut device_group_id: i32 = 0;
                     // Insert device to disconnected device list
                     {
                         let queue_lock = CGW_MESSAGES_QUEUE.read().await;
@@ -1339,7 +1612,8 @@ impl CGWConnectionServer {
                     connmap_w_lock.remove(&device_mac);
 
                     let mut devices_cache = self.devices_cache.write().await;
-                    if let Some(device) = devices_cache.get_device(&device_mac) {
+                    if let Some(device) = devices_cache.get_device_mut(&device_mac) {
+                        device_group_id = device.get_device_group_id();
                         if device.get_device_remains_in_db() {
                             device.set_device_state(CGWDeviceState::CGWDeviceDisconnected);
                         } else {
@@ -1349,7 +1623,9 @@ impl CGWConnectionServer {
 
                     if self.feature_topomap_enabled {
                         let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map.remove_device(&device_mac).await;
+                        topo_map
+                            .remove_device(&device_mac, device_group_id, self.clone())
+                            .await;
                     }
 
                     CGWMetrics::get_ref().change_counter(
@@ -1448,7 +1724,7 @@ mod tests {
     #[test]
     fn can_parse_connect_event() -> Result<()> {
         let msg = get_connect_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(msg, 0)?;
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(false, msg, 0)?;
 
         match event.evt_type {
             CGWUCentralEventType::Connect(_) => {
@@ -1466,7 +1742,7 @@ mod tests {
 
     fn can_parse_log_event() -> Result<()> {
         let msg = get_log_json_msg();
-        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(msg, 0)?;
+        let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(false, msg, 0)?;
 
         match event.evt_type {
             CGWUCentralEventType::Log(_) => {

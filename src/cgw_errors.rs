@@ -17,11 +17,17 @@ pub enum Error {
 
     Tls(String),
 
+    Redis(String),
+
     UCentralParser(&'static str),
+
+    UCentralValidator(String),
 
     UCentralMessagesQueue(&'static str),
 
     AppArgsParser(String),
+
+    Runtime(String),
 
     // -- Externals
     #[from]
@@ -38,6 +44,9 @@ pub enum Error {
 
     #[from]
     TokioSync(tokio::sync::TryLockError),
+
+    #[from]
+    Tokiofs(tokio::fs::ReadDir),
 
     #[from]
     IpAddressParse(std::net::AddrParseError),
@@ -64,9 +73,6 @@ pub enum Error {
     InvalidUri(warp::http::uri::InvalidUri),
 
     #[from]
-    RedisAsync(redis_async::error::Error),
-
-    #[from]
     StaticStr(&'static str),
 
     #[from]
@@ -79,12 +85,11 @@ pub enum Error {
     Empty(()),
 }
 
-impl ToString for Error {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::AppArgsParser(message) => message.clone(),
-            Error::Tls(message) => message.clone(),
-            _ => format!("{:?}", self),
+            Error::AppArgsParser(message) | Error::Tls(message) => write!(f, "{}", message),
+            _ => write!(f, "{:?}", self),
         }
     }
 }

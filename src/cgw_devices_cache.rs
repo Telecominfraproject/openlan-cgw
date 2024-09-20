@@ -61,11 +61,19 @@ impl CGWDevicesCache {
     }
 
     pub fn check_device_exists(&self, key: &MacAddress) -> bool {
-        self.cache.get(key).is_some()
+        self.cache.contains_key(key)
     }
 
-    pub fn get_device(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
+    pub fn get_device_mut(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
         if let Some(value) = self.cache.get_mut(key) {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_device(&self, key: &MacAddress) -> Option<&CGWDevice> {
+        if let Some(value) = self.cache.get(key) {
             Some(value)
         } else {
             None

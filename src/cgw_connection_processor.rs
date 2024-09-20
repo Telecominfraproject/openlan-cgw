@@ -19,6 +19,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -70,6 +71,7 @@ pub struct CGWConnectionProcessor {
     pub idx: i64,
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
+    pub device_type: CGWDeviceType,
 }
 
 impl CGWConnectionProcessor {
@@ -81,6 +83,8 @@ impl CGWConnectionProcessor {
             idx: conn_idx,
             group_id: 0,
             feature_topomap_enabled: server.feature_topomap_enabled,
+            // Default to AP, it's safe, as later-on it will be changed
+            device_type: CGWDeviceType::CGWDeviceAP,
         };
 
         conn_processor
@@ -186,7 +190,8 @@ impl CGWConnectionProcessor {
         }
 
         self.serial = evt.serial;
-        let device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
+
+        self.device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
@@ -252,8 +257,7 @@ impl CGWConnectionProcessor {
             }
         }
 
-        self.process_connection(stream, sink, mbox_rx, device_type)
-            .await;
+        self.process_connection(stream, sink, mbox_rx).await;
 
         Ok(())
     }
@@ -261,13 +265,13 @@ impl CGWConnectionProcessor {
     async fn process_wss_rx_msg(
         &self,
         msg: std::result::Result<Message, tungstenite::error::Error>,
-        device_type: CGWDeviceType,
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
     ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
         let timestamp = Local::now();
+        let mut kafaka_msg: String = String::new();
 
         match msg {
             Ok(msg) => match msg {
@@ -275,14 +279,32 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
-                    if let Ok(evt) =
-                        cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
-                    {
+                    if let Ok(evt) = cgw_ucentral_event_parse(
+                        &self.device_type,
+                        self.feature_topomap_enabled,
+                        &payload,
+                        timestamp.timestamp(),
+                    ) {
+                        kafaka_msg.clone_from(&payload);
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
+                            if let Some(decompressed) = evt.decompressed.clone() {
+                                kafaka_msg = decompressed;
+                            }
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map.process_state_message(&device_type, evt).await;
-                                topo_map.debug_dump_map().await;
+
+                                // TODO: remove this Arc clone:
+                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Future rework and refactoring would require to separate
+                                // NB api from being an internal obj of conn_server to be a
+                                // standalone (singleton?) object.
+                                topo_map.enqueue_event(
+                                    evt,
+                                    self.device_type,
+                                    self.serial,
+                                    self.group_id,
+                                    self.cgw_server.clone(),
+                                );
                             }
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
                             if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
@@ -304,16 +326,24 @@ impl CGWConnectionProcessor {
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map
-                                    .process_device_topology_event(&device_type, evt)
-                                    .await;
-                                topo_map.debug_dump_map().await;
+                                // TODO: remove this Arc clone:
+                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Future rework and refactoring would require to separate
+                                // NB api from being an internal obj of conn_server to be a
+                                // standalone (singleton?) object.
+                                topo_map.enqueue_event(
+                                    evt,
+                                    self.device_type,
+                                    self.serial,
+                                    self.group_id,
+                                    self.cgw_server.clone(),
+                                );
                             }
                         }
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, payload)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafaka_msg)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -394,7 +424,6 @@ impl CGWConnectionProcessor {
         mut stream: SStream,
         mut sink: SSink,
         mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,
-        device_type: CGWDeviceType,
     ) {
         #[derive(Debug)]
         enum WakeupReason {
@@ -545,7 +574,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, device_type, &mut fsm_state, pending_req_id)
+                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id)
                         .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {

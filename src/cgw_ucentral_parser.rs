@@ -1,11 +1,18 @@
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 use std::str::FromStr;
+use std::{collections::HashMap, fmt};
 
 use eui48::MacAddress;
 
+use jsonschema::JSONSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
+use url::Url;
 
+use crate::cgw_app_args::{CGWValidationSchemaArgs, CGWValionSchemaRef};
 use crate::cgw_errors::{Error, Result};
 
 use crate::{
@@ -14,6 +21,76 @@ use crate::{
 };
 
 pub type CGWUCentralJRPCMessage = Map<String, Value>;
+
+pub struct CGWUCentralConfigValidators {
+    ap_schema: JSONSchema,
+    switch_schema: JSONSchema,
+}
+
+impl CGWUCentralConfigValidators {
+    pub fn new(uris: CGWValidationSchemaArgs) -> Result<CGWUCentralConfigValidators> {
+        let ap_schema = cgw_initialize_json_validator(uris.ap_schema_uri)?;
+        let switch_schema = cgw_initialize_json_validator(uris.switch_schema_uri)?;
+
+        Ok(CGWUCentralConfigValidators {
+            ap_schema,
+            switch_schema,
+        })
+    }
+
+    pub fn validate_config_message(&self, message: &str, device_type: CGWDeviceType) -> Result<()> {
+        let msg: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
+            Ok(m) => m,
+            Err(e) => {
+                error!("Failed to parse input json {e}");
+                return Err(Error::UCentralParser("Failed to parse input json"));
+            }
+        };
+
+        let config = match msg.get("params") {
+            Some(cfg) => cfg,
+            None => {
+                error!("Failed to get configs, invalid config message recevied");
+                return Err(Error::UCentralParser(
+                    "Failed to get configs, invalid config message recevied",
+                ));
+            }
+        };
+
+        let config = match config.get("config") {
+            Some(cfg) => cfg,
+            None => {
+                error!("Failed to get config params, invalid config message recevied");
+                return Err(Error::UCentralParser(
+                    "Failed to get config params, invalid config message recevied",
+                ));
+            }
+        };
+
+        let result = match device_type {
+            CGWDeviceType::CGWDeviceAP => self.ap_schema.validate(config),
+            CGWDeviceType::CGWDeviceSwitch => self.switch_schema.validate(config),
+            CGWDeviceType::CGWDeviceUnknown => {
+                error!("Failed to validate configure message for device type unknown");
+                return Err(Error::UCentralParser(
+                    "Failed to validate configure message for device type unknown",
+                ));
+            }
+        };
+
+        let mut json_errors: String = String::new();
+        if let Err(errors) = result {
+            for error in errors {
+                json_errors += &format!("JSON: Validation error: {}\n", error);
+                json_errors += &format!("JSON: Instance path: {}\n", error.instance_path);
+            }
+            error!("{json_errors}");
+            return Err(Error::UCentralValidator(json_errors));
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventLog {
@@ -40,7 +117,6 @@ pub struct CGWUCentralEventConnect {
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLinks {
-    pub local_port: String,
     #[serde(skip)]
     pub remote_serial: MacAddress,
     pub remote_port: String,
@@ -51,8 +127,8 @@ pub struct CGWUCentralEventStateLinks {
 pub enum CGWUCentralEventStateClientsType {
     // Timestamp
     Wired(i64),
-    // Timestamp, Ssid, Band
-    Wireless(i64, String, String),
+    // Timestamp
+    Wireless(i64),
     // VID
     FDBClient(u16),
 }
@@ -60,7 +136,6 @@ pub enum CGWUCentralEventStateClientsType {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateClients {
     pub client_type: CGWUCentralEventStateClientsType,
-    pub local_port: String,
     #[serde(skip)]
     pub remote_serial: MacAddress,
     pub remote_port: String,
@@ -70,13 +145,42 @@ pub struct CGWUCentralEventStateClients {
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateLLDPData {
     // links reported by the device:
-    pub links: Vec<CGWUCentralEventStateLinks>,
+    // local port (key), vector of links (value)
+    pub links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventStateClientsData {
     // links reported by the device (wired and wireless):
-    pub links: Vec<CGWUCentralEventStateClients>,
+    // Composed into hashmap of Port(key), and vector of links
+    // seen on this particular port.
+    pub links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
+}
+
+// One 'slice' / part of edge (Mac + port);
+// To make a proper complete edge two parts needed:
+// SRC -> DST
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize, Serialize)]
+pub enum CGWUCentralEventStatePort {
+    // Physical port description (port name)
+    #[serde(skip)]
+    PhysicalWiredPort(String),
+    // Wirelss port description (ssid, band)
+    #[serde(skip)]
+    WirelessPort(String, String),
+}
+
+impl fmt::Display for CGWUCentralEventStatePort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CGWUCentralEventStatePort::PhysicalWiredPort(port) => {
+                write!(f, "{port}")
+            }
+            CGWUCentralEventStatePort::WirelessPort(ssid, band) => {
+                write!(f, "WirelessClient({ssid},{band})")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -146,6 +250,7 @@ pub enum CGWUCentralEventType {
 pub struct CGWUCentralEvent {
     pub serial: MacAddress,
     pub evt_type: CGWUCentralEventType,
+    pub decompressed: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -262,6 +367,7 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
             uuid: 1,
             capabilities: caps,
         }),
+        decompressed: None,
     };
 
     Ok(event)
@@ -327,11 +433,90 @@ pub fn cgw_ucentral_parse_command_message(message: &str) -> Result<CGWUCentralCo
 
 pub fn cgw_ucentral_event_parse(
     device_type: &CGWDeviceType,
+    feature_topomap_enabled: bool,
     message: &str,
     timestamp: i64,
 ) -> Result<CGWUCentralEvent> {
     match device_type {
-        CGWDeviceType::CGWDeviceAP => cgw_ucentral_ap_parse_message(message, timestamp),
-        CGWDeviceType::CGWDeviceSwitch => cgw_ucentral_switch_parse_message(message, timestamp),
+        CGWDeviceType::CGWDeviceAP => {
+            cgw_ucentral_ap_parse_message(feature_topomap_enabled, message, timestamp)
+        }
+        CGWDeviceType::CGWDeviceSwitch => {
+            cgw_ucentral_switch_parse_message(feature_topomap_enabled, message, timestamp)
+        }
+        CGWDeviceType::CGWDeviceUnknown => Err(Error::UCentralParser(
+            "Failed to parse event message for device type unknown",
+        )),
+    }
+}
+
+fn cgw_get_json_validation_schema(schema_ref: CGWValionSchemaRef) -> Result<serde_json::Value> {
+    match schema_ref {
+        CGWValionSchemaRef::SchemaUri(url) => cgw_download_json_validation_schemas(url),
+        CGWValionSchemaRef::SchemaPath(path) => cgw_load_json_validation_schemas(path.as_path()),
+    }
+}
+
+fn cgw_download_json_validation_schemas(url: Url) -> Result<serde_json::Value> {
+    let client = reqwest::blocking::Client::new();
+    let response = match client.get(url.clone()).send() {
+        Ok(r) => match r.text() {
+            Ok(t) => t,
+            Err(e) => {
+                return Err(Error::UCentralValidator(format!(
+                    "Failed to convert response from target URI {url} to text fromat: {e}"
+                )));
+            }
+        },
+        Err(e) => {
+            return Err(Error::UCentralValidator(format!(
+                "Failed to receive response from target URI {url}: {e}"
+            )));
+        }
+    };
+
+    match serde_json::from_str(&response) {
+        Ok(json_schema) => Ok(json_schema),
+        Err(e) => Err(Error::UCentralValidator(format!(
+            "Failed to deserialize text response from target URI {url}: {e}"
+        ))),
+    }
+}
+
+fn cgw_load_json_validation_schemas(path: &Path) -> Result<serde_json::Value> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            return Err(Error::UCentralValidator(format!(
+                "Failed to open TLS certificate file: {}. Error: {}",
+                path.display(),
+                e
+            )));
+        }
+    };
+
+    let reader = BufReader::new(file);
+    match serde_json::from_reader(reader) {
+        Ok(json_schema) => Ok(json_schema),
+        Err(e) => Err(Error::UCentralValidator(format!(
+            "Failed to read JSON schema from file {}: {e}",
+            path.display()
+        ))),
+    }
+}
+
+pub fn cgw_initialize_json_validator(schema_ref: CGWValionSchemaRef) -> Result<JSONSchema> {
+    let schema = match cgw_get_json_validation_schema(schema_ref) {
+        Ok(sch) => sch,
+        Err(e) => {
+            return Err(Error::UCentralValidator(e.to_string()));
+        }
+    };
+
+    match JSONSchema::compile(&schema) {
+        Ok(json_schema) => Ok(json_schema),
+        Err(e) => Err(Error::UCentralValidator(format!(
+            "Failed to compile input schema to validation tree: {e}",
+        ))),
     }
 }

@@ -1,6 +1,6 @@
+use crate::cgw_app_args::CGWKafkaArgs;
 use crate::cgw_device::OldNew;
 use crate::cgw_ucentral_parser::CGWDeviceChange;
-use crate::AppArgs;
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 use crate::cgw_errors::{Error, Result};
@@ -17,7 +17,7 @@ use rdkafka::{
     consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
     producer::{FutureProducer, FutureRecord},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{
@@ -111,6 +111,35 @@ pub struct ForeignInfraConnection {
     pub group_owner_shard_id: i32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientJoinMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub infra_group_infra_device: MacAddress,
+    pub ssid: String,
+    pub band: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientLeaveMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub infra_group_infra_device: MacAddress,
+    pub band: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APClientMigrateMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub client: MacAddress,
+    pub to_infra_group_infra_device: MacAddress,
+    pub to_ssid: String,
+    pub to_band: String,
+}
+
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
     infra_name: String,
@@ -119,7 +148,7 @@ pub fn cgw_construct_infra_group_create_response(
     error_message: Option<String>,
 ) -> Result<String> {
     let group_create = InfraGroupCreateResponse {
-        r#type: "infrastructure_group_create",
+        r#type: "infrastructure_group_create_response",
         infra_group_id,
         infra_name,
         uuid,
@@ -137,7 +166,7 @@ pub fn cgw_construct_infra_group_delete_response(
     error_message: Option<String>,
 ) -> Result<String> {
     let group_delete = InfraGroupDeleteResponse {
-        r#type: "infrastructure_group_delete",
+        r#type: "infrastructure_group_delete_response",
         infra_group_id,
         uuid,
         success,
@@ -272,6 +301,61 @@ pub fn cgw_construct_foreign_infra_connection_msg(
     Ok(serde_json::to_string(&foreign_infra_msg)?)
 }
 
+pub fn cgw_construct_client_join_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    infra_group_infra_device: MacAddress,
+    ssid: String,
+    band: String,
+) -> Result<String> {
+    let client_join_msg = APClientJoinMessage {
+        r#type: "ap_client_join",
+        infra_group_id,
+        client,
+        infra_group_infra_device,
+        ssid,
+        band,
+    };
+
+    Ok(serde_json::to_string(&client_join_msg)?)
+}
+
+pub fn cgw_construct_client_leave_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    infra_group_infra_device: MacAddress,
+    band: String,
+) -> Result<String> {
+    let client_join_msg = APClientLeaveMessage {
+        r#type: "ap_client_leave",
+        infra_group_id,
+        client,
+        infra_group_infra_device,
+        band,
+    };
+
+    Ok(serde_json::to_string(&client_join_msg)?)
+}
+
+pub fn cgw_construct_client_migrate_msg(
+    infra_group_id: i32,
+    client: MacAddress,
+    to_infra_group_infra_device: MacAddress,
+    to_ssid: String,
+    to_band: String,
+) -> Result<String> {
+    let client_migrate_msg = APClientMigrateMessage {
+        r#type: "ap_client_migrate",
+        infra_group_id,
+        client,
+        to_infra_group_infra_device,
+        to_ssid,
+        to_band,
+    };
+
+    Ok(serde_json::to_string(&client_migrate_msg)?)
+}
+
 struct CustomContext;
 impl ClientContext for CustomContext {}
 
@@ -347,24 +431,21 @@ struct CGWCNCConsumer {
 }
 
 impl CGWCNCConsumer {
-    pub fn new(app_args: &AppArgs) -> Result<Self> {
-        let consum: CGWCNCConsumerType = Self::create_consumer(app_args)?;
+    pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Self> {
+        let consum: CGWCNCConsumerType = Self::create_consumer(cgw_id, kafka_args)?;
         Ok(CGWCNCConsumer { c: consum })
     }
 
-    fn create_consumer(app_args: &AppArgs) -> Result<CGWCNCConsumerType> {
+    fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<CGWCNCConsumerType> {
         let context = CustomContext;
 
         let consumer: CGWCNCConsumerType = match ClientConfig::new()
             .set("group.id", GROUP_ID)
-            .set(
-                "client.id",
-                GROUP_ID.to_string() + &app_args.cgw_id.to_string(),
-            )
-            .set("group.instance.id", app_args.cgw_id.to_string())
+            .set("client.id", GROUP_ID.to_string() + &cgw_id.to_string())
+            .set("group.instance.id", cgw_id.to_string())
             .set(
                 "bootstrap.servers",
-                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
+                kafka_args.kafka_host.clone() + ":" + &kafka_args.kafka_port.to_string(),
             )
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
@@ -383,7 +464,7 @@ impl CGWCNCConsumer {
 
         debug!(
             "(consumer) (producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_host, app_args.kafka_port,
+            kafka_args.kafka_host, kafka_args.kafka_port,
         );
 
         if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
@@ -399,16 +480,16 @@ impl CGWCNCConsumer {
 }
 
 impl CGWCNCProducer {
-    pub fn new(app_args: &AppArgs) -> Result<Self> {
-        let prod: CGWCNCProducerType = Self::create_producer(app_args)?;
+    pub fn new(kafka_args: &CGWKafkaArgs) -> Result<Self> {
+        let prod: CGWCNCProducerType = Self::create_producer(kafka_args)?;
         Ok(CGWCNCProducer { p: prod })
     }
 
-    fn create_producer(app_args: &AppArgs) -> Result<CGWCNCProducerType> {
+    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWCNCProducerType> {
         let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
-                app_args.kafka_host.clone() + ":" + &app_args.kafka_port.to_string(),
+                kafka_args.kafka_host.clone() + ":" + &kafka_args.kafka_port.to_string(),
             )
             .set("message.timeout.ms", "5000")
             .create()
@@ -422,7 +503,7 @@ impl CGWCNCProducer {
 
         debug!(
             "(producer) Created lazy connection to kafka broker ({}:{})...",
-            app_args.kafka_host, app_args.kafka_port,
+            kafka_args.kafka_host, kafka_args.kafka_port,
         );
 
         Ok(producer)
@@ -438,7 +519,11 @@ pub struct CGWNBApiClient {
 }
 
 impl CGWNBApiClient {
-    pub fn new(app_args: &AppArgs, cgw_tx: &CGWConnectionServerMboxTx) -> Result<Arc<Self>> {
+    pub fn new(
+        cgw_id: i32,
+        kafka_args: &CGWKafkaArgs,
+        cgw_tx: &CGWConnectionServerMboxTx,
+    ) -> Result<Arc<Self>> {
         let working_runtime_h = Builder::new_multi_thread()
             .worker_threads(1)
             .thread_name("cgw-nb-api-l")
@@ -449,11 +534,11 @@ impl CGWNBApiClient {
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(app_args)?,
+            prod: CGWCNCProducer::new(kafka_args)?,
         });
 
         let cl_clone = cl.clone();
-        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(app_args)?;
+        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(cgw_id, kafka_args)?;
         cl.working_runtime_handle.spawn(async move {
             loop {
                 let cl_clone = cl_clone.clone();

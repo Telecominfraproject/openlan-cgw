@@ -3,10 +3,12 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 pub enum CGWDeviceType {
     CGWDeviceAP,
     CGWDeviceSwitch,
+    #[default]
+    CGWDeviceUnknown,
 }
 
 impl FromStr for CGWDeviceType {
@@ -16,6 +18,7 @@ impl FromStr for CGWDeviceType {
         match s {
             "ap" => Ok(CGWDeviceType::CGWDeviceAP),
             "switch" => Ok(CGWDeviceType::CGWDeviceSwitch),
+            "unknown" => Ok(CGWDeviceType::CGWDeviceUnknown),
             _ => Err(()),
         }
     }
@@ -45,17 +48,19 @@ pub struct CGWDeviceCapabilities {
 
 impl CGWDeviceCapabilities {
     pub fn update_device_capabilities(&mut self, new_capabilities: &CGWDeviceCapabilities) {
-        self.firmware = new_capabilities.firmware.clone();
+        self.firmware.clone_from(&new_capabilities.firmware);
         self.uuid = new_capabilities.uuid;
-        self.compatible = new_capabilities.compatible.clone();
-        self.model = new_capabilities.model.clone();
-        self.platform = new_capabilities.platform.clone();
-        self.label_macaddr = new_capabilities.label_macaddr.clone();
+        self.compatible.clone_from(&new_capabilities.compatible);
+        self.model.clone_from(&new_capabilities.model);
+        self.platform.clone_from(&new_capabilities.platform);
+        self.label_macaddr
+            .clone_from(&new_capabilities.label_macaddr);
     }
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct CGWDevice {
+    dev_type: CGWDeviceType,
     state: CGWDeviceState,
     group_id: i32,
     remains_in_db: bool,
@@ -64,17 +69,27 @@ pub struct CGWDevice {
 
 impl CGWDevice {
     pub fn new(
+        dev_type: CGWDeviceType,
         state: CGWDeviceState,
         group_id: i32,
         remains_in_db: bool,
         capabilities: CGWDeviceCapabilities,
     ) -> CGWDevice {
         CGWDevice {
+            dev_type,
             state,
             group_id,
             remains_in_db,
             capabilities,
         }
+    }
+
+    pub fn set_device_type(&mut self, dev_type: CGWDeviceType) {
+        self.dev_type = dev_type;
+    }
+
+    pub fn get_device_type(&self) -> CGWDeviceType {
+        self.dev_type
     }
 
     pub fn set_device_state(&mut self, new_state: CGWDeviceState) {

@@ -1,10 +1,11 @@
 use crate::cgw_app_args::CGWWSSArgs;
 use crate::cgw_errors::{collect_results, Error, Result};
+use base64::prelude::*;
 
 use eui48::MacAddress;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::fs;
-use std::io::BufRead;
+use std::io::{BufRead, Read};
 use std::path::Path;
 use std::{fs::File, io::BufReader, str::FromStr, sync::Arc};
 use tokio::net::TcpStream;
@@ -21,7 +22,7 @@ const CGW_TLS_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
 const CGW_TLS_NB_INFRA_CERTS_PATH: &str = "/etc/cgw/nb_infra/certs";
 
 pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'static>>> {
-    let file = match File::open(cert_file) {
+    let mut file = match File::open(cert_file) {
         Ok(f) => f,
         Err(e) => {
             return Err(Error::Tls(format!(
@@ -31,13 +32,26 @@ pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'s
         }
     };
 
-    let mut reader = BufReader::new(file);
+    let metadata = fs::metadata(cert_file).expect("unable to read metadata");
+    let mut buffer = vec![0; metadata.len() as usize];
+    file.read(&mut buffer).expect("buffer overflow");
+    let decoded_buffer = {
+        if let Ok(d) = BASE64_STANDARD.decode(buffer.clone()) {
+            info!("Cert file {} is base64 encoded, trying to use decoded.",
+                  cert_file);
+            d
+        } else {
+            buffer
+        }
+    };
+
+    let mut reader = BufReader::new(decoded_buffer.as_slice());
 
     collect_results(rustls_pemfile::certs(&mut reader))
 }
 
 pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateKeyDer<'static>> {
-    let file = match File::open(private_key_file) {
+    let mut file = match File::open(private_key_file) {
         Ok(f) => f,
         Err(e) => {
             return Err(Error::Tls(format!(
@@ -47,7 +61,24 @@ pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateK
         }
     };
 
-    let mut reader = BufReader::new(file);
+    let metadata = fs::metadata(private_key_file).expect("unable to read metadata");
+    let mut buffer = vec![0; metadata.len() as usize];
+    file.read(&mut buffer).expect("buffer overflow");
+    let decoded_buffer = {
+        match BASE64_STANDARD.decode(buffer.clone()) {
+            Err(e) => info!("err {e}"),
+            Ok(_) => ()
+        }
+        if let Ok(d) = BASE64_STANDARD.decode(buffer.clone()) {
+            info!("Private key file {} is base64 encoded, trying to use decoded.",
+                  private_key_file);
+            d
+        } else {
+            buffer
+        }
+    };
+
+    let mut reader = BufReader::new(decoded_buffer.as_slice());
 
     match rustls_pemfile::private_key(&mut reader) {
         Ok(ret_pk) => match ret_pk {

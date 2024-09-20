@@ -37,8 +37,10 @@ pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'s
     file.read(&mut buffer).expect("buffer overflow");
     let decoded_buffer = {
         if let Ok(d) = BASE64_STANDARD.decode(buffer.clone()) {
-            info!("Cert file {} is base64 encoded, trying to use decoded.",
-                  cert_file);
+            info!(
+                "Cert file {} is base64 encoded, trying to use decoded.",
+                cert_file
+            );
             d
         } else {
             buffer
@@ -67,11 +69,13 @@ pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateK
     let decoded_buffer = {
         match BASE64_STANDARD.decode(buffer.clone()) {
             Err(e) => info!("err {e}"),
-            Ok(_) => ()
+            Ok(_) => (),
         }
         if let Ok(d) = BASE64_STANDARD.decode(buffer.clone()) {
-            info!("Private key file {} is base64 encoded, trying to use decoded.",
-                  private_key_file);
+            info!(
+                "Private key file {} is base64 encoded, trying to use decoded.",
+                private_key_file
+            );
             d
         } else {
             buffer

@@ -4,7 +4,15 @@ CGW, like OWGW, manages device (Access Points and OpenLan switches) that impleme
 The main reasoning behind a new implementation of the GW is the horizontal scalability.
 # Dependencies (runtime)
 CGW requires a set of tools and services to operate and function. Some of them are embedded into the application itself and require no external utilities,
-while others are required to be running for the CGW to operate.
+while others are required to be running for the CGW to operate. 
+
+**NOTE**: while runtime CGW depends on services like kafka, redis and PGSQL, the *make* / *make all* targets
+would build a complete out-of-the-box setup with default configs and container params: 
+- Kafka, Redis, PGSQL containers would be created and attached to default - automatically created - *docker_cgw_network* network; 
+  All three (and one additional - *init-broker-container* - needed for kafka topics initialization) will be created as part of single 
+  container project group.
+- CGW will be created as separate standalone container, attached to same *docker_cgw_network* network;
+
 ## gRPC
 CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards). This functionality does not depend on some external thirdparty services.
 ## Kafka
@@ -35,6 +43,7 @@ FOREIGN KEY(infra_group_id) REFERENCES infrastructure_groups(id) ON DELETE CASCA
 ## Redis
 fast in-memory DB that CGW uses to store all needed runtime information (InfraGroup assigned CGW id, remote CGW info - IP, gRPC port etc)
 # Building
+*NOTE:* The following target builds CGW and also starts up required services with default config and params
 ```console
 $ make all
 ```

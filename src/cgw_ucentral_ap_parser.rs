@@ -359,11 +359,17 @@ fn parse_state_event_data(
             }
         };
 
-        let serial = MacAddress::from_str(
-            state_map["serial"]
-                .as_str()
-                .ok_or_else(|| Error::UCentralParser("Failed to parse mac address"))?,
-        )?;
+        let serial = {
+            if let Value::String(mac) = &params["serial"] {
+                MacAddress::from_str(mac)?
+            } else if let Value::String(mac) = &state_map["serial"] {
+                MacAddress::from_str(mac)?
+            } else {
+                return Err(Error::UCentralParser(
+                    "Failed to parse state: mac address is missing",
+                ));
+            }
+        };
 
         if let Value::Object(state_map) = &state_map["state"] {
             let mut lldp_links: HashMap<
@@ -448,11 +454,18 @@ fn parse_state_event_data(
             "Parsed, decompressed state message but failed to find state object",
         ));
     } else if let Value::Object(state_map) = &params["state"] {
-        let serial = MacAddress::from_str(
-            params["serial"]
-                .as_str()
-                .ok_or_else(|| Error::UCentralParser("Failed to parse mac address"))?,
-        )?;
+        let serial = {
+            if let Value::String(mac) = &params["serial"] {
+                MacAddress::from_str(mac)?
+            } else if let Value::String(mac) = &state_map["serial"] {
+                MacAddress::from_str(mac)?
+            } else {
+                return Err(Error::UCentralParser(
+                    "Failed to parse state: mac address is missing",
+                ));
+            }
+        };
+
         let mut lldp_links: HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>> =
             HashMap::new();
         let mut clients_links: HashMap<

@@ -995,7 +995,7 @@ impl CGWRemoteDiscovery {
     ) -> Result<()> {
         // try to use internal cache first
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-            if let Err(_e) = cl.client.relay_request_stream(stream).await {
+            if let Err(_e) = cl.client.relay_request_stream(stream.clone()).await {
                 warn!(
                     "Failed to relay message. CGW{} seems to be unreachable at [{}:{}], will try to resync map and try again",
                     shard_id, cl.shard.server_host, cl.shard.server_port

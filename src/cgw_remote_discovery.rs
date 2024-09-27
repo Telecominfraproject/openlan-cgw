@@ -996,13 +996,13 @@ impl CGWRemoteDiscovery {
         // try to use internal cache first
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
             if let Err(_e) = cl.client.relay_request_stream(stream).await {
-                error!(
-                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
+                warn!(
+                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}], will try to resync map and try again",
                     shard_id, cl.shard.server_host, cl.shard.server_port
                 );
+            } else {
+                return Ok(());
             }
-
-            return Ok(());
         }
 
         // then try to use redis
@@ -1010,11 +1010,12 @@ impl CGWRemoteDiscovery {
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
             if let Err(_e) = cl.client.relay_request_stream(stream).await {
                 error!(
-                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
+                    "Failed to relay message event after resync. CGW{} seems to be unreachable at [{}:{}]",
                     shard_id, cl.shard.server_host, cl.shard.server_port
                 );
+            } else {
+                return Ok(());
             }
-            return Ok(());
         }
 
         error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");

@@ -16,9 +16,9 @@ CGW_BUILD_ENV_IMG_TAG := $(shell cat Dockerfile | sha1sum | awk '{print substr($
 
 CGW_BUILD_ENV_IMG_CONTAINER_NAME := "cgw_build_env"
 
-.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run
+.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run run_docker_services
 
-all: cgw-build-env-img cgw-img
+all: cgw-build-env-img run_docker_services run
 	@echo "uCentral CGW build app (container) done"
 
 # Executed inside build-env
@@ -62,5 +62,9 @@ clean: stop
 	@docker rmi ${CGW_BUILD_ENV_IMG_ID}:${CGW_BUILD_ENV_IMG_TAG} >/dev/null 2>&1 || true
 	@echo Done!
 
-run: stop cgw-img
+run: stop cgw-img run_docker_services
 	@./run_cgw.sh "${CGW_IMG_ID}:${CGW_IMG_TAG}" ${CGW_IMG_CONTAINER_NAME}
+
+run_docker_services:
+	@cd ./utils/docker/ && docker compose up -d
+

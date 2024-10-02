@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DEFAULT_ID=0
-DEFAULT_LOG_LEVEL="info"
+DEFAULT_LOG_LEVEL="debug"
 DEFAULT_GROUPS_CAPACITY=1000
 DEFAULT_GROUPS_THRESHOLD=50
 DEFAULT_GROUP_INFRAS_CAPACITY=2000
@@ -9,7 +9,7 @@ DEFAULT_GROUP_INFRAS_CAPACITY=2000
 # By default - use default subnet's SRC ip to listen to gRPC requests
 DEFAULT_GRPC_LISTENING_IP="0.0.0.0"
 DEFAULT_GRPC_LISTENING_PORT=50051
-DEFAULT_GRPC_PUBLIC_HOST="localhost"
+DEFAULT_GRPC_PUBLIC_HOST="openlan_cgw"
 DEFAULT_GRPC_PUBLIC_PORT=50051
 
 # By default - listen to all interfaces
@@ -17,24 +17,24 @@ DEFAULT_WSS_IP="0.0.0.0"
 DEFAULT_WSS_PORT=15002
 DEFAULT_WSS_T_NUM=4
 
-DEFAULT_CERTS_PATH="/etc/ssl/certs"
+DEFAULT_CERTS_PATH="`realpath ./utils/cert_generator/certs/server/`"
 DEFAULT_WSS_CAS="cas.pem"
 DEFAULT_WSS_CERT="cert.pem"
 DEFAULT_WSS_KEY="key.pem"
 
-DEFAULT_KAFKA_HOST="localhost"
+DEFAULT_KAFKA_HOST="docker-broker-1"
 DEFAULT_KAFKA_PORT=9092
 DEFAULT_KAFKA_CONSUME_TOPIC="CnC"
 DEFAULT_KAFKA_PRODUCE_TOPIC="CnC_Res"
 
-DEFAULT_DB_HOST="localhost"
+DEFAULT_DB_HOST="docker-postgresql-1"
 DEFAULT_DB_PORT=5432
 DEFAULT_DB_NAME="cgw"
 DEFAULT_DB_USER="cgw"
 DEFAULT_DB_PASW="123"
 DEFAULT_DB_TLS="no"
 
-DEFAULT_REDIS_HOST="localhost"
+DEFAULT_REDIS_HOST="docker-redis-1"
 DEFAULT_REDIS_PORT=6379
 DEFAULT_REDIS_TLS="no"
 
@@ -94,6 +94,24 @@ if [ -z "${!CGW_REDIS_PASSWORD}" ]; then
 	export CGW_REDIS_PASSWORD="${CGW_REDIS_PASSWORD}"
 fi
 
+if [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] || [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] || [ ! -f $CGW_CERTS_PATH/$CGW_WSS_KEY ] ; then
+	echo "WARNING: at specified path $CGW_CERTS_PATH either CAS, CERT or KEY is missing!"
+	echo "WARNING: changing source folder for certificates to default: $DEFAULT_CERTS_PATH and generating self-signed..."
+	export CGW_CERTS_PATH="$DEFAULT_CERTS_PATH";
+	export CGW_WSS_CAS="$DEFAULT_WSS_CAS"
+	export CGW_WSS_CERT="$DEFAULT_WSS_CERT"
+	export CGW_WSS_KEY="$DEFAULT_WSS_KEY"
+	export CGW_NB_INFRA_CERTS_PATH="$DEFAULT_CERTS_PATH"
+
+	cd ./utils/cert_generator/ && \
+		./generate_certs.sh -a && \
+		./generate_certs.sh -s && \
+		cp ./certs/ca/ca.crt $DEFAULT_CERTS_PATH/cas.pem
+		cp ./certs/server/gw.crt $DEFAULT_CERTS_PATH/cert.pem && \
+		cp ./certs/server/gw.key $DEFAULT_CERTS_PATH/key.pem && \
+		echo "Generating self-signed certificates done!"
+fi
+
 echo "Starting CGW..."
 echo "CGW LOG LEVEL                     : $CGW_LOG_LEVEL"
 echo "CGW ID                            : $CGW_ID"
@@ -122,6 +140,8 @@ echo "CGW UCENTRAL AP DATAMODEL URI     : $CGW_UCENTRAL_AP_DATAMODEL_URI"
 echo "CGW UCENTRAL SWITCH DATAMODEL URI : $CGW_UCENTRAL_SWITCH_DATAMODEL_URI"
 
 docker run \
+	-p 15002:15002 \
+	-p 50051:50051 \
 	--cap-add=SYS_PTRACE --security-opt seccomp=unconfined        \
 	-v $CGW_CERTS_PATH:$CONTAINTER_CERTS_VOLUME                   \
 	-v $CGW_NB_INFRA_CERTS_PATH:$CONTAINTER_NB_INFRA_CERTS_VOLUME \
@@ -161,4 +181,4 @@ docker run \
 	-e CGW_NB_INFRA_TLS                  \
 	-e CGW_UCENTRAL_AP_DATAMODEL_URI     \
 	-e CGW_UCENTRAL_SWITCH_DATAMODEL_URI \
-	-d -t --network=host --name $2 $1 ucentral-cgw
+	-d -t --network=docker_cgw_network --name $2 $1 ucentral-cgw

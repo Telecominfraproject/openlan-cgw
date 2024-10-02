@@ -210,7 +210,7 @@ impl CGWUCentralTopologyMap {
     }
 
     async fn process_queue() {
-        info!("TopoMap: queue processor started");
+        info!("TopoMap: queue processor started.");
         let topo_map = CGWUCentralTopologyMap::get_ref();
 
         let buf_capacity = 2000;
@@ -320,8 +320,7 @@ impl CGWUCentralTopologyMap {
         // parse string once again.
         if CGWDeviceType::from_str(platform).is_err() {
             warn!(
-                "Tried to insert {} into tomo map, but failed to parse it's platform string",
-                topology_node_mac
+                "Tried to insert {topology_node_mac} into tomo map, but failed to parse it's platform string"
             );
             return;
         }
@@ -442,7 +441,7 @@ impl CGWUCentralTopologyMap {
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
             } else {
-                warn!("Failed to convert client.leave event to string!");
+                warn!("Failed to convert client leave event to string!");
             }
         }
     }
@@ -472,7 +471,7 @@ impl CGWUCentralTopologyMap {
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
             } else {
-                warn!("Failed to convert client.leave event to string!");
+                warn!("Failed to convert client leave event to string!");
             }
         }
     }
@@ -507,7 +506,7 @@ impl CGWUCentralTopologyMap {
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
             } else {
-                warn!("Failed to convert client.leave event to string!");
+                warn!("Failed to convert client leave event to string!");
             }
         }
     }
@@ -548,7 +547,7 @@ impl CGWUCentralTopologyMap {
                 if let Some((ref mut topology_map_data, _)) = lock.get_mut(&gid) {
                     Self::clear_related_nodes(topology_map_data, topology_node_mac);
                 } else {
-                    error!("Unexpected: GID {gid} doesn't exists (should've been created prior to state processing)");
+                    error!("Unexpected: GID {gid} doesn't exists (should've been created prior to state processing)!");
                     return;
                 }
             }
@@ -941,7 +940,7 @@ impl CGWUCentralTopologyMap {
                     }
                 }
             } else {
-                error!("Unexpected: GID {gid} doesn't exists (should've been created prior to state processing)");
+                error!("Unexpected: GID {gid} doesn't exists (should've been created prior to state processing)!");
             }
         }
     }

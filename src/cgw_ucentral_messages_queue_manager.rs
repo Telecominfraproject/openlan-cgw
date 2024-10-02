@@ -119,7 +119,7 @@ lazy_static! {
 impl CGWUCentralMessagesQueueManager {
     pub async fn create_device_messages_queue(&self, device_mac: &MacAddress) {
         if !self.check_messages_queue_exists(device_mac).await {
-            debug!("Create queue message for device: {}", device_mac);
+            debug!("Create queue message for device: {device_mac}");
             let new_queue: Arc<RwLock<CGWUCentralMessagesQueue>> =
                 Arc::new(RwLock::new(CGWUCentralMessagesQueue::new()));
 
@@ -139,21 +139,18 @@ impl CGWUCentralMessagesQueueManager {
 
     pub async fn delete_device_messages_queue(&self, device_mac: &MacAddress) {
         let mut write_lock = self.queue.write().await;
-        debug!("Remove queue message for device: {}", device_mac);
+        debug!("Remove queue message for device: {device_mac}");
 
         match write_lock.remove(device_mac) {
             Some(_) => {}
             None => {
-                error!(
-                    "Trying to delete message queue for unexisting device: {}",
-                    device_mac
-                );
+                error!("Trying to delete message queue for unexisting device: {device_mac}!");
             }
         }
     }
 
     pub async fn clear_device_message_queue(&self, device_mac: &MacAddress) {
-        debug!("Flush device {} queue due to timeout!", device_mac);
+        debug!("Flush device {device_mac} queue due to timeout");
         let container_lock = self.queue.read().await;
 
         if let Some(device_msg_queue) = container_lock.get(device_mac) {

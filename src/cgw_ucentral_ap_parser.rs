@@ -122,7 +122,7 @@ fn parse_wireless_clients_data(
                 if let Value::String(port) = &ssid["iface"] {
                     port.clone()
                 } else {
-                    warn!("Failed to retrieve local_port for {:?}", ssid);
+                    warn!("Failed to retrieve local_port for {:?}!", ssid);
                     continue;
                 }
             };
@@ -133,7 +133,7 @@ fn parse_wireless_clients_data(
             }
 
             if !ssid.contains_key("associations") {
-                warn!("Failed to retrieve associations for {local_port}");
+                warn!("Failed to retrieve associations for local port {local_port}!");
                 continue;
             }
 
@@ -157,7 +157,7 @@ fn parse_wireless_clients_data(
                             if let Some(v) = ssids_map.get(&bssid_value) {
                                 (v.0.clone(), v.1.clone())
                             } else {
-                                warn!("Failed to get ssid/band value for {bssid_value}");
+                                warn!("Failed to get ssid/band value for {bssid_value}!");
                                 continue;
                             }
                         };
@@ -219,14 +219,14 @@ fn parse_wired_clients_data(
                     Some(s) => s.to_string(),
                     None => {
                         warn!(
-                            "Failed to get clients port string for {:?}, skipping",
+                            "Failed to get clients port string for {:?}, skipping!",
                             client
                         );
                         continue;
                     }
                 }
             } else {
-                warn!("Failed to parse clients port for {:?}, skipping", client);
+                warn!("Failed to parse clients port for {:?}, skipping!", client);
                 continue;
             }
         };
@@ -336,7 +336,7 @@ fn parse_state_event_data(
         let decoded_data = match BASE64_STANDARD.decode(compressed_data) {
             Ok(d) => d,
             Err(e) => {
-                warn!("Failed to decode base64+zip state evt {e}");
+                warn!("Failed to decode base64+zip state evt! Error: {e}");
                 return Err(Error::UCentralParser(
                     "Failed to decode base64+zip state evt",
                 ));
@@ -345,7 +345,7 @@ fn parse_state_event_data(
         let mut d = ZlibDecoder::new(&decoded_data[..]);
         let mut unzipped_data = String::new();
         if let Err(e) = d.read_to_string(&mut unzipped_data) {
-            warn!("Failed to decompress decrypted state message {e}");
+            warn!("Failed to decompress decrypted state message! Error: {e}");
             return Err(Error::UCentralParser(
                 "Failed to decompress decrypted state message",
             ));
@@ -354,7 +354,7 @@ fn parse_state_event_data(
         let state_map: CGWUCentralJRPCMessage = match serde_json::from_str(&unzipped_data) {
             Ok(m) => m,
             Err(e) => {
-                error!("Failed to parse input state message {e}");
+                error!("Failed to parse input state message! Error: {e}");
                 return Err(Error::UCentralParser("Failed to parse input state message"));
             }
         };
@@ -554,7 +554,7 @@ fn parse_realtime_event_data(
     };
 
     if events.len() < 2 {
-        warn!("Received malformed event: number of event values < 2");
+        warn!("Received malformed event: number of event values < 2!");
         return Err(Error::UCentralParser(
             "Received malformed event: number of event values < 2",
         ));
@@ -565,14 +565,14 @@ fn parse_realtime_event_data(
     match &events[0] {
         Value::Number(ts) => {
             if ts.as_i64().is_none() {
-                warn!("Received malformed event: missing timestamp");
+                warn!("Received malformed event: missing timestamp!");
                 return Err(Error::UCentralParser(
                     "Received malformed event: missing timestamp",
                 ));
             }
         }
         _ => {
-            warn!("Received malformed event: missing timestamp");
+            warn!("Received malformed event: missing timestamp!");
             return Err(Error::UCentralParser(
                 "Received malformed event: missing timestamp",
             ));
@@ -582,7 +582,7 @@ fn parse_realtime_event_data(
     let event_data = match &events[1] {
         Value::Object(v) => v,
         _ => {
-            warn!("Received malformed event: missing timestamp");
+            warn!("Received malformed event: missing timestamp!");
             return Err(Error::UCentralParser(
                 "Received malformed event: missing timestamp",
             ));
@@ -590,7 +590,7 @@ fn parse_realtime_event_data(
     };
 
     if !event_data.contains_key("type") {
-        warn!("Received malformed event: missing type");
+        warn!("Received malformed event: missing type!");
         return Err(Error::UCentralParser(
             "Received malformed event: missing type",
         ));
@@ -599,7 +599,7 @@ fn parse_realtime_event_data(
     let evt_type = match &event_data["type"] {
         Value::String(t) => t,
         _ => {
-            warn!("Received malformed event: type is of wrongful underlying format/type");
+            warn!("Received malformed event: type is of wrongful underlying format/type!");
             return Err(Error::UCentralParser(
                 "Received malformed event: type is of wrongful underlying format/type",
             ));
@@ -609,7 +609,7 @@ fn parse_realtime_event_data(
     let evt_payload = match &event_data["payload"] {
         Value::Object(d) => d,
         _ => {
-            warn!("Received malformed event: payload is of wrongful underlying format/type");
+            warn!("Received malformed event: payload is of wrongful underlying format/type!");
             return Err(Error::UCentralParser(
                 "Received malformed event: payload is of wrongful underlying format/type",
             ));
@@ -624,7 +624,7 @@ fn parse_realtime_event_data(
                 || !evt_payload.contains_key("rssi")
                 || !evt_payload.contains_key("channel")
             {
-                warn!("Received malformed client.join event: band, rssi, ssid, channel and client are required");
+                warn!("Received malformed client.join event: band, rssi, ssid, channel and client are required!");
                 return Err(Error::UCentralParser("Received malformed client.join event: band, rssi, ssid, channel and client are required"));
             }
 
@@ -632,7 +632,7 @@ fn parse_realtime_event_data(
                 match &evt_payload["band"] {
                     Value::String(s) => s,
                     _ => {
-                        warn!("Received malformed client.join event: band is of wrongful underlying format/type");
+                        warn!("Received malformed client.join event: band is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.join event: band is of wrongful underlying format/type",
                         ));
@@ -644,7 +644,7 @@ fn parse_realtime_event_data(
                     Value::String(s) => match MacAddress::from_str(s.as_str()) {
                         Ok(v) => v,
                         Err(_) => {
-                            warn!("Received malformed client.join event: client is a malformed MAC address");
+                            warn!("Received malformed client.join event: client is a malformed MAC address!");
                             return Err(Error::UCentralParser(
                                 "Received malformed client.join event: client is a malformed MAC address",
                             ));
@@ -662,7 +662,7 @@ fn parse_realtime_event_data(
                 match &evt_payload["ssid"] {
                     Value::String(s) => s,
                     _ => {
-                        warn!("Received malformed client.join event: ssid is of wrongful underlying format/type");
+                        warn!("Received malformed client.join event: ssid is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.join event: ssid is of wrongful underlying format/type",
                             ));
@@ -681,7 +681,7 @@ fn parse_realtime_event_data(
                         }
                     },
                     _ => {
-                        warn!("Received malformed client.join event: rssi is of wrongful underlying format/type");
+                        warn!("Received malformed client.join event: rssi is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.join event: rssi is of wrongful underlying format/type",
                         ));
@@ -700,7 +700,7 @@ fn parse_realtime_event_data(
                         }
                     },
                     _ => {
-                        warn!("Received malformed client.join event: channel is of wrongful underlying format/type");
+                        warn!("Received malformed client.join event: channel is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.join event: channel is of wrongful underlying format/type",
                         ));
@@ -732,7 +732,7 @@ fn parse_realtime_event_data(
                 || !evt_payload.contains_key("client")
                 || !evt_payload.contains_key("connected_time")
             {
-                warn!("Received malformed client.leave event: client, band and connected_time is required");
+                warn!("Received malformed client.leave event: client, band and connected_time is required!");
                 return Err(Error::UCentralParser("Received malformed client.leave event: client, band and connected_time is required"));
             }
 
@@ -740,7 +740,7 @@ fn parse_realtime_event_data(
                 match &evt_payload["band"] {
                     Value::String(s) => s,
                     _ => {
-                        warn!("Received malformed client.leave event: band is of wrongful underlying format/type");
+                        warn!("Received malformed client.leave event: band is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.leave event: band is of wrongful underlying format/type",
                         ));
@@ -752,14 +752,14 @@ fn parse_realtime_event_data(
                     Value::String(s) => match MacAddress::from_str(s.as_str()) {
                         Ok(v) => v,
                         Err(_) => {
-                            warn!("Received malformed client.leave event: client is a malformed MAC address");
+                            warn!("Received malformed client.leave event: client is a malformed MAC address!");
                             return Err(Error::UCentralParser(
                                 "Received malformed client.leave event: client is a malformed MAC address",
                             ));
                         }
                     },
                     _ => {
-                        warn!("Received malformed client.leave event: client is of wrongful underlying format/type");
+                        warn!("Received malformed client.leave event: client is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.leave event: client is of wrongful underlying format/type",
                         ));
@@ -778,7 +778,7 @@ fn parse_realtime_event_data(
                         }
                     },
                     _ => {
-                        warn!("Received malformed client.leave event: connected_time is of wrongful underlying format/type");
+                        warn!("Received malformed client.leave event: connected_time is of wrongful underlying format/type!");
                         return Err(Error::UCentralParser(
                             "Received malformed client.leave event: connected_time is of wrongful underlying format/type",
                         ));
@@ -808,7 +808,7 @@ fn parse_realtime_event_data(
             })
         }
         _ => {
-            warn!("Received unknown event: {evt_type}");
+            warn!("Received unknown event: {evt_type}!");
             Err(Error::UCentralParser("Received unknown event"))
         }
     }
@@ -822,19 +822,19 @@ pub fn cgw_ucentral_ap_parse_message(
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
-            error!("Failed to parse input json {e}");
+            error!("Failed to parse input json! Error: {e}");
             return Err(Error::UCentralParser("Failed to parse input json"));
         }
     };
 
     if map.contains_key("method") {
         let method = map["method"].as_str().ok_or_else(|| {
-            warn!("Received malformed JSONRPC msg");
+            warn!("Received malformed JSONRPC msg!");
             Error::UCentralParser("JSONRPC field is missing in message")
         })?;
         if method == "log" {
             let params = map.get("params").ok_or_else(|| {
-                warn!("Received JRPC <method> without params.");
+                warn!("Received JRPC <method> without params!");
                 Error::UCentralParser("Received JRPC <method> without params")
             })?;
             let serial = MacAddress::from_str(
@@ -895,7 +895,7 @@ pub fn cgw_ucentral_ap_parse_message(
         }
     } else if map.contains_key("result") {
         if !map.contains_key("id") {
-            warn!("Received JRPC <result> without id.");
+            warn!("Received JRPC <result> without id!");
             return Err(Error::UCentralParser("Received JRPC <result> without id"));
         }
 

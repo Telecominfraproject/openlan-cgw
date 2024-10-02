@@ -154,8 +154,8 @@ impl CGWMetrics {
         );
 
         tokio::spawn(async move {
-            if let Err(err) = register_custom_metrics() {
-                warn!("Failed to register CGW Metrics: {:?}", err);
+            if let Err(e) = register_custom_metrics() {
+                warn!("Failed to register CGW Metrics! Error: {e}");
                 return;
             };
 
@@ -254,7 +254,7 @@ impl CGWMetrics {
                     counter.set(1);
                     lock.insert(group_id, counter);
                 } else {
-                    error!("Failed to register GroupInfrasAssignedNum metric for GID {group_id}");
+                    error!("Failed to register GroupInfrasAssignedNum metric for GID {group_id}!");
                 }
             } else {
                 error!("Failed to create GroupInfrasAssignedNum metric for GID {group_id}");
@@ -266,7 +266,7 @@ impl CGWMetrics {
         let mut lock = GROUP_INFRAS_ASSIGNED_NUM.write().await;
         if let Some(counter) = lock.remove(&group_id) {
             if let Err(e) = REGISTRY.unregister(Box::new(counter)) {
-                error!("Failed to deregister GroupInfrasAssignedNum metric for GID {group_id}. Err: {e}");
+                error!("Failed to deregister GroupInfrasAssignedNum metric for GID {group_id}! Error: {e}");
             }
         }
     }
@@ -322,12 +322,12 @@ async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {
 
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&REGISTRY.gather(), &mut buffer) {
-        error!("could not encode custom metrics: {}", e);
+        error!("Could not encode custom metrics! Error: {e}");
     };
     let mut res = match String::from_utf8(buffer.clone()) {
         Ok(v) => v,
         Err(e) => {
-            error!("custom metrics could not be from_utf8'd: {}", e);
+            error!("Custom metrics could not be from_utf8'd! Error: {e}");
             String::default()
         }
     };
@@ -335,12 +335,12 @@ async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {
 
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&prometheus::gather(), &mut buffer) {
-        error!("could not encode prometheus metrics: {}", e);
+        error!("Could not encode prometheus metrics! Error: {e}");
     };
     let res_custom = match String::from_utf8(buffer.clone()) {
         Ok(v) => v,
         Err(e) => {
-            error!("prometheus metrics could not be from_utf8'd: {}", e);
+            error!("Prometheus metrics could not be from_utf8'd! Error: {e}");
             String::default()
         }
     };

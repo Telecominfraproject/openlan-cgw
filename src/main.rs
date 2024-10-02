@@ -113,7 +113,7 @@ impl AppCore {
         let cgw_server = match CGWConnectionServer::new(&app_args).await {
             Ok(s) => s,
             Err(e) => {
-                error!("Failed to create CGW server: {:?}", e);
+                error!("Failed to create CGW server! Error: {e}");
                 return Err(e);
             }
         };
@@ -242,13 +242,9 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     let listener: Arc<TcpListener> = match TcpListener::bind(sockaddress).await {
         Ok(listener) => Arc::new(listener),
         Err(e) => {
-            error!(
-                "Failed to bind socket address: {}. Error: {}",
-                sockaddress, e
-            );
+            error!("Failed to bind socket address {sockaddress}! Error: {e}");
             return Err(Error::ConnectionServer(format!(
-                "Failed to bind socket address: {}. Error: {}",
-                sockaddress, e
+                "Failed to bind socket address {sockaddress}! Error: {e}"
             )));
         }
     };
@@ -256,7 +252,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     let tls_acceptor = match cgw_tls_create_acceptor(&app_core.args.wss_args).await {
         Ok(acceptor) => acceptor,
         Err(e) => {
-            error!("Failed to create TLS acceptor. Error: {}", e.to_string());
+            error!("Failed to create TLS acceptor! Error: {e}");
             return Err(e);
         }
     };
@@ -264,7 +260,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
     let app_core_clone = app_core.clone();
-    let _ = app_core
+    let result = app_core
         .main_runtime_handle
         .spawn(async move {
             let mut conn_idx: i64 = 0;
@@ -277,7 +273,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                 let (socket, remote_addr) = match listener.accept().await {
                     Ok((sock, addr)) => (sock, addr),
                     Err(e) => {
-                        error!("Failed to Accept conn {e}\n");
+                        error!("Failed to accept connection! Error: {e}");
                         continue;
                     }
                 };
@@ -293,7 +289,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                     }
                 };
 
-                info!("ACK conn: {}, remote address: {}", conn_idx, remote_addr);
+                info!("Accept (ACK) connection: {conn_idx}, remote address: {remote_addr}");
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone
@@ -305,6 +301,13 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
             }
         })
         .await;
+
+    match result {
+        Ok(_) => info!("Apllication finished succesfully!"),
+        Err(e) => {
+            error!("Application failed! Error: {e}");
+        }
+    }
 
     Ok(())
 }
@@ -345,7 +348,7 @@ async fn main() -> Result<()> {
         Ok(app_args) => app_args,
         Err(e) => {
             setup_logger(AppCoreLogLevel::Info);
-            error!("Failed to parse app args: {}", e.to_string());
+            error!("Failed to parse application args! Error: {e}");
             return Err(e);
         }
     };
@@ -355,7 +358,7 @@ async fn main() -> Result<()> {
 
     // Initialize runtimes
     if let Err(e) = cgw_initialize_runtimes(args.wss_args.wss_t_num) {
-        error!("Failed to initialize CGW runtimes: {}", e.to_string());
+        error!("Failed to initialize CGW runtimes! Error: {e}");
         return Err(e);
     }
 
@@ -375,7 +378,7 @@ async fn main() -> Result<()> {
     // Spawn a task to listen for SIGHUP, SIGINT, and SIGTERM signals
     tokio::spawn(async move {
         if let Err(e) = signal_handler(shutdown_notify_clone).await {
-            error!("Failed to handle signal: {:?}", e);
+            error!("Failed to handle signal (SIGHUP, SIGINT, or SIGTERM)! Error: {e}");
         }
     });
 

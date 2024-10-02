@@ -15,6 +15,8 @@ pub enum Error {
 
     RemoteDiscoveryFailedInfras(Vec<eui48::MacAddress>),
 
+    Tcp(String),
+
     Tls(String),
 
     Redis(String),

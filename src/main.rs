@@ -28,6 +28,7 @@ extern crate lazy_static;
 use cgw_app_args::AppArgs;
 use cgw_runtime::cgw_initialize_runtimes;
 
+use nix::sys::socket::{setsockopt, sockopt};
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Handle, Runtime},
@@ -49,6 +50,14 @@ use cgw_metrics::CGWMetrics;
 use cgw_tls::cgw_tls_create_acceptor;
 
 use crate::cgw_errors::{Error, Result};
+
+use tokio::net::TcpStream;
+
+use std::os::unix::io::AsFd;
+
+const CGW_TCP_KEEPALIVE_TIMEOUT: u32 = 30;
+const CGW_TCP_KEEPALIVE_COUNT: u32 = 3;
+const CGW_TCP_KEEPALIVE_INTERVAL: u32 = 10;
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -159,6 +168,65 @@ impl AppCore {
     }
 }
 
+async fn cgw_set_tcp_keepalive_options(stream: TcpStream) -> Result<TcpStream> {
+    // Convert Tokio's TcpStream to std::net::TcpStream
+    let std_stream = match stream.into_std() {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Tokio TcpStream into Std TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Tokio TcpStream into Std TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    // Get the raw file descriptor (socket)
+    let raw_fd = std_stream.as_fd();
+
+    // Set the socket option to enable TCP keepalive
+    if let Err(e) = setsockopt(&raw_fd, sockopt::KeepAlive, &true) {
+        error!("Failed to enable TCP keepalive: {}", e);
+        return Err(Error::Tcp("Failed to enable TCP keepalive".to_string()));
+    }
+
+    // Set the TCP_KEEPIDLE option (keepalive time)
+    if let Err(e) = setsockopt(&raw_fd, sockopt::TcpKeepIdle, &CGW_TCP_KEEPALIVE_TIMEOUT) {
+        error!("Failed to set TCP_KEEPIDLE: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPIDLE".to_string()));
+    }
+
+    // Set the TCP_KEEPINTVL option (keepalive interval)
+    if let Err(e) = setsockopt(&raw_fd, sockopt::TcpKeepCount, &CGW_TCP_KEEPALIVE_COUNT) {
+        error!("Failed to set TCP_KEEPINTVL: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPINTVL".to_string()));
+    }
+
+    // Set the TCP_KEEPCNT option (keepalive probes count)
+    if let Err(e) = setsockopt(
+        &raw_fd,
+        sockopt::TcpKeepInterval,
+        &CGW_TCP_KEEPALIVE_INTERVAL,
+    ) {
+        error!("Failed to set TCP_KEEPCNT: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPCNT".to_string()));
+    }
+
+    // Convert the std::net::TcpStream back to Tokio's TcpStream
+    let stream = match TcpStream::from_std(std_stream) {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Std TcpStream into Tokio TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Std TcpStream into Tokio TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    Ok(stream)
+}
+
 async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     debug!("server_loop entry");
 
@@ -214,7 +282,18 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                     }
                 };
 
-                info!("ACK conn: {}", conn_idx);
+                let socket = match cgw_set_tcp_keepalive_options(socket).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!(
+                            "Failed to set TCP keepalive options. Error: {}",
+                            e.to_string()
+                        );
+                        break;
+                    }
+                };
+
+                info!("ACK conn: {}, remote address: {}", conn_idx, remote_addr);
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone

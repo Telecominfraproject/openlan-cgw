@@ -248,12 +248,21 @@ impl CGWRemoteDiscovery {
             remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        if let Err(e) = rc.sync_gid_to_cgw_map().await {
-            error!("Can't create CGW Remote Discovery client! Failed to sync GID to CGW map! Error: {e}");
-            return Err(Error::RemoteDiscovery(
-                "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
-            ));
-        }
+        let assigned_groups_num: i32 = match rc.sync_gid_to_cgw_map().await {
+            Ok(assigned_groups) => assigned_groups,
+            Err(e) => {
+                error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+                return Err(Error::RemoteDiscovery(
+                    "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
+                ));
+            }
+        };
+
+        debug!(
+            "Found {assigned_groups_num} asssigned to CGW ID {}",
+            app_args.cgw_id
+        );
+
         if let Err(e) = rc.sync_remote_cgw_map().await {
             error!("Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}");
             return Err(Error::RemoteDiscovery(
@@ -261,57 +270,49 @@ impl CGWRemoteDiscovery {
             ));
         }
 
-        if rc
-            .remote_cgws_map
-            .read()
-            .await
-            .get(&rc.local_shard_id)
-            .is_none()
-        {
-            let redisdb_shard_info = CGWREDISDBShard {
-                id: app_args.cgw_id,
-                server_host: app_args.grpc_args.grpc_public_host.clone(),
-                server_port: app_args.grpc_args.grpc_public_port,
-                assigned_groups_num: 0i32,
-                capacity: app_args.cgw_groups_capacity,
-                threshold: app_args.cgw_groups_threshold,
-            };
+        let redisdb_shard_info = CGWREDISDBShard {
+            id: app_args.cgw_id,
+            server_host: app_args.grpc_args.grpc_public_host.clone(),
+            server_port: app_args.grpc_args.grpc_public_port,
+            assigned_groups_num,
+            capacity: app_args.cgw_groups_capacity,
+            threshold: app_args.cgw_groups_threshold,
+        };
 
-            CGWMetrics::get_ref().change_counter(
-                CGWMetricsCounterType::GroupsCapacity,
-                CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupsCapacity,
+            CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+        );
+
+        CGWMetrics::get_ref().change_counter(
+            CGWMetricsCounterType::GroupsThreshold,
+            CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+        );
+
+        let redis_req_data: Vec<String> = redisdb_shard_info.into();
+        let mut con = rc.redis_client.clone();
+
+        let res: RedisResult<()> = redis::cmd("DEL")
+            .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
+            .query_async(&mut con)
+            .await;
+        if res.is_err() {
+            warn!(
+                "Failed to destroy record about shard in REDIS! Error: {}",
+                res.err().unwrap()
             );
+        }
 
-            CGWMetrics::get_ref().change_counter(
-                CGWMetricsCounterType::GroupsThreshold,
-                CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
-            );
-
-            let redis_req_data: Vec<String> = redisdb_shard_info.into();
-            let mut con = rc.redis_client.clone();
-
-            let res: RedisResult<()> = redis::cmd("DEL")
-                .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
-                .query_async(&mut con)
-                .await;
-            if res.is_err() {
-                warn!(
-                    "Failed to destroy record about shard in REDIS! Error: {}",
-                    res.err().unwrap()
-                );
-            }
-
-            let res: RedisResult<()> = redis::cmd("HSET")
-                .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
-                .arg(redis_req_data.to_redis_args())
-                .query_async(&mut con)
-                .await;
-            if res.is_err() {
-                error!("Can't create CGW Remote Discovery client! Failed to create record about shard in REDIS! Error: {}", res.err().unwrap());
-                return Err(Error::RemoteDiscovery(
-                    "Failed to create record about shard in REDIS",
-                ));
-            }
+        let res: RedisResult<()> = redis::cmd("HSET")
+            .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}{}", app_args.cgw_id))
+            .arg(redis_req_data.to_redis_args())
+            .query_async(&mut con)
+            .await;
+        if res.is_err() {
+            error!("Can't create CGW Remote Discovery client! Failed to create record about shard in REDIS! Error: {}", res.err().unwrap());
+            return Err(Error::RemoteDiscovery(
+                "Failed to create record about shard in REDIS",
+            ));
         }
 
         if let Err(e) = rc.sync_gid_to_cgw_map().await {
@@ -360,7 +361,7 @@ impl CGWRemoteDiscovery {
         Ok(rc)
     }
 
-    pub async fn sync_gid_to_cgw_map(&self) -> Result<()> {
+    pub async fn sync_gid_to_cgw_map(&self) -> Result<i32> {
         let mut lock = self.gid_to_cgw_cache.write().await;
 
         // Clear hashmap
@@ -428,7 +429,7 @@ impl CGWRemoteDiscovery {
             CGWMetricsCounterOpType::Set(local_cgw_gid_num),
         );
 
-        Ok(())
+        Ok(local_cgw_gid_num as i32)
     }
 
     pub async fn sync_device_to_gid_cache(&self, cache: Arc<RwLock<CGWDevicesCache>>) {

@@ -88,6 +88,10 @@ impl CGWDevicesCache {
         }
     }
 
+    pub fn flush_all(&mut self) {
+        self.cache.clear();
+    }
+
     pub fn dump_devices_cache(&self) {
         // Debug print - simply ignore errors if any!
         if let Ok(json_output) = serde_json::to_string_pretty(&self) {

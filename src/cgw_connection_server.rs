@@ -408,11 +408,17 @@ impl CGWConnectionServer {
             queue_lock.start_queue_timeout_manager().await;
         });
 
-        // Sync RAM cache with PostgressDB.
-        server
+        // Sync RAM cache with Redis.
+        match server
             .cgw_remote_discovery
-            .sync_device_to_gid_cache(server.devices_cache.clone())
-            .await;
+            .sync_devices_cache_with_redis(server.devices_cache.clone())
+            .await
+        {
+            Ok(_) => (),
+            Err(e) => {
+                error!("{e}");
+            }
+        }
 
         tokio::spawn(async move {
             CGWMetrics::get_ref()
@@ -1534,6 +1540,23 @@ impl CGWConnectionServer {
                             }
                         }
                         device.update_device_capabilities(&caps);
+                        match serde_json::to_string(device) {
+                            Ok(device_json) => {
+                                match self
+                                    .cgw_remote_discovery
+                                    .add_device_to_redis_cache(&device_mac, &device_json)
+                                    .await
+                                {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        error!("{e}");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to serialize device to json string! Error: {e}");
+                            }
+                        }
                     } else {
                         let default_caps: CGWDeviceCapabilities = Default::default();
                         let changes = cgw_detect_device_chages(&default_caps, &caps);
@@ -1557,16 +1580,32 @@ impl CGWConnectionServer {
                             }
                         }
 
-                        devices_cache.add_device(
-                            &device_mac,
-                            &CGWDevice::new(
-                                device_type,
-                                CGWDeviceState::CGWDeviceConnected,
-                                0,
-                                false,
-                                caps,
-                            ),
+                        let device: CGWDevice = CGWDevice::new(
+                            device_type,
+                            CGWDeviceState::CGWDeviceConnected,
+                            0,
+                            false,
+                            caps,
                         );
+                        devices_cache.add_device(&device_mac, &device);
+
+                        match serde_json::to_string(&device) {
+                            Ok(device_json) => {
+                                match self
+                                    .cgw_remote_discovery
+                                    .add_device_to_redis_cache(&device_mac, &device_json)
+                                    .await
+                                {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        error!("{e}");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to serialize device to json string! Error: {e}");
+                            }
+                        }
 
                         if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
                             device_mac,
@@ -1616,8 +1655,36 @@ impl CGWConnectionServer {
                         device_group_id = device.get_device_group_id();
                         if device.get_device_remains_in_db() {
                             device.set_device_state(CGWDeviceState::CGWDeviceDisconnected);
+
+                            match serde_json::to_string(device) {
+                                Ok(device_json) => {
+                                    match self
+                                        .cgw_remote_discovery
+                                        .add_device_to_redis_cache(&device_mac, &device_json)
+                                        .await
+                                    {
+                                        Ok(_) => (),
+                                        Err(e) => {
+                                            error!("{e}");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to serialize device to json string! Error: {e}");
+                                }
+                            }
                         } else {
                             devices_cache.del_device(&device_mac);
+                            match self
+                                .cgw_remote_discovery
+                                .del_device_from_redis_cache(&device_mac)
+                                .await
+                            {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    error!("{e}");
+                                }
+                            }
                         }
                     }
 

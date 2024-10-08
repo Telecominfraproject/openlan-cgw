@@ -327,12 +327,12 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
 
     let map: CGWUCentralJRPCMessage = serde_json::from_str(&msg)?;
     if !map.contains_key("jsonrpc") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
     let method = map["method"].as_str().ok_or_else(|| {
-        warn!("Received malformed JSONRPC msg.");
+        warn!("Received malformed JSONRPC msg!");
         Error::UCentralParser("method field is missing in message")
     })?;
 
@@ -343,7 +343,7 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
     }
 
     let params = map.get("params").ok_or_else(|| {
-        warn!("Received JSONRPC <method> without params");
+        warn!("Received JSONRPC <method> without params!");
         Error::UCentralParser("Received JSONRPC <method> without params")
     })?;
 
@@ -377,28 +377,28 @@ pub fn cgw_ucentral_parse_command_message(message: &str) -> Result<CGWUCentralCo
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
-            error!("Failed to parse input json {e}");
+            error!("Failed to parse input json! Error: {e}");
             return Err(Error::UCentralParser("Failed to parse input json"));
         }
     };
 
     if !map.contains_key("jsonrpc") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
     if !map.contains_key("method") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("method field is missing in message"));
     }
 
     if !map.contains_key("params") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("params field is missing in message"));
     }
 
     if !map.contains_key("id") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("id field is missing in message"));
     }
 
@@ -499,7 +499,7 @@ fn cgw_load_json_validation_schemas(path: &Path) -> Result<serde_json::Value> {
     match serde_json::from_reader(reader) {
         Ok(json_schema) => Ok(json_schema),
         Err(e) => Err(Error::UCentralValidator(format!(
-            "Failed to read JSON schema from file {}: {e}",
+            "Failed to read JSON schema from file {}! Error: {e}",
             path.display()
         ))),
     }

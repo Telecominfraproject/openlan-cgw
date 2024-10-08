@@ -67,7 +67,7 @@ impl CGWDBAccessor {
             }
         );
         debug!(
-            "Trying to connect to remote db ({}:{})...\nConn args {}",
+            "Trying to connect to remote db ({}:{})...\nConnection args: {}",
             db_args.db_host, db_args.db_port, conn_str
         );
 
@@ -76,10 +76,7 @@ impl CGWDBAccessor {
             let tls = match cgw_tls_create_db_connect().await {
                 Ok(tls_connect) => tls_connect,
                 Err(e) => {
-                    error!(
-                        "Failed to build TLS connection with remote DB, reason: {}",
-                        e.to_string()
-                    );
+                    error!("Failed to build TLS connection with remote DB! Error: {e}");
                     return Err(Error::DbAccessor(
                         "Failed to build TLS connection with remote DB",
                     ));
@@ -89,14 +86,14 @@ impl CGWDBAccessor {
             let (db_client, connection) = match tokio_postgres::connect(&conn_str, tls).await {
                 Ok((cl, conn)) => (cl, conn),
                 Err(e) => {
-                    error!("Failed to establish connection with DB, reason: {:?}", e);
+                    error!("Failed to establish connection with DB! Error: {e}");
                     return Err(Error::DbAccessor("Failed to establish connection with DB"));
                 }
             };
 
             tokio::spawn(async move {
                 if let Err(e) = connection.await {
-                    let err_msg = format!("Connection to DB broken: {}", e);
+                    let err_msg = format!("Connection to DB broken! Error: {e}");
                     error!("{}", err_msg);
                     CGWMetrics::get_ref()
                         .change_component_health_status(
@@ -112,14 +109,14 @@ impl CGWDBAccessor {
             let (db_client, connection) = match tokio_postgres::connect(&conn_str, NoTls).await {
                 Ok((cl, conn)) => (cl, conn),
                 Err(e) => {
-                    error!("Failed to establish connection with DB, reason: {:?}", e);
+                    error!("Failed to establish connection with DB! Error: {e}");
                     return Err(Error::DbAccessor("Failed to establish connection with DB"));
                 }
             };
 
             tokio::spawn(async move {
                 if let Err(e) = connection.await {
-                    let err_msg = format!("Connection to DB broken: {}", e);
+                    let err_msg = format!("Connection to DB broken! Error: {e}");
                     error!("{}", err_msg);
                     CGWMetrics::get_ref()
                         .change_component_health_status(
@@ -162,7 +159,7 @@ impl CGWDBAccessor {
         let q = match self.cl.prepare("INSERT INTO infrastructure_groups (id, reserved_size, actual_size) VALUES ($1, $2, $3)").await {
             Ok(c) => c,
             Err(e) => {
-                error!("Failed to prepare query (new infra group) for insertion, reason: {:?}", e);
+                error!("Failed to prepare query (new infra group) for insertion! Error: {e}");
                 return Err(Error::DbAccessor("Insert new infra group failed"));
             }
         };
@@ -174,11 +171,7 @@ impl CGWDBAccessor {
         match res {
             Ok(_n) => Ok(()),
             Err(e) => {
-                error!(
-                    "Failed to insert a new infra group {}: {:?}",
-                    g.id,
-                    e.to_string()
-                );
+                error!("Failed to insert a new infra group {}! Error: {}", g.id, e);
                 Err(Error::DbAccessor("Insert new infra group failed"))
             }
         }
@@ -193,10 +186,7 @@ impl CGWDBAccessor {
         {
             Ok(c) => c,
             Err(e) => {
-                error!(
-                    "Failed to prepare query (del infra group) for removal, reason: {:?}",
-                    e
-                );
+                error!("Failed to prepare query (del infra group) for removal! Error: {e}");
                 return Err(Error::DbAccessor("Insert new infra group failed"));
             }
         };
@@ -213,7 +203,7 @@ impl CGWDBAccessor {
                 }
             }
             Err(e) => {
-                error!("Failed to delete an infra group {gid}: {:?}", e.to_string());
+                error!("Failed to delete an infra group {gid}! Error: {e}");
                 Err(Error::DbAccessor("Delete infra group failed"))
             }
         }
@@ -274,7 +264,7 @@ impl CGWDBAccessor {
         {
             Ok(c) => c,
             Err(e) => {
-                error!("Failed to insert new infra, reason: {:?}", e);
+                error!("Failed to insert new infra! Error: {e}");
                 return Err(Error::DbAccessor("Failed to insert new infra"));
             }
         };
@@ -286,7 +276,7 @@ impl CGWDBAccessor {
         match res {
             Ok(_n) => Ok(()),
             Err(e) => {
-                error!("Failed to insert a new infra: {:?}", e.to_string());
+                error!("Failed to insert new infra! Error: {e}");
                 Err(Error::DbAccessor("Insert new infra failed"))
             }
         }
@@ -296,7 +286,7 @@ impl CGWDBAccessor {
         let q = match self.cl.prepare("DELETE FROM infras WHERE mac = $1").await {
             Ok(c) => c,
             Err(e) => {
-                error!("Failed to delete infra, reason: {:?}", e);
+                error!("Failed to delete infra! Error: {e}");
                 return Err(Error::DbAccessor("Failed to delete infra from DB"));
             }
         };
@@ -308,12 +298,12 @@ impl CGWDBAccessor {
                     Ok(())
                 } else {
                     Err(Error::DbAccessor(
-                        "Failed to delete infra from DB: MAC does not exist",
+                        "Failed to delete infra from DB: MAC does not exist!",
                     ))
                 }
             }
             Err(e) => {
-                error!("Failed to delete infra: {:?}", e.to_string());
+                error!("Failed to delete infra! Error: {e}");
                 Err(Error::DbAccessor("Delete infra failed"))
             }
         }
@@ -333,7 +323,7 @@ impl CGWDBAccessor {
                 Some(list)
             }
             Err(e) => {
-                error!("Failed to retrieve infras from DB, reason: {:?}", e);
+                error!("Failed to retrieve infras from DB! Error: {e}");
                 None
             }
         }

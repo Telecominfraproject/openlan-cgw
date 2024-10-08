@@ -106,8 +106,8 @@ fn parse_fdb_data(
                     let vid = {
                         match u16::from_str(k.as_str()) {
                             Ok(v) => v,
-                            Err(_e) => {
-                                warn!("Failed to convert vid {k} to u16");
+                            Err(e) => {
+                                warn!("Failed to convert vid {k} to u16! Error: {e}");
                                 continue;
                             }
                         }
@@ -130,7 +130,7 @@ fn parse_fdb_data(
                             if let Some(ref mut existing_vec) = existing_vec {
                                 existing_vec.push(clients_data);
                             } else {
-                                warn!("Unexpected: tried to push clients_data {:?}:{}, while hashmap entry (key) for it does not exist",
+                                warn!("Unexpected: tried to push clients_data [{}:{}], while hashmap entry (key) for it does not exist!",
                                       local_port, clients_data.remote_port);
                             }
                         }
@@ -151,19 +151,19 @@ pub fn cgw_ucentral_switch_parse_message(
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
-            error!("Failed to parse input json {e}");
+            error!("Failed to parse input json! Error: {e}");
             return Err(Error::UCentralParser("Failed to parse input json"));
         }
     };
 
     if !map.contains_key("jsonrpc") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
     if map.contains_key("method") {
         let method = map["method"].as_str().ok_or_else(|| {
-            warn!("Received JRPC <method> without params.");
+            warn!("Received JRPC <method> without params!");
             Error::UCentralParser("Received JRPC <method> without params")
         })?;
         if method == "log" {

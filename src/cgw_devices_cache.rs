@@ -32,10 +32,7 @@ impl CGWDevicesCache {
 
     pub fn add_device(&mut self, key: &MacAddress, value: &CGWDevice) -> bool {
         let status: bool = if self.check_device_exists(key) {
-            debug!(
-                "Failed to add device {}. Requested item already exist.",
-                key
-            );
+            debug!("Failed to add device {}. Requested item already exist", key);
             false
         } else {
             self.cache.insert(*key, value.clone());
@@ -51,7 +48,7 @@ impl CGWDevicesCache {
             true
         } else {
             debug!(
-                "Failed to del device {}. Requested item does not exist.",
+                "Failed to del device {}. Requested item does not exist",
                 key
             );
             false
@@ -97,7 +94,9 @@ impl CGWDevicesCache {
             debug!("Cache: {}", json_output);
 
             if let Ok(mut fd) = File::create("/var/devices_cache.json") {
-                let _ = fd.write_all(json_output.as_bytes());
+                if let Err(e) = fd.write_all(json_output.as_bytes()) {
+                    error!("Failed to dump CGW device chache data! Error: {e}");
+                }
             }
         };
     }

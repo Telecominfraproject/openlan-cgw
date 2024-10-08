@@ -84,8 +84,7 @@ pub fn cgw_initialize_runtimes(wss_t_num: usize) -> Result<()> {
         Ok(runtimes_lock) => runtimes_lock,
         Err(e) => {
             return Err(Error::Runtime(format!(
-                "Failed to get runtimes lock: {}",
-                e
+                "Failed to get runtimes lock! Error: {e}"
             )));
         }
     };
@@ -105,8 +104,7 @@ pub fn cgw_get_runtime(runtime_type: CGWRuntimeType) -> Result<Option<Arc<Runtim
         Ok(runtimes_lock) => runtimes_lock,
         Err(e) => {
             return Err(Error::Runtime(format!(
-                "Failed to get runtimes lock: {}",
-                e
+                "Failed to get runtimes lock! Error: {e}"
             )));
         }
     };

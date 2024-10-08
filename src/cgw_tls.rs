@@ -27,8 +27,7 @@ async fn cgw_tls_read_file(file_path: &str) -> Result<Vec<u8>> {
         Ok(f) => f,
         Err(e) => {
             return Err(Error::Tls(format!(
-                "Failed to open file: {}. Error: {}",
-                file_path, e
+                "Failed to open TLS certificate/key file: {file_path}! Error: {e}"
             )));
         }
     };
@@ -37,8 +36,7 @@ async fn cgw_tls_read_file(file_path: &str) -> Result<Vec<u8>> {
         Ok(meta) => meta,
         Err(e) => {
             return Err(Error::Tls(format!(
-                "Failed to read {} metadata. Error: {}",
-                file_path, e
+                "Failed to read file {file_path} metadata! Error: {e}"
             )));
         }
     };
@@ -86,8 +84,7 @@ pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateK
             ))),
         },
         Err(e) => Err(Error::Tls(format!(
-            "Failed to read private key from file: {}. Error: {}",
-            private_key_file, e
+            "Failed to read private key from file: {private_key_file}! Error: {e}"
         ))),
     }
 }
@@ -119,8 +116,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
                         Ok(mac) => return Ok(mac),
                         Err(e) => {
                             return Err(Error::Tls(format!(
-                                "Failed to parse clien CN/MAC. Error: {}",
-                                e
+                                "Failed to parse clien CN/MAC! Error: {e}"
                             )))
                         }
                     };
@@ -129,13 +125,12 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
         }
         Err(e) => {
             return Err(Error::Tls(format!(
-                "Failed to read peer comman name. Error: {}",
-                e
+                "Failed to read peer common name (CN)! Error: {e}"
             )));
         }
     }
 
-    Err(Error::Tls("Failed to read peer comman name!".to_string()))
+    Err(Error::Tls("Failed to read peer common name!".to_string()))
 }
 
 pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAcceptor> {
@@ -144,7 +139,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     let cas = match cgw_tls_read_certs(cas_path.as_str()).await {
         Ok(cas_pem) => cas_pem,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
@@ -154,7 +149,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     let mut cert = match cgw_tls_read_certs(cert_path.as_str()).await {
         Ok(cert_pem) => cert_pem,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
@@ -165,7 +160,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     let key = match cgw_tls_read_private_key(key_path.as_str()).await {
         Ok(pkey) => pkey,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
@@ -177,7 +172,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     let client_verifier = match WebPkiClientVerifier::builder(Arc::new(roots)).build() {
         Ok(verifier) => verifier,
         Err(e) => {
-            error!("Failed to build client verifier: {}", e.to_string());
+            error!("Failed to build client verifier! Error: {e}");
             return Err(Error::Tls("Failed to build client verifier!".to_string()));
         }
     };
@@ -189,7 +184,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     {
         Ok(server_config) => server_config,
         Err(e) => {
-            error!("Failed to build server config: {}", e.to_string());
+            error!("Failed to build server config! Error: {e}");
             return Err(Error::Tls("Failed to build server config!".to_string()));
         }
     };
@@ -226,7 +221,9 @@ pub async fn cgw_get_root_certs_store() -> Result<RootCertStore> {
     let certs = rustls_pemfile::certs(buf);
     let mut root_cert_store = rustls::RootCertStore::empty();
     for cert in certs.flatten() {
-        let _r = root_cert_store.add(cert);
+        if let Err(e) = root_cert_store.add(cert.clone()) {
+            error!("Failed do add cert {:?} to root store! Error: {e}", cert);
+        }
     }
 
     Ok(root_cert_store)

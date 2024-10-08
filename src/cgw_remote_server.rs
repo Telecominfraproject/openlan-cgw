@@ -76,8 +76,10 @@ impl CGWRemoteServer {
             self.cfg.remote_id, self.cfg.server_ip, self.cfg.server_port
         );
 
-        let res = grpc_srv.serve(self.cfg.to_socket_addr()).await;
-        error!("grpc server returned {:?}", res);
-        // end of GRPC server build / start declaration
+        if let Err(e) = grpc_srv.serve(self.cfg.to_socket_addr()).await {
+            error!("gRPC server failed! Error: {e}");
+        };
+
+        // end of gRPC server build / start declaration
     }
 }

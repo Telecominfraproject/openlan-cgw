@@ -54,7 +54,7 @@ pub struct CGWREDISDBShard {
 impl From<Vec<String>> for CGWREDISDBShard {
     fn from(values: Vec<String>) -> Self {
         if values.len() < REDIS_KEY_SHARD_ID_FIELDS_NUM {
-            error!("Unexpected size of parsed vector: at least {REDIS_KEY_SHARD_ID_FIELDS_NUM} expected");
+            error!("Unexpected size of parsed vector! At least {REDIS_KEY_SHARD_ID_FIELDS_NUM} expected!");
             return CGWREDISDBShard::default();
         }
 
@@ -183,12 +183,16 @@ async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
 
             match redis::Client::build_with_tls(redis_client_info, tls_certs) {
                 Ok(client) => Ok(client),
-                Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+                Err(e) => Err(Error::Redis(format!(
+                    "Failed to start Redis client! Error: {e}"
+                ))),
             }
         }
         false => match redis::Client::open(redis_client_info) {
             Ok(client) => Ok(client),
-            Err(e) => Err(Error::Redis(format!("Failed to start Redis Client: {}", e))),
+            Err(e) => Err(Error::Redis(format!(
+                "Failed to start Redis client! Error: {e}"
+            ))),
         },
     }
 }
@@ -204,8 +208,7 @@ impl CGWRemoteDiscovery {
             Ok(c) => c,
             Err(e) => {
                 error!(
-                    "Can't create CGW Remote Discovery client: Redis client create failed ({:?})",
-                    e
+                    "Can't create CGW Remote Discovery client! Redis client create failed! Error: {e}"
                 );
                 return Err(Error::RemoteDiscovery("Redis client create failed"));
             }
@@ -221,8 +224,7 @@ impl CGWRemoteDiscovery {
             Ok(conn) => conn,
             Err(e) => {
                 error!(
-                    "Can't create CGW Remote Discovery client: Get Redis async connection failed ({})",
-                    e
+                    "Can't create CGW Remote Discovery client! Get Redis async connection failed! Error: {e}"
                 );
                 return Err(Error::RemoteDiscovery("Redis client create failed"));
             }
@@ -232,8 +234,7 @@ impl CGWRemoteDiscovery {
             Ok(c) => c,
             Err(e) => {
                 error!(
-                    "Can't create CGW Remote Discovery client: DB Accessor create failed ({:?})",
-                    e
+                    "Can't create CGW Remote Discovery client! DB Accessor create failed! Error: {e}"
                 );
                 return Err(Error::RemoteDiscovery("DB Accessor create failed"));
             }
@@ -248,13 +249,13 @@ impl CGWRemoteDiscovery {
         };
 
         if let Err(e) = rc.sync_gid_to_cgw_map().await {
-            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            error!("Can't create CGW Remote Discovery client! Failed to sync GID to CGW map! Error: {e}");
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
             ));
         }
         if let Err(e) = rc.sync_remote_cgw_map().await {
-            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            error!("Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}");
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
             ));
@@ -295,7 +296,7 @@ impl CGWRemoteDiscovery {
                 .await;
             if res.is_err() {
                 warn!(
-                    "Failed to destroy record about shard in REDIS, first launch? ({})",
+                    "Failed to destroy record about shard in REDIS! Error: {}",
                     res.err().unwrap()
                 );
             }
@@ -306,7 +307,7 @@ impl CGWRemoteDiscovery {
                 .query_async(&mut con)
                 .await;
             if res.is_err() {
-                error!("Can't create CGW Remote Discovery client: Failed to create record about shard in REDIS: {}", res.err().unwrap());
+                error!("Can't create CGW Remote Discovery client! Failed to create record about shard in REDIS! Error: {}", res.err().unwrap());
                 return Err(Error::RemoteDiscovery(
                     "Failed to create record about shard in REDIS",
                 ));
@@ -315,8 +316,7 @@ impl CGWRemoteDiscovery {
 
         if let Err(e) = rc.sync_gid_to_cgw_map().await {
             error!(
-                "Can't create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
-                e
+                "Can't create CGW Remote Discovery client! Failed to sync GID to CGW map! Error: {e}"
             );
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
@@ -324,8 +324,7 @@ impl CGWRemoteDiscovery {
         }
         if let Err(e) = rc.sync_remote_cgw_map().await {
             error!(
-                "Can't create CGW Remote Discovery client: Can't pull records data from REDIS: {:?}",
-                e
+                "Can't create CGW Remote Discovery client! Failed to sync remope CGW map! Error: {e}"
             );
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
@@ -374,7 +373,7 @@ impl CGWRemoteDiscovery {
             .await
         {
             Err(e) => {
-                error!("Failed to sync gid to cgw map:\n{}", e);
+                error!("Failed to sync gid to cgw map! Error: {e}");
                 return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
             }
             Ok(keys) => keys,
@@ -389,7 +388,7 @@ impl CGWRemoteDiscovery {
             {
                 Ok(gid) => gid,
                 Err(e) => {
-                    warn!("Found proper key '{key}' entry, but failed to fetch GID from it:\n{e}");
+                    warn!("Found proper key '{key}' entry, but failed to fetch GID from it! Error: {e}");
                     continue;
                 }
             };
@@ -402,7 +401,7 @@ impl CGWRemoteDiscovery {
             {
                 Ok(shard_id) => shard_id,
                 Err(e) => {
-                    warn!("Found proper key '{key}' entry, but failed to fetch SHARD_ID from it:\n{e}");
+                    warn!("Found proper key '{key}' entry, but failed to fetch SHARD_ID from it! Error: {e}");
                     continue;
                 }
             };
@@ -412,7 +411,7 @@ impl CGWRemoteDiscovery {
             match lock.insert(gid, shard_id) {
                 None => continue,
                 Some(_v) => warn!(
-                    "Populated gid_to_cgw_map with previous value being alerady set, unexpected"
+                    "Populated gid_to_cgw_map with previous value being alerady set, unexpected!"
                 ),
             }
         }
@@ -472,8 +471,7 @@ impl CGWRemoteDiscovery {
             Ok(keys) => keys,
             Err(e) => {
                 error!(
-                    "Can't sync remote CGW map: Failed to get shard record in REDIS: {}",
-                    e
+                    "Can't sync remote CGW map! Failed to get shard record in REDIS! Error: {e}"
                 );
                 return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
             }
@@ -487,7 +485,7 @@ impl CGWRemoteDiscovery {
                 Ok(res) => {
                     let shrd: CGWREDISDBShard = CGWREDISDBShard::from(res);
                     if shrd == CGWREDISDBShard::default() {
-                        warn!("Failed to parse CGWREDISDBShard, {key}");
+                        warn!("Failed to parse CGWREDISDBShard, key: {key}!");
                         continue;
                     }
 
@@ -502,7 +500,7 @@ impl CGWRemoteDiscovery {
                     lock.insert(cgw_iface.shard.id, cgw_iface);
                 }
                 Err(e) => {
-                    warn!("Found proper key '{key}' entry, but failed to fetch Shard info from it:\n{e}");
+                    warn!("Found proper key '{key}' entry, but failed to fetch Shard info from it! Error: {e}");
                     continue;
                 }
             }
@@ -523,7 +521,9 @@ impl CGWRemoteDiscovery {
         }
 
         // then try to use redis
-        let _ = self.sync_gid_to_cgw_map().await;
+        if let Err(e) = self.sync_gid_to_cgw_map().await {
+            error!("Failed to sync GID to CGW map! Error: {e}");
+        }
 
         if let Some(id) = self.gid_to_cgw_cache.read().await.get(&gid) {
             return Some(*id);
@@ -544,7 +544,7 @@ impl CGWRemoteDiscovery {
             .await;
         if res.is_err() {
             error!(
-                "Failed to increment assigned groups number:\n{}",
+                "Failed to increment assigned groups number! Error: {}",
                 res.err().unwrap()
             );
             return Err(Error::RemoteDiscovery(
@@ -573,7 +573,7 @@ impl CGWRemoteDiscovery {
             .await;
         if res.is_err() {
             error!(
-                "Failed to decrement assigned groups number:\n{}",
+                "Failed to decrement assigned groups number! Error: {}",
                 res.err().unwrap()
             );
             return Err(Error::RemoteDiscovery(
@@ -591,19 +591,23 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    async fn increment_group_assigned_infras_num(&self, gid: i32) -> Result<()> {
+    async fn increment_group_assigned_infras_num(
+        &self,
+        gid: i32,
+        incremet_value: i32,
+    ) -> Result<()> {
         debug!("Incrementing assigned infras num group_id_{gid}");
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg("1")
+            .arg(&incremet_value.to_string())
             .query_async(&mut con)
             .await;
         if res.is_err() {
             error!(
-                "Failed to increment assigned infras number:\n{}",
+                "Failed to increment assigned infras number! Error: {}",
                 res.err().unwrap()
             );
             return Err(Error::RemoteDiscovery(
@@ -622,19 +626,23 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    async fn decrement_group_assigned_infras_num(&self, gid: i32) -> Result<()> {
+    async fn decrement_group_assigned_infras_num(
+        &self,
+        gid: i32,
+        decremet_value: i32,
+    ) -> Result<()> {
         debug!("Decrementing assigned infras num group_id_{gid}");
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg("-1")
+            .arg(&(-decremet_value).to_string())
             .query_async(&mut con)
             .await;
         if res.is_err() {
             error!(
-                "Failed to decrement assigned infras number:\n{}",
+                "Failed to decrement assigned infras number! Error: {}",
                 res.err().unwrap()
             );
             return Err(Error::RemoteDiscovery(
@@ -666,7 +674,7 @@ impl CGWRemoteDiscovery {
         for x in hash_vec {
             let max_capacity: i32 = x.1.shard.capacity + x.1.shard.threshold;
             if x.1.shard.assigned_groups_num < max_capacity {
-                debug!("Found CGW shard to assign group to (id {})", x.1.shard.id);
+                debug!("Found CGW shard to assign group to id {}", x.1.shard.id);
                 return Ok(x.1.shard.id);
             }
         }
@@ -683,7 +691,7 @@ impl CGWRemoteDiscovery {
             Some(instance) => {
                 let max_capacity: i32 = instance.shard.capacity + instance.shard.threshold;
                 if instance.shard.assigned_groups_num < max_capacity {
-                    debug!("Found CGW shard to assign group to (id {})", shard_id);
+                    debug!("Found CGW shard to assign group to id {}", shard_id);
                     Ok(shard_id)
                 } else {
                     Err(Error::RemoteDiscovery(
@@ -705,11 +713,13 @@ impl CGWRemoteDiscovery {
         infras_assigned: i32,
     ) -> Result<i32> {
         // Delete key (if exists), recreate with new owner
-        let _ = self.deassign_infra_group_to_cgw(gid).await;
+        if let Err(e) = self.deassign_infra_group_to_cgw(gid).await {
+            error!("destroy_infra_group: failed to deassign infra group to CGW! Error: {e}");
+        }
 
         // Sync CGWs to get lates data
         if let Err(e) = self.sync_remote_cgw_map().await {
-            error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
+            error!("Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}");
             return Err(Error::RemoteDiscovery(
                 "Failed to sync remote CGW info from REDIS",
             ));
@@ -739,7 +749,7 @@ impl CGWRemoteDiscovery {
 
         if res.is_err() {
             error!(
-                "Failed to assign infra group {} to cgw {}:\n{}",
+                "Failed to assign infra group {} to cgw {}! Error: {}",
                 gid,
                 dst_cgw_id,
                 res.err().unwrap()
@@ -765,7 +775,7 @@ impl CGWRemoteDiscovery {
 
         if res.is_err() {
             error!(
-                "Failed to deassign infra group {}:\n{}",
+                "Failed to deassign infra group {}! Error: {}",
                 gid,
                 res.err().unwrap()
             );
@@ -795,14 +805,15 @@ impl CGWRemoteDiscovery {
         {
             Ok(v) => v,
             Err(e) => {
-                error!("Assign group to CGW shard failed! Err: {}", e.to_string());
-                let _ = self.db_accessor.delete_infra_group(g.id).await;
+                error!("Assign group to CGW shard failed! Error: {e}");
+                if let Err(e) = self.db_accessor.delete_infra_group(g.id).await {
+                    error!("Assign group to CGW shard failed! Failed to delete infra group ID {}! Error: {e}", g.id);
+                }
                 return Err(e);
             }
         };
 
-        let rc = self.increment_cgw_assigned_groups_num(shard_id).await;
-        rc?;
+        self.increment_cgw_assigned_groups_num(shard_id).await?;
 
         Ok(shard_id)
     }
@@ -814,8 +825,12 @@ impl CGWRemoteDiscovery {
     ) -> Result<()> {
         let cgw_id: Option<i32> = self.get_infra_group_owner_id(gid).await;
         if let Some(id) = cgw_id {
-            let _ = self.deassign_infra_group_to_cgw(gid).await;
-            let _ = self.decrement_cgw_assigned_groups_num(id).await;
+            if let Err(e) = self.deassign_infra_group_to_cgw(gid).await {
+                error!("destroy_infra_group: failed to deassign infra group to CGW! Error: {e}");
+            }
+            if let Err(e) = self.decrement_cgw_assigned_groups_num(id).await {
+                error!("destroy_infra_group: failed to decrement assigned groups num to CGW! Error: {e}");
+            }
         }
 
         //TODO: transaction-based insert/assigned_group_num update (DB)
@@ -856,7 +871,7 @@ impl CGWRemoteDiscovery {
         let infras_capacity = match self.get_group_infras_capacity(gid).await {
             Ok(capacity) => capacity,
             Err(e) => {
-                error!("Failed to create infreas list: {}", e.to_string());
+                error!("Failed to create infras list! Error: {e}");
                 return Err(Error::RemoteDiscoveryFailedInfras(infras));
             }
         };
@@ -864,13 +879,13 @@ impl CGWRemoteDiscovery {
         let infras_assigned = match self.get_group_infras_assigned_num(gid).await {
             Ok(assigned) => assigned,
             Err(e) => {
-                error!("Failed to create infreas list: {}", e.to_string());
+                error!("Failed to create infras list! Error: {e}");
                 return Err(Error::RemoteDiscoveryFailedInfras(infras));
             }
         };
 
         if infras.len() as i32 + infras_assigned > infras_capacity {
-            error!("Failed to create infras list - GID {gid} has no enough capacity");
+            error!("Failed to create infras list - GID {gid} has no enough capacity!");
             return Err(Error::RemoteDiscoveryFailedInfras(infras));
         }
 
@@ -891,6 +906,7 @@ impl CGWRemoteDiscovery {
             }));
         }
 
+        let mut assigned_infras_num: i32 = 0;
         for (i, future) in futures.iter_mut().enumerate() {
             match future.await {
                 Ok(res) => {
@@ -915,15 +931,21 @@ impl CGWRemoteDiscovery {
                                 ),
                             );
                         }
-
-                        // Update assigned infras num
-                        let _ = self.increment_group_assigned_infras_num(gid).await;
+                        assigned_infras_num += 1;
                     }
                 }
                 Err(_) => {
                     failed_infras.push(infras[i]);
                 }
             }
+        }
+
+        // Update assigned infras num
+        if let Err(e) = self
+            .increment_group_assigned_infras_num(gid, assigned_infras_num)
+            .await
+        {
+            error!("create_ifras_list: failed to decrement assigned infras num! Error: {e}");
         }
 
         if !failed_infras.is_empty() {
@@ -955,6 +977,7 @@ impl CGWRemoteDiscovery {
             }));
         }
 
+        let mut removed_infras: i32 = 0;
         for (i, future) in futures.iter_mut().enumerate() {
             match future.await {
                 Ok(res) => {
@@ -971,14 +994,21 @@ impl CGWRemoteDiscovery {
                                 devices_cache.del_device(&device_mac);
                             }
                         }
-                        // Update assigned infras num
-                        let _ = self.decrement_group_assigned_infras_num(gid).await;
+                        removed_infras += 1;
                     }
                 }
                 Err(_) => {
                     failed_infras.push(infras[i]);
                 }
             }
+        }
+
+        // Update assigned infras num
+        if let Err(e) = self
+            .decrement_group_assigned_infras_num(gid, removed_infras)
+            .await
+        {
+            error!("destroy_ifras_list: failed to decrement assigned infras num! Error: {e}");
         }
 
         if !failed_infras.is_empty() {
@@ -995,10 +1025,10 @@ impl CGWRemoteDiscovery {
     ) -> Result<()> {
         // try to use internal cache first
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-            if let Err(_e) = cl.client.relay_request_stream(stream).await {
+            if let Err(e) = cl.client.relay_request_stream(stream).await {
                 error!(
-                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
-                    shard_id, cl.shard.server_host, cl.shard.server_port
+                    "Failed to relay message! CGW{} seems to be unreachable at [{}:{}]! Error: {}",
+                    shard_id, cl.shard.server_host, cl.shard.server_port, e
                 );
             }
 
@@ -1006,30 +1036,33 @@ impl CGWRemoteDiscovery {
         }
 
         // then try to use redis
-        let _ = self.sync_remote_cgw_map().await;
+        if let Err(e) = self.sync_remote_cgw_map().await {
+            error!("relay_request_stream_to_remote_cgw: failed to sync remote CGW map! Error: {e}");
+        }
+
         if let Some(cl) = self.remote_cgws_map.read().await.get(&shard_id) {
-            if let Err(_e) = cl.client.relay_request_stream(stream).await {
+            if let Err(e) = cl.client.relay_request_stream(stream).await {
                 error!(
-                    "Failed to relay message. CGW{} seems to be unreachable at [{}:{}]",
-                    shard_id, cl.shard.server_host, cl.shard.server_port
+                    "Failed to relay message! CGW{} seems to be unreachable at [{}:{}]. Error: {}",
+                    shard_id, cl.shard.server_host, cl.shard.server_port, e
                 );
             }
             return Ok(());
         }
 
-        error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg");
+        error!("No suitable CGW instance #{shard_id} was discovered, cannot relay msg!");
         Err(Error::RemoteDiscovery(
             "No suitable CGW instance was discovered, cannot relay msg",
         ))
     }
 
     pub async fn rebalance_all_groups(&self) -> Result<u32> {
-        warn!("Executing group rebalancing procedure");
+        warn!("Executing group rebalancing procedure!");
 
         let groups = match self.db_accessor.get_all_infra_groups().await {
             Some(list) => list,
             None => {
-                warn!("Tried to execute rebalancing when 0 groups created in DB");
+                warn!("Tried to execute rebalancing when 0 groups created in DB!");
                 return Err(Error::RemoteDiscovery(
                     "Cannot do rebalancing due to absence of any groups created in DB",
                 ));
@@ -1049,20 +1082,24 @@ impl CGWRemoteDiscovery {
                 .await;
             if res.is_err() {
                 warn!(
-                    "Failed to reset CGW{cgw_id} assigned group num count, e:{}",
+                    "Failed to reset CGW{cgw_id} assigned group num count! Error: {}",
                     res.err().unwrap()
                 );
             }
         }
 
         for i in groups.iter() {
-            let _ = self.sync_remote_cgw_map().await;
-            let _ = self.sync_gid_to_cgw_map().await;
+            if let Err(e) = self.sync_remote_cgw_map().await {
+                error!("rebalance_all_groups: failed to sync remote CGW map! Error: {e}");
+            }
+            if let Err(e) = self.sync_gid_to_cgw_map().await {
+                error!("rebalance_all_groups: failed to sync GID to CGW map! Error: {e}");
+            }
 
             let infras_assigned: i32 = match self.get_group_infras_assigned_num(i.id).await {
                 Ok(infras_num) => infras_num,
                 Err(e) => {
-                    warn!("Cannot execute rebalancing: {}", e.to_string());
+                    warn!("Failed to execute rebalancing! Error: {e}");
                     return Err(Error::RemoteDiscovery(
                         "Cannot do rebalancing due to absence of any groups created in DB",
                     ));
@@ -1074,15 +1111,21 @@ impl CGWRemoteDiscovery {
                 .await
             {
                 Ok(shard_id) => {
-                    debug!("Rebalancing: assigned {} to shard {}", i.id, shard_id);
-                    let _ = self.increment_cgw_assigned_groups_num(shard_id).await;
+                    debug!("Rebalancing: assigned gid {} to shard {}", i.id, shard_id);
+                    if let Err(e) = self.increment_cgw_assigned_groups_num(shard_id).await {
+                        error!("rebalance_all_groups: failed to increment assigned groups num! Error: {e}");
+                    }
                 }
                 Err(_e) => {}
             }
         }
 
-        let _ = self.sync_remote_cgw_map().await;
-        let _ = self.sync_gid_to_cgw_map().await;
+        if let Err(e) = self.sync_remote_cgw_map().await {
+            error!("rebalance_all_groups: failed to sync remote CGW map! Error: {e}");
+        }
+        if let Err(e) = self.sync_gid_to_cgw_map().await {
+            error!("rebalance_all_groups: failed to sync GID to CGW! Error: {e}");
+        }
 
         Ok(0u32)
     }
@@ -1091,13 +1134,23 @@ impl CGWRemoteDiscovery {
         debug!("Remove from Redis shard id {}", self.local_shard_id);
         // We are on de-init stage - ignore any errors on Redis clean-up
         let mut con = self.redis_client.clone();
-        let _res: RedisResult<()> = redis::cmd("DEL")
+        let res: RedisResult<()> = redis::cmd("DEL")
             .arg(format!(
                 "{REDIS_KEY_SHARD_ID_PREFIX}{}",
                 self.local_shard_id
             ))
             .query_async(&mut con)
             .await;
+        match res {
+            Ok(_) => info!(
+                "Successfully cleaned up Redis for shard id {}",
+                self.local_shard_id
+            ),
+            Err(e) => error!(
+                "Failed to cleanup Redis for shard id {}! Error: {}",
+                self.local_shard_id, e
+            ),
+        }
     }
 
     pub async fn get_group_infras_capacity(&self, gid: i32) -> Result<i32> {
@@ -1111,7 +1164,7 @@ impl CGWRemoteDiscovery {
         {
             Ok(cap) => cap,
             Err(e) => {
-                warn!("Failed to get infras capacity for GID {gid}:\n{e}");
+                warn!("Failed to get infras capacity for GID {gid}! Ereor: {e}");
                 return Err(Error::RemoteDiscovery("Failed to get infras capacity"));
             }
         };
@@ -1130,7 +1183,7 @@ impl CGWRemoteDiscovery {
         {
             Ok(cap) => cap,
             Err(e) => {
-                warn!("Failed to get infras assigned number for GID {gid}:\n{e}");
+                warn!("Failed to get infras assigned number for GID {gid}! Error: {e}");
                 return Err(Error::RemoteDiscovery(
                     "Failed to get group infras assigned number",
                 ));

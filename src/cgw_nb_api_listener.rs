@@ -457,7 +457,7 @@ impl CGWCNCConsumer {
         {
             Ok(c) => c,
             Err(e) => {
-                error!("Failed to create kafka consumer from config: {:?}", e);
+                error!("Failed to create kafka consumer from config! Error: {e}");
                 return Err(Error::Kafka(e));
             }
         };
@@ -469,7 +469,7 @@ impl CGWCNCConsumer {
 
         if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
             error!(
-                "Kafka consumer was unable to subscribe to {:?}",
+                "Kafka consumer was unable to subscribe to {:?}! Error: {e}",
                 CONSUMER_TOPICS
             );
             return Err(Error::Kafka(e));
@@ -555,7 +555,7 @@ impl CGWNBApiClient {
                             None => "",
                             Some(Ok(s)) => s,
                             Some(Err(e)) => {
-                                warn!("Error while deserializing message payload: {:?}", e);
+                                warn!("Error while deserializing message payload! Error: {e}");
                                 ""
                             }
                         };
@@ -564,7 +564,7 @@ impl CGWNBApiClient {
                             None => "",
                             Some(Ok(s)) => s,
                             Some(Err(e)) => {
-                                warn!("Error while deserializing message payload: {:?}", e);
+                                warn!("Deserializing message payload failed! Error: {e}");
                                 ""
                             }
                         };
@@ -577,7 +577,10 @@ impl CGWNBApiClient {
                         Ok(())
                     }
                 });
-                let _ = stream_processor.await;
+
+                if let Err(e) = stream_processor.await {
+                    error!("Failed to create NB API Client! Error: {e}");
+                }
             }
         });
 
@@ -593,17 +596,20 @@ impl CGWNBApiClient {
         );
 
         if let Err((e, _)) = produce_future.await {
-            error!("{:?}", e)
+            error!("{e}")
         }
     }
 
     async fn enqueue_mbox_message_to_cgw_server(&self, key: String, payload: String) {
-        debug!("MBOX_OUT: EnqueueNewMessageFromNBAPIListener, k:{key}");
+        debug!("MBOX_OUT: EnqueueNewMessageFromNBAPIListener, key: {key}");
         let msg = CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
             key,
             payload,
             CGWConnectionNBAPIReqMsgOrigin::FromNBAPI,
         );
-        let _ = self.cgw_server_tx_mbox.send(msg);
+
+        if let Err(e) = self.cgw_server_tx_mbox.send(msg) {
+            error!("Failed to send message to CGW server (remote)! Error: {e}");
+        }
     }
 }

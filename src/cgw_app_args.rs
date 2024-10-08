@@ -69,10 +69,9 @@ impl CGWWSSArgs {
         let wss_t_num: usize = match env::var("DEFAULT_WSS_THREAD_NUM") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse DEFAULT_WSS_THREAD_NUM! Invalid value: {}",
-                        val
+                        "Failed to parse DEFAULT_WSS_THREAD_NUM! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -82,10 +81,9 @@ impl CGWWSSArgs {
         let wss_ip: Ipv4Addr = match env::var("CGW_WSS_IP") {
             Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_WSS_IP! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_WSS_IP! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -95,10 +93,9 @@ impl CGWWSSArgs {
         let wss_port: u16 = match env::var("CGW_WSS_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_WSS_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_WSS_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -141,10 +138,9 @@ impl CGWGRPCArgs {
         let grpc_listening_ip: Ipv4Addr = match env::var("CGW_GRPC_LISTENING_IP") {
             Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_LISTENING_IP! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GRPC_LISTENING_IP! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -154,10 +150,9 @@ impl CGWGRPCArgs {
         let grpc_listening_port: u16 = match env::var("CGW_GRPC_LISTENING_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_LISTENING_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GRPC_LISTENING_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -181,10 +176,9 @@ impl CGWGRPCArgs {
         let grpc_public_port: u16 = match env::var("CGW_GRPC_PUBLIC_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_PUBLIC_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GRPC_PUBLIC_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -232,10 +226,9 @@ impl CGWKafkaArgs {
         let kafka_port: u16 = match env::var("CGW_KAFKA_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_KAFKA_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_KAFKA_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -290,10 +283,9 @@ impl CGWDBArgs {
         let db_port: u16 = match env::var("CGW_DB_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_DB_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_DB_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -352,10 +344,9 @@ impl CGWRedisArgs {
         let redis_port: u16 = match env::var("CGW_REDIS_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_REDIS_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_REDIS_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -408,10 +399,9 @@ impl CGWMetricsArgs {
         let metrics_port: u16 = match env::var("CGW_METRICS_PORT") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_METRICS_PORT! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_METRICS_PORT! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -447,8 +437,7 @@ impl CGWValidationSchemaArgs {
                         Ok(path) => CGWValionSchemaRef::SchemaPath(path),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
-                                "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
-                                uri, e
+                                "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
                             )));
                         }
                     }
@@ -457,8 +446,7 @@ impl CGWValidationSchemaArgs {
                         Ok(url) => CGWValionSchemaRef::SchemaUri(url),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
-                                                    "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
-                                                    uri, e
+                                                    "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
                                                 )));
                         }
                     }
@@ -470,8 +458,7 @@ impl CGWValidationSchemaArgs {
                 Ok(uri) => CGWValionSchemaRef::SchemaUri(uri),
                 Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                                            "Failed to parse default CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {}, err: {}",
-                                            CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI, e
+                                            "Failed to parse default CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI}! Error: {e}"
                                         )));
                 }
             },
@@ -487,8 +474,7 @@ impl CGWValidationSchemaArgs {
                         Ok(path) => CGWValionSchemaRef::SchemaPath(path),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
-                                "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {}, err: {}",
-                                uri, e
+                                "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
                             )));
                         }
                     }
@@ -497,8 +483,7 @@ impl CGWValidationSchemaArgs {
                         Ok(url) => CGWValionSchemaRef::SchemaUri(url),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
-                                                    "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {}, err: {}",
-                                                    uri, e
+                                                    "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
                                                 )));
                         }
                     }
@@ -509,8 +494,7 @@ impl CGWValidationSchemaArgs {
                 Ok(url) => CGWValionSchemaRef::SchemaUri(url),
                 Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                                            "Failed to parse default CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid value: {}, err: {}",
-                                            CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI, e
+                                            "Failed to parse default CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid value: {CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI}! Error: {e}"
                                         )));
                 }
             },
@@ -567,8 +551,7 @@ impl AppArgs {
                 Ok(v) => v,
                 Err(_e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_LOG_LEVEL! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_LOG_LEVEL! Invalid value: {val}! Error: (unknown)"
                     )));
                 }
             },
@@ -578,10 +561,9 @@ impl AppArgs {
         let cgw_id: i32 = match env::var("CGW_ID") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_ID! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_ID! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -591,10 +573,9 @@ impl AppArgs {
         let cgw_groups_capacity: i32 = match env::var("CGW_GROUPS_CAPACITY") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -604,10 +585,9 @@ impl AppArgs {
         let cgw_groups_threshold: i32 = match env::var("CGW_GROUPS_THRESHOLD") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GROUPS_CAPACITY! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },
@@ -617,10 +597,9 @@ impl AppArgs {
         let cgw_group_infras_capacity: i32 = match env::var("CGW_GROUP_INFRAS_CAPACITY") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
-                Err(_e) => {
+                Err(e) => {
                     return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GROUP_INFRAS_CAPACITY! Invalid value: {}",
-                        val
+                        "Failed to parse CGW_GROUP_INFRAS_CAPACITY! Invalid value: {val}! Error: {e}"
                     )));
                 }
             },

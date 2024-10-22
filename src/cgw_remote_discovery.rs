@@ -880,7 +880,7 @@ impl CGWRemoteDiscovery {
         gid: i32,
         infras: Vec<MacAddress>,
         cache: Arc<RwLock<CGWDevicesCache>>,
-    ) -> Result<()> {
+    ) -> Result<Vec<MacAddress>> {
         // TODO: assign list to shards; currently - only created bulk, no assignment
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
@@ -906,6 +906,7 @@ impl CGWRemoteDiscovery {
             return Err(Error::RemoteDiscoveryFailedInfras(infras));
         }
 
+        let mut success_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
         let mut failed_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
@@ -974,6 +975,7 @@ impl CGWRemoteDiscovery {
                                 }
                             }
                         }
+                        success_infras.push(device_mac);
                         assigned_infras_num += 1;
                     }
                 }
@@ -995,7 +997,7 @@ impl CGWRemoteDiscovery {
             return Err(Error::RemoteDiscoveryFailedInfras(failed_infras));
         }
 
-        Ok(())
+        Ok(success_infras)
     }
 
     pub async fn destroy_ifras_list(

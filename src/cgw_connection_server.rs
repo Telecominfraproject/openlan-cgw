@@ -1114,20 +1114,65 @@ impl CGWConnectionServer {
                                 .create_ifras_list(gid, mac_list.clone(), devices_cache_lock)
                                 .await
                             {
-                                Ok(()) => {
-                                    // All mac's GIDs been successfully changed;
+                                Ok(success_ifras) => {
+                                    // Not all mac's GIDs might been successfully changed;
                                     // Notify all of them about the change.
                                     self.clone()
-                                        .notify_devices_on_gid_change(mac_list.clone(), gid);
+                                        .notify_devices_on_gid_change(success_ifras.clone(), gid);
 
                                     if let Ok(resp) = cgw_construct_infra_group_device_add_response(
-                                        gid, mac_list, uuid, true, None,
+                                        gid,
+                                        success_ifras.clone(),
+                                        uuid,
+                                        true,
+                                        None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     } else {
                                         error!(
                                             "Failed to construct infra_group_device_add message!"
                                         );
+                                    }
+
+                                    let devices_cache_read = self.devices_cache.read().await;
+                                    for mac in success_ifras {
+                                        if let Some(dev) = devices_cache_read.get_device(&mac) {
+                                            if dev.get_device_state()
+                                                == CGWDeviceState::CGWDeviceConnected
+                                            {
+                                                let dev_gid = dev.get_device_group_id();
+                                                let changes = cgw_detect_device_chages(
+                                                    &CGWDeviceCapabilities::default(),
+                                                    &dev.get_device_capabilities(),
+                                                );
+                                                match changes {
+                                                    Some(diff) => {
+                                                        if let Ok(resp) =
+                                                            cgw_construct_device_capabilities_changed_msg(
+                                                                mac,
+                                                                dev_gid,
+                                                                &diff,
+                                                            )
+                                                        {
+                                                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                                                dev_gid,
+                                                                resp,
+                                                            );
+                                                        } else {
+                                                            error!(
+                                                        "Failed to construct device_capabilities_changed message!"
+                                                    );
+                                                        }
+                                                    }
+                                                    None => {
+                                                        debug!(
+                                                            "Capabilities for device: {} was not changed",
+                                                            mac.to_hex_string()
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 Err(macs) => {

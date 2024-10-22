@@ -19,6 +19,7 @@ use rdkafka::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::{
     runtime::{Builder, Runtime},
@@ -138,6 +139,21 @@ pub struct APClientMigrateMessage {
     pub to_infra_group_infra_device: MacAddress,
     pub to_ssid: String,
     pub to_band: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraJoinMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra: MacAddress,
+    infra_public_ip: SocketAddr,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraLeaveMessage {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra: MacAddress,
 }
 
 pub fn cgw_construct_infra_group_create_response(
@@ -354,6 +370,34 @@ pub fn cgw_construct_client_migrate_msg(
     };
 
     Ok(serde_json::to_string(&client_migrate_msg)?)
+}
+
+pub fn cgw_construct_infra_join_msg(
+    infra_group_id: i32,
+    infra_group_infra: MacAddress,
+    infra_public_ip: SocketAddr,
+) -> Result<String> {
+    let infra_join_msg = InfraJoinMessage {
+        r#type: "infra_join",
+        infra_group_id,
+        infra_group_infra,
+        infra_public_ip,
+    };
+
+    Ok(serde_json::to_string(&infra_join_msg)?)
+}
+
+pub fn cgw_construct_infra_leave_msg(
+    infra_group_id: i32,
+    infra_group_infra: MacAddress,
+) -> Result<String> {
+    let infra_leave_msg = InfraLeaveMessage {
+        r#type: "infra_leave",
+        infra_group_id,
+        infra_group_infra,
+    };
+
+    Ok(serde_json::to_string(&infra_leave_msg)?)
 }
 
 struct CustomContext;

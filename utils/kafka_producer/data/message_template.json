@@ -11,19 +11,19 @@
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
     },
     "add_to_group": {
-        "type": "infrastructure_group_device_add",
+        "type": "infrastructure_group_infras_add",
         "infra_group_id": "key",
-        "infra_group_infra_devices": [],
+        "infra_group_infras": [],
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
     },
     "del_from_group": {
-        "type": "infrastructure_group_device_del",
+        "type": "infrastructure_group_infras_del",
         "infra_group_id": "key",
-        "infra_group_infra_devices": [],
+        "infra_group_infras": [],
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
     },
-    "message_device": {
-        "type": "infrastructure_group_device_message",
+    "message_infra": {
+        "type": "infrastructure_group_infra_message",
         "infra_group_id": "key",
         "mac": "mac",
         "msg": {},

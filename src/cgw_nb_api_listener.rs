@@ -52,27 +52,27 @@ pub struct InfraGroupDeleteResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct InfraGroupDeviceAddResponse {
+pub struct InfraGroupInfrasAddResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infra_devices: Vec<MacAddress>,
+    pub infra_group_infras: Vec<MacAddress>,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct InfraGroupDeviceDelResponse {
+pub struct InfraGroupInfrasDelResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infra_devices: Vec<MacAddress>,
+    pub infra_group_infras: Vec<MacAddress>,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct InfraGroupDeviceMessageEnqueueResponse {
+pub struct InfraGroupInfraMessageEnqueueResponse {
     pub r#type: &'static str,
     pub uuid: Uuid,
     pub success: bool,
@@ -89,17 +89,17 @@ pub struct RebalanceGroupsResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct InfraGroupDeviceCapabilitiesChanged {
+pub struct InfraGroupInfraCapabilitiesChanged {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub changes: Vec<CGWDeviceChange>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UnassignedInfraConnection {
     pub r#type: &'static str,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
 }
 
@@ -107,7 +107,7 @@ pub struct UnassignedInfraConnection {
 pub struct ForeignInfraConnection {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
     pub group_owner_shard_id: i32,
 }
@@ -192,17 +192,17 @@ pub fn cgw_construct_infra_group_delete_response(
     Ok(serde_json::to_string(&group_delete)?)
 }
 
-pub fn cgw_construct_infra_group_device_add_response(
+pub fn cgw_construct_infra_group_infras_add_response(
     infra_group_id: i32,
-    infra_group_infra_devices: Vec<MacAddress>,
+    infra_group_infras: Vec<MacAddress>,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
-    let dev_add = InfraGroupDeviceAddResponse {
-        r#type: "infrastructure_group_device_add_response",
+    let dev_add = InfraGroupInfrasAddResponse {
+        r#type: "infrastructure_group_infras_add_response",
         infra_group_id,
-        infra_group_infra_devices,
+        infra_group_infras,
         uuid,
         success,
         error_message,
@@ -211,17 +211,17 @@ pub fn cgw_construct_infra_group_device_add_response(
     Ok(serde_json::to_string(&dev_add)?)
 }
 
-pub fn cgw_construct_infra_group_device_del_response(
+pub fn cgw_construct_infra_group_infras_del_response(
     infra_group_id: i32,
-    infra_group_infra_devices: Vec<MacAddress>,
+    infra_group_infras: Vec<MacAddress>,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
-    let dev_del = InfraGroupDeviceDelResponse {
-        r#type: "infrastructure_group_device_del_response",
+    let dev_del = InfraGroupInfrasDelResponse {
+        r#type: "infrastructure_group_infras_del_response",
         infra_group_id,
-        infra_group_infra_devices,
+        infra_group_infras,
         uuid,
         success,
         error_message,
@@ -230,13 +230,13 @@ pub fn cgw_construct_infra_group_device_del_response(
     Ok(serde_json::to_string(&dev_del)?)
 }
 
-pub fn cgw_construct_device_enqueue_response(
+pub fn cgw_construct_infra_enqueue_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
-    let dev_enq_resp = InfraGroupDeviceMessageEnqueueResponse {
-        r#type: "infrastructure_group_device_message_enqueu_response",
+    let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
+        r#type: "infrastructure_group_infra_message_enqueu_response",
         uuid,
         success,
         error_message,
@@ -262,8 +262,8 @@ pub fn cgw_construct_rebalance_group_response(
     Ok(serde_json::to_string(&rebalanse_resp)?)
 }
 
-pub fn cgw_construct_device_capabilities_changed_msg(
-    infra_group_infra_device: MacAddress,
+pub fn cgw_construct_infra_capabilities_changed_msg(
+    infra_group_infra: MacAddress,
     infra_group_id: i32,
     diff: &HashMap<String, OldNew>,
 ) -> Result<String> {
@@ -277,10 +277,10 @@ pub fn cgw_construct_device_capabilities_changed_msg(
         });
     }
 
-    let dev_cap_msg = InfraGroupDeviceCapabilitiesChanged {
-        r#type: "infrastructure_group_device_capabilities_changed",
+    let dev_cap_msg = InfraGroupInfraCapabilitiesChanged {
+        r#type: "infrastructure_group_infra_capabilities_changed",
         infra_group_id,
-        infra_group_infra_device,
+        infra_group_infra,
         changes,
     };
 
@@ -288,12 +288,12 @@ pub fn cgw_construct_device_capabilities_changed_msg(
 }
 
 pub fn cgw_construct_unassigned_infra_connection_msg(
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     reporter_shard_id: i32,
 ) -> Result<String> {
     let unassigned_infra_msg = UnassignedInfraConnection {
         r#type: "unassigned_infra_connection",
-        infra_group_infra_device,
+        infra_group_infra,
         reporter_shard_id,
     };
 
@@ -302,14 +302,14 @@ pub fn cgw_construct_unassigned_infra_connection_msg(
 
 pub fn cgw_construct_foreign_infra_connection_msg(
     infra_group_id: i32,
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     reporter_shard_id: i32,
     group_owner_shard_id: i32,
 ) -> Result<String> {
     let foreign_infra_msg = ForeignInfraConnection {
         r#type: "foreign_infra_connection",
         infra_group_id,
-        infra_group_infra_device,
+        infra_group_infra,
         reporter_shard_id,
         group_owner_shard_id,
     };

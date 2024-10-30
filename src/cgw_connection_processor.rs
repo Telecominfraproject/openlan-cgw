@@ -2,6 +2,7 @@ use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
+    cgw_nb_api_listener::cgw_construct_infra_request_result_msg,
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
         MESSAGE_TIMEOUT_DURATION,
@@ -19,6 +20,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+use uuid::Uuid;
 
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{
@@ -285,6 +287,7 @@ impl CGWConnectionProcessor {
         msg: std::result::Result<Message, tungstenite::error::Error>,
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
+        pending_req_uuid: Uuid,
     ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
@@ -341,6 +344,17 @@ impl CGWConnectionProcessor {
 
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
                             debug!("Got reply event for pending request id: {pending_req_id}");
+                            if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                                pending_req_uuid,
+                                pending_req_id,
+                                true,
+                                None,
+                            ) {
+                                self.cgw_server
+                                    .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                            } else {
+                                error!("Failed to construct rebalance_group message!");
+                            }
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
@@ -453,6 +467,7 @@ impl CGWConnectionProcessor {
         }
 
         let device_mac = self.serial;
+        let mut pending_req_uuid = Uuid::default();
         let mut pending_req_id: u64 = 0;
         let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
@@ -485,8 +500,10 @@ impl CGWConnectionProcessor {
                     if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
                         // Get message from queue, start measure requet processing time
                         start_time = Instant::now();
+
                         pending_req_id = queue_msg.command.id;
                         pending_req_type = queue_msg.command.cmd_type.clone();
+                        pending_req_uuid = queue_msg.uuid;
                         wakeup_reason = WakeupReason::MboxRx(Some(
                             CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
                         ));
@@ -562,7 +579,7 @@ impl CGWConnectionProcessor {
             }
 
             // Doesn't matter if connection was closed or terminated
-            // Do message queue timeout tick and cleanup queue dut to timeout\
+            // Do message queue timeout tick and cleanup queue due to timeout
             // Or decrease timer value - on connection termination - background task
             // is responsible to cleanup queue
             if fsm_state == CGWUCentralMessageProcessorState::ResultPending {
@@ -585,6 +602,17 @@ impl CGWConnectionProcessor {
                         .set_device_last_req_info(&device_mac, 0, Duration::ZERO)
                         .await;
                     fsm_state = CGWUCentralMessageProcessorState::Idle;
+                    if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                        pending_req_uuid,
+                        pending_req_id,
+                        false,
+                        Some(format!("Request timed out")),
+                    ) {
+                        self.cgw_server
+                            .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                    } else {
+                        error!("Failed to construct rebalance_group message!");
+                    }
                 }
             }
 
@@ -592,7 +620,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id)
+                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id, pending_req_uuid)
                         .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {

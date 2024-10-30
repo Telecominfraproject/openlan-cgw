@@ -1342,7 +1342,7 @@ impl CGWConnectionServer {
                                                 Ok(()) => {
                                                     let queue_msg: CGWUCentralMessagesQueueItem =
                                                         CGWUCentralMessagesQueueItem::new(
-                                                            parsed_cmd, msg,
+                                                            parsed_cmd, msg, uuid,
                                                         );
 
                                                     // 3. Add message to queue
@@ -1378,6 +1378,17 @@ impl CGWConnectionServer {
                                             error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
                                             continue;
                                         }
+                                    }
+                                } else {
+                                    let queue_msg: CGWUCentralMessagesQueueItem =
+                                        CGWUCentralMessagesQueueItem::new(parsed_cmd, msg, uuid);
+                                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                                    if let Err(e) =
+                                        queue_lock.push_device_message(device_mac, queue_msg).await
+                                    {
+                                        error!(
+                                            "Failed to get CGW message queue read lock! Error: {e}"
+                                        );
                                     }
                                 }
                             } else {

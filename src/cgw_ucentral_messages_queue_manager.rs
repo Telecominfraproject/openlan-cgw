@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time;
+use uuid::Uuid;
 
 use crate::cgw_errors::{Error, Result};
 use crate::cgw_ucentral_parser::{CGWUCentralCommand, CGWUCentralCommandType};
@@ -79,11 +80,20 @@ impl CGWUCentralMessagesQueue {
 pub struct CGWUCentralMessagesQueueItem {
     pub command: CGWUCentralCommand,
     pub message: String,
+    pub uuid: Uuid,
 }
 
 impl CGWUCentralMessagesQueueItem {
-    pub fn new(command: CGWUCentralCommand, message: String) -> CGWUCentralMessagesQueueItem {
-        CGWUCentralMessagesQueueItem { command, message }
+    pub fn new(
+        command: CGWUCentralCommand,
+        message: String,
+        uuid: Uuid,
+    ) -> CGWUCentralMessagesQueueItem {
+        CGWUCentralMessagesQueueItem {
+            command,
+            message,
+            uuid,
+        }
     }
 }
 

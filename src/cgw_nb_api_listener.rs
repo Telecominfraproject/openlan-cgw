@@ -80,6 +80,15 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct InfraGroupInfraRequestResult {
+    pub r#type: &'static str,
+    pub uuid: Uuid,
+    pub id: u64,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct RebalanceGroupsResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
@@ -398,6 +407,23 @@ pub fn cgw_construct_infra_leave_msg(
     };
 
     Ok(serde_json::to_string(&infra_leave_msg)?)
+}
+
+pub fn cgw_construct_infra_request_result_msg(
+    uuid: Uuid,
+    id: u64,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let infra_request_result = InfraGroupInfraRequestResult {
+        r#type: "infra_request_result",
+        uuid,
+        id,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&infra_request_result)?)
 }
 
 struct CustomContext;

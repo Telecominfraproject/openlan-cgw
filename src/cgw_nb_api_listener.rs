@@ -245,7 +245,7 @@ pub fn cgw_construct_infra_enqueue_response(
     error_message: Option<String>,
 ) -> Result<String> {
     let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
-        r#type: "infrastructure_group_infra_message_enqueu_response",
+        r#type: "infrastructure_group_infra_message_enqueue_response",
         uuid,
         success,
         error_message,

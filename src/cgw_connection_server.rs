@@ -571,7 +571,7 @@ impl CGWConnectionServer {
                     CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(json_msg.infra_group_infras),
                 ));
             }
-            "infrastructure_group_infra_message" => {
+            "infrastructure_group_infra_message_enqueue" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).ok()?;
                 debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::new(

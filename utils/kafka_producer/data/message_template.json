@@ -23,7 +23,7 @@
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
     },
     "message_infra": {
-        "type": "infrastructure_group_infra_message",
+        "type": "infrastructure_group_infra_message_enqueue",
         "infra_group_id": "key",
         "mac": "mac",
         "msg": {},

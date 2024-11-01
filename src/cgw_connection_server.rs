@@ -2,10 +2,11 @@ use crate::cgw_device::{
     cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
 };
 use crate::cgw_nb_api_listener::{
-    cgw_construct_device_capabilities_changed_msg, cgw_construct_device_enqueue_response,
-    cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_group_create_response,
-    cgw_construct_infra_group_delete_response, cgw_construct_infra_group_device_add_response,
-    cgw_construct_infra_group_device_del_response, cgw_construct_rebalance_group_response,
+    cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_capabilities_changed_msg,
+    cgw_construct_infra_enqueue_response, cgw_construct_infra_group_create_response,
+    cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
+    cgw_construct_infra_group_infras_del_response, cgw_construct_infra_join_msg,
+    cgw_construct_infra_leave_msg, cgw_construct_rebalance_group_response,
     cgw_construct_unassigned_infra_connection_msg,
 };
 use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
@@ -84,6 +85,7 @@ pub enum CGWConnectionServerReqMsg {
     // Connection-related messages
     AddNewConnection(
         MacAddress,
+        SocketAddr,
         CGWDeviceCapabilities,
         UnboundedSender<CGWConnectionProcessorReqMsg>,
     ),
@@ -168,7 +170,7 @@ enum CGWNBApiParsedMsgType {
     InfrastructureGroupCreate,
     InfrastructureGroupCreateToShard(i32),
     InfrastructureGroupDelete,
-    InfrastructureGroupInfraAdd(Vec<MacAddress>),
+    InfrastructureGroupInfrasAdd(Vec<MacAddress>),
     InfrastructureGroupInfraDel(Vec<MacAddress>),
     InfrastructureGroupInfraMsg(MacAddress, String),
     RebalanceGroups,
@@ -492,18 +494,18 @@ impl CGWConnectionServer {
         }
 
         #[derive(Debug, Serialize, Deserialize)]
-        struct InfraGroupInfraAdd {
+        struct InfraGroupInfrasAdd {
             r#type: String,
             infra_group_id: String,
-            infra_group_infra_devices: Vec<MacAddress>,
+            infra_group_infras: Vec<MacAddress>,
             uuid: Uuid,
         }
 
         #[derive(Debug, Serialize, Deserialize)]
-        struct InfraGroupInfraDel {
+        struct InfraGroupInfrasDel {
             r#type: String,
             infra_group_id: String,
-            infra_group_infra_devices: Vec<MacAddress>,
+            infra_group_infras: Vec<MacAddress>,
             uuid: Uuid,
         }
 
@@ -551,27 +553,25 @@ impl CGWConnectionServer {
                     CGWNBApiParsedMsgType::InfrastructureGroupDelete,
                 ));
             }
-            "infrastructure_group_device_add" => {
-                let json_msg: InfraGroupInfraAdd = serde_json::from_str(pload).ok()?;
+            "infrastructure_group_infras_add" => {
+                let json_msg: InfraGroupInfrasAdd = serde_json::from_str(pload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    CGWNBApiParsedMsgType::InfrastructureGroupInfraAdd(
-                        json_msg.infra_group_infra_devices,
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(
+                        json_msg.infra_group_infras,
                     ),
                 ));
             }
-            "infrastructure_group_device_del" => {
-                let json_msg: InfraGroupInfraDel = serde_json::from_str(pload).ok()?;
+            "infrastructure_group_infras_del" => {
+                let json_msg: InfraGroupInfrasDel = serde_json::from_str(pload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(
-                        json_msg.infra_group_infra_devices,
-                    ),
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfraDel(json_msg.infra_group_infras),
                 ));
             }
-            "infrastructure_group_device_message" => {
+            "infrastructure_group_infra_message" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).ok()?;
                 debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::new(
@@ -980,7 +980,7 @@ impl CGWConnectionServer {
                         }
                     }
                     None => {
-                        if let Ok(resp) = cgw_construct_device_enqueue_response(
+                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
                             Uuid::default(),
                             false,
                             Some(format!(
@@ -1040,7 +1040,7 @@ impl CGWConnectionServer {
                             .await)
                             .is_err()
                         {
-                            if let Ok(resp) = cgw_construct_device_enqueue_response(
+                            if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                 Uuid::default(),
                                 false,
                                 Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
@@ -1085,7 +1085,7 @@ impl CGWConnectionServer {
                         CGWNBApiParsedMsg {
                             uuid,
                             gid,
-                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfraAdd(mac_list),
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(mac_list),
                         } => {
                             if (self
                                 .cgw_remote_discovery
@@ -1093,7 +1093,7 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                if let Ok(resp) = cgw_construct_infra_group_device_add_response(
+                                if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                     gid,
                                     mac_list.clone(),
                                     uuid,
@@ -1120,12 +1120,8 @@ impl CGWConnectionServer {
                                     self.clone()
                                         .notify_devices_on_gid_change(success_ifras.clone(), gid);
 
-                                    if let Ok(resp) = cgw_construct_infra_group_device_add_response(
-                                        gid,
-                                        success_ifras.clone(),
-                                        uuid,
-                                        true,
-                                        None,
+                                    if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
+                                        gid, mac_list, uuid, true, None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     } else {
@@ -1148,7 +1144,7 @@ impl CGWConnectionServer {
                                                 match changes {
                                                     Some(diff) => {
                                                         if let Ok(resp) =
-                                                            cgw_construct_device_capabilities_changed_msg(
+                                                            cgw_construct_infra_capabilities_changed_msg(
                                                                 mac,
                                                                 dev_gid,
                                                                 &diff,
@@ -1194,7 +1190,7 @@ impl CGWConnectionServer {
                                                 .notify_devices_on_gid_change(macs_to_notify, gid);
                                         }
 
-                                        if let Ok(resp) = cgw_construct_infra_group_device_add_response(
+                                        if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                             gid,
                                             mac_addresses,
                                             uuid,
@@ -1225,7 +1221,7 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                if let Ok(resp) = cgw_construct_infra_group_device_del_response(
+                                if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                     gid,
                                     mac_list.clone(),
                                     uuid,
@@ -1256,7 +1252,7 @@ impl CGWConnectionServer {
                                     self.clone()
                                         .notify_devices_on_gid_change(mac_list.clone(), 0i32);
 
-                                    if let Ok(resp) = cgw_construct_infra_group_device_del_response(
+                                    if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                         gid, mac_list, uuid, true, None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
@@ -1285,7 +1281,7 @@ impl CGWConnectionServer {
                                                 .notify_devices_on_gid_change(macs_to_notify, 0i32);
                                         }
 
-                                        if let Ok(resp) = cgw_construct_infra_group_device_del_response(
+                                        if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                             gid,
                                             mac_addresses,
                                             uuid,
@@ -1317,7 +1313,7 @@ impl CGWConnectionServer {
                                 .await)
                                 .is_none()
                             {
-                                if let Ok(resp) = cgw_construct_device_enqueue_response(
+                                if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                     uuid,
                                     false,
                                     Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist")),
@@ -1365,7 +1361,7 @@ impl CGWConnectionServer {
                                                 }
                                                 Err(e) => {
                                                     error!("Failed to validate config message! Invalid configure message for device: {device_mac}!");
-                                                    if let Ok(resp) = cgw_construct_device_enqueue_response(
+                                                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                                         uuid,
                                                         false,
                                                         Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
@@ -1385,7 +1381,7 @@ impl CGWConnectionServer {
                                     }
                                 }
                             } else {
-                                if let Ok(resp) = cgw_construct_device_enqueue_response(
+                                if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                     uuid,
                                     false,
                                     Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
@@ -1503,6 +1499,7 @@ impl CGWConnectionServer {
 
                 if let CGWConnectionServerReqMsg::AddNewConnection(
                     device_mac,
+                    ip_addr,
                     caps,
                     conn_processor_mbox_tx,
                 ) = msg
@@ -1585,7 +1582,7 @@ impl CGWConnectionServer {
                                 cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
                             match changes {
                                 Some(diff) => {
-                                    if let Ok(resp) = cgw_construct_device_capabilities_changed_msg(
+                                    if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
                                         device_mac,
                                         device.get_device_group_id(),
                                         &diff,
@@ -1685,6 +1682,14 @@ impl CGWConnectionServer {
                             .await;
                     }
 
+                    if let Ok(resp) =
+                        cgw_construct_infra_join_msg(device_group_id, device_mac, ip_addr)
+                    {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                    } else {
+                        error!("Failed to construct device_join message!");
+                    }
+
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
 
                     tokio::spawn(async move {
@@ -1745,6 +1750,12 @@ impl CGWConnectionServer {
                         topo_map
                             .remove_device(&device_mac, device_group_id, self.clone())
                             .await;
+                    }
+
+                    if let Ok(resp) = cgw_construct_infra_leave_msg(device_group_id, device_mac) {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                    } else {
+                        error!("Failed to construct device_leave message!");
                     }
 
                     CGWMetrics::get_ref().change_counter(

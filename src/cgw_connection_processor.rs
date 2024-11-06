@@ -272,8 +272,6 @@ impl CGWConnectionProcessor {
                 queue_lock
                     .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
                     .await;
-            } else {
-                queue_lock.create_device_messages_queue(&evt.serial).await;
             }
         }
 
@@ -504,17 +502,19 @@ impl CGWConnectionProcessor {
                         pending_req_id = queue_msg.command.id;
                         pending_req_type = queue_msg.command.cmd_type.clone();
                         pending_req_uuid = queue_msg.uuid;
+
+                        let timeout = match queue_msg.timeout {
+                            Some(secs) => Duration::from_secs(secs),
+                            None => MESSAGE_TIMEOUT_DURATION,
+                        };
+
                         wakeup_reason = WakeupReason::MboxRx(Some(
                             CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
                         ));
 
                         // Set new pending request timeout value
                         queue_lock
-                            .set_device_last_req_info(
-                                &device_mac,
-                                pending_req_id,
-                                MESSAGE_TIMEOUT_DURATION,
-                            )
+                            .set_device_last_req_info(&device_mac, pending_req_id, timeout)
                             .await;
 
                         debug!("Got pending request with id: {}", pending_req_id);
@@ -591,7 +591,24 @@ impl CGWConnectionProcessor {
                     .await
                 {
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.clear_device_message_queue(&device_mac).await;
+                    let flushed_reqs = queue_lock.clear_device_message_queue(&device_mac).await;
+
+                    for req in flushed_reqs {
+                        if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                            req.uuid,
+                            req.command.id,
+                            false,
+                            Some(format!(
+                                "Reques flushed from infra queue {device_mac} due to previous request timeout!"
+                            )),
+                        ) {
+                            // Currently Device Queue Manager does not store infars GID
+                            self.cgw_server
+                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                        } else {
+                            error!("Failed to construct  message!");
+                        }
+                    }
 
                     // reset request duration, request id and queue state
                     pending_req_id = 0;

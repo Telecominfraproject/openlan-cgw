@@ -6,16 +6,18 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_enqueue_response, cgw_construct_infra_group_create_response,
     cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
     cgw_construct_infra_group_infras_del_response, cgw_construct_infra_join_msg,
-    cgw_construct_infra_leave_msg, cgw_construct_rebalance_group_response,
-    cgw_construct_unassigned_infra_connection_msg,
+    cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
+    cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_connection_msg,
 };
 use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
 use crate::cgw_ucentral_messages_queue_manager::{
-    CGWUCentralMessagesQueueItem, CGW_MESSAGES_QUEUE,
+    CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
+    TIMEOUT_MANAGER_DURATION,
 };
 use crate::cgw_ucentral_parser::{
-    cgw_ucentral_parse_command_message, CGWUCentralCommandType, CGWUCentralConfigValidators,
+    cgw_ucentral_parse_command_message, CGWUCentralCommand, CGWUCentralCommandType,
+    CGWUCentralConfigValidators,
 };
 use crate::cgw_ucentral_topology_map::CGWUCentralTopologyMap;
 use crate::AppArgs;
@@ -45,6 +47,8 @@ use tokio::{
     },
     time::{sleep, Duration},
 };
+
+use tokio::time;
 
 use serde_json::{Map, Value};
 
@@ -172,7 +176,7 @@ enum CGWNBApiParsedMsgType {
     InfrastructureGroupDelete,
     InfrastructureGroupInfrasAdd(Vec<MacAddress>),
     InfrastructureGroupInfraDel(Vec<MacAddress>),
-    InfrastructureGroupInfraMsg(MacAddress, String),
+    InfrastructureGroupInfraMsg(MacAddress, String, Option<u64>),
     RebalanceGroups,
 }
 
@@ -391,9 +395,9 @@ impl CGWConnectionServer {
                 .await;
         });
 
+        let server_clone = server.clone();
         server.queue_timeout_handle.spawn(async move {
-            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-            queue_lock.start_queue_timeout_manager().await;
+            server_clone.start_queue_timeout_manager().await;
         });
 
         if let Err(e) = server.cgw_remote_discovery.sync_devices_cache().await {
@@ -516,6 +520,7 @@ impl CGWConnectionServer {
             mac: MacAddress,
             msg: Map<String, Value>,
             uuid: Uuid,
+            timeout: Option<u64>,
         }
 
         let map: Map<String, Value> = serde_json::from_str(pload).ok()?;
@@ -580,6 +585,7 @@ impl CGWConnectionServer {
                     CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
                         json_msg.mac,
                         serde_json::to_string(&json_msg.msg).ok()?,
+                        json_msg.timeout,
                     ),
                 ));
             }
@@ -1132,6 +1138,16 @@ impl CGWConnectionServer {
 
                                     let devices_cache_read = self.devices_cache.read().await;
                                     for mac in success_ifras {
+                                        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                                        if queue_lock.check_messages_queue_exists(&mac).await {
+                                            queue_lock
+                                                .set_device_queue_state(
+                                                    &mac,
+                                                    CGWUCentralMessagesQueueState::RxTx,
+                                                )
+                                                .await;
+                                        }
+
                                         if let Some(dev) = devices_cache_read.get_device(&mac) {
                                             if dev.get_device_state()
                                                 == CGWDeviceState::CGWDeviceConnected
@@ -1167,6 +1183,13 @@ impl CGWConnectionServer {
                                                         )
                                                     }
                                                 }
+                                            } else {
+                                                queue_lock
+                                                    .device_disconnected(
+                                                        &mac,
+                                                        dev.get_device_group_id(),
+                                                    )
+                                                    .await;
                                             }
                                         }
                                     }
@@ -1305,7 +1328,11 @@ impl CGWConnectionServer {
                             uuid,
                             gid,
                             msg_type:
-                                CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(device_mac, msg),
+                                CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
+                                    device_mac,
+                                    msg,
+                                    timeout,
+                                ),
                         } => {
                             if (self
                                 .cgw_remote_discovery
@@ -1329,66 +1356,58 @@ impl CGWConnectionServer {
                             // 1. Parse message from NB
                             if let Ok(parsed_cmd) = cgw_ucentral_parse_command_message(&msg.clone())
                             {
-                                if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure {
-                                    // 2. Get device type
-                                    let devices_cache = self.devices_cache.read().await;
-                                    match devices_cache.get_device(&device_mac) {
-                                        Some(dev) => {
-                                            let device_type = dev.get_device_type();
-                                            match self
-                                                .config_validator
-                                                .validate_config_message(&msg, device_type)
-                                            {
+                                let devices_cache = self.devices_cache.read().await;
+                                match devices_cache.get_device(&device_mac) {
+                                    Some(infra) => {
+                                        if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure
+                                        {
+                                            match self.config_validator.validate_config_message(
+                                                &msg,
+                                                infra.get_device_type(),
+                                            ) {
                                                 Ok(()) => {
-                                                    let queue_msg: CGWUCentralMessagesQueueItem =
-                                                        CGWUCentralMessagesQueueItem::new(
-                                                            parsed_cmd, msg, uuid,
-                                                        );
-
                                                     // 3. Add message to queue
-                                                    {
-                                                        let queue_lock =
-                                                            CGW_MESSAGES_QUEUE.read().await;
-                                                        if let Err(e) = queue_lock
-                                                            .push_device_message(
-                                                                device_mac, queue_msg,
-                                                            )
-                                                            .await
-                                                        {
-                                                            error!("Failed to get CGW message queue read lock! Error: {e}");
-                                                        }
-                                                    }
+                                                    self.enqueue_ifrastructure_request(
+                                                        device_mac,
+                                                        infra.get_device_state(),
+                                                        infra.get_device_group_id(),
+                                                        parsed_cmd,
+                                                        msg,
+                                                        uuid,
+                                                        timeout,
+                                                    )
+                                                    .await;
                                                 }
                                                 Err(e) => {
                                                     error!("Failed to validate config message! Invalid configure message for device: {device_mac}!");
                                                     if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                                                        uuid,
-                                                        false,
-                                                        Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
-                                                    ) {
-                                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
-                                                    } else {
-                                                        error!("Failed to construct device_enqueue message!");
-                                                    }
+                                                    uuid,
+                                                    false,
+                                                    Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
+                                                ) {
+                                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                                } else {
+                                                    error!("Failed to construct device_enqueue message!");
+                                                }
                                                     continue;
                                                 }
                                             }
-                                        }
-                                        None => {
-                                            error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
-                                            continue;
+                                        } else {
+                                            self.enqueue_ifrastructure_request(
+                                                device_mac,
+                                                infra.get_device_state(),
+                                                infra.get_device_group_id(),
+                                                parsed_cmd,
+                                                msg,
+                                                uuid,
+                                                timeout,
+                                            )
+                                            .await;
                                         }
                                     }
-                                } else {
-                                    let queue_msg: CGWUCentralMessagesQueueItem =
-                                        CGWUCentralMessagesQueueItem::new(parsed_cmd, msg, uuid);
-                                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                                    if let Err(e) =
-                                        queue_lock.push_device_message(device_mac, queue_msg).await
-                                    {
-                                        error!(
-                                            "Failed to get CGW message queue read lock! Error: {e}"
-                                        );
+                                    None => {
+                                        error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
+                                        continue;
                                     }
                                 }
                             } else {
@@ -1712,11 +1731,6 @@ impl CGWConnectionServer {
                     });
                 } else if let CGWConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
                     let mut device_group_id: i32 = 0;
-                    // Insert device to disconnected device list
-                    {
-                        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                        queue_lock.device_disconnected(&device_mac).await;
-                    }
                     info!(
                         "Connection map: removed {} serial from connmap, new num_of_connections: {}",
                         device_mac,
@@ -1754,6 +1768,14 @@ impl CGWConnectionServer {
                                 error!("{e}");
                             }
                         }
+                    }
+
+                    // Insert device to disconnected device list
+                    {
+                        let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+                        queue_lock
+                            .device_disconnected(&device_mac, device_group_id)
+                            .await;
                     }
 
                     if self.feature_topomap_enabled {
@@ -1821,6 +1843,89 @@ impl CGWConnectionServer {
 
     pub async fn cleanup_redis(&self) {
         self.cgw_remote_discovery.cleanup_redis().await;
+    }
+
+    async fn enqueue_ifrastructure_request(
+        &self,
+        mac: MacAddress,
+        infra_state: CGWDeviceState,
+        infra_gid: i32,
+        command: CGWUCentralCommand,
+        message: String,
+        uuid: Uuid,
+        timeout: Option<u64>,
+    ) {
+        if (infra_state == CGWDeviceState::CGWDeviceConnected)
+            || (infra_state == CGWDeviceState::CGWDeviceDisconnected
+                && (command.cmd_type == CGWUCentralCommandType::Configure
+                    || command.cmd_type == CGWUCentralCommandType::Upgrade))
+        {
+            let queue_msg: CGWUCentralMessagesQueueItem =
+                CGWUCentralMessagesQueueItem::new(command, message, uuid, timeout);
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            match queue_lock.push_device_message(mac, queue_msg).await {
+                Ok(replaced_item) => {
+                    if let Some(req) = replaced_item {
+                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                            req.uuid,
+                            false,
+                            Some("Request replaced with new!".to_string()),
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
+                        } else {
+                            error!("Failed to construct infra_request_result message!");
+                        }
+                    }
+                }
+                Err(e) => {
+                    if let Ok(resp) =
+                        cgw_construct_infra_enqueue_response(uuid, false, Some(e.to_string()))
+                    {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
+                    } else {
+                        error!("Failed to construct infra_request_result message!");
+                    }
+                }
+            }
+        } else {
+            if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                uuid,
+                false,
+                Some(format!(
+                    "Device {mac} is disconnected! Accepting only Configure and Upgrade requests!"
+                )),
+            ) {
+                self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
+            } else {
+                error!("Failed to construct infra_request_result message!");
+            }
+        }
+    }
+
+    pub async fn start_queue_timeout_manager(&self) {
+        loop {
+            // Wait for 10 seconds
+            time::sleep(TIMEOUT_MANAGER_DURATION).await;
+
+            // iterate over disconnected devices
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+            let failed_requests = queue_lock.iterate_over_disconnected_devices().await;
+
+            for (infra, requests) in failed_requests {
+                for req in requests {
+                    if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                        req.1.uuid,
+                        req.1.command.id,
+                        false,
+                        Some(format!("Request failed due to infra {} disconnect", infra)),
+                    ) {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(req.0, resp);
+                    } else {
+                        error!("Failed to construct  message!");
+                    }
+                }
+            }
+        }
     }
 }
 

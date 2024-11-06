@@ -27,6 +27,7 @@
         "infra_group_id": "key",
         "mac": "mac",
         "msg": {},
-        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff",
+        "timeout": 60
     }
 }

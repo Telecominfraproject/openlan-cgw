@@ -798,6 +798,7 @@ impl CGWConnectionServer {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
+                                self.local_cgw_id,
                                 uuid,
                                 true,
                                 None,
@@ -813,6 +814,7 @@ impl CGWConnectionServer {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
+                                self.local_cgw_id,
                                 uuid,
                                 false,
                                 Some(format!("Failed to create new group! Error: {e}")),
@@ -847,6 +849,7 @@ impl CGWConnectionServer {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
+                                self.local_cgw_id,
                                 uuid,
                                 true,
                                 None,
@@ -864,6 +867,7 @@ impl CGWConnectionServer {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
                                 String::default(),
+                                self.local_cgw_id,
                                 uuid,
                                 false,
                                 Some(format!(
@@ -918,9 +922,13 @@ impl CGWConnectionServer {
                                 topo_map.remove_gid(gid).await;
                             }
 
-                            if let Ok(resp) =
-                                cgw_construct_infra_group_delete_response(gid, uuid, true, None)
-                            {
+                            if let Ok(resp) = cgw_construct_infra_group_delete_response(
+                                gid,
+                                self.local_cgw_id,
+                                uuid,
+                                true,
+                                None,
+                            ) {
                                 self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                             } else {
                                 error!("Failed to construct infra_group_delete message!");
@@ -933,6 +941,7 @@ impl CGWConnectionServer {
 
                             if let Ok(resp) = cgw_construct_infra_group_delete_response(
                                 gid,
+                                self.local_cgw_id,
                                 uuid,
                                 false,
                                 Some(format!("Failed to delete group! Error: {e}")),
@@ -987,6 +996,7 @@ impl CGWConnectionServer {
                     }
                     None => {
                         if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                            self.local_cgw_id,
                             Uuid::default(),
                             false,
                             Some(format!(
@@ -1047,6 +1057,7 @@ impl CGWConnectionServer {
                             .is_err()
                         {
                             if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                                self_clone.local_cgw_id,
                                 Uuid::default(),
                                 false,
                                 Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
@@ -1102,6 +1113,7 @@ impl CGWConnectionServer {
                                 if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                     gid,
                                     mac_list.clone(),
+                                    self.local_cgw_id,
                                     uuid,
                                     false,
                                     Some(format!("Failed to add infra list to nonexisting group, gid {gid}, uuid {uuid}")),
@@ -1127,7 +1139,12 @@ impl CGWConnectionServer {
                                         .notify_devices_on_gid_change(success_ifras.clone(), gid);
 
                                     if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
-                                        gid, mac_list, uuid, true, None,
+                                        gid,
+                                        mac_list,
+                                        self.local_cgw_id,
+                                        uuid,
+                                        true,
+                                        None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     } else {
@@ -1164,6 +1181,7 @@ impl CGWConnectionServer {
                                                                 mac,
                                                                 dev_gid,
                                                                 &diff,
+                                                                self.local_cgw_id,
                                                             )
                                                         {
                                                             self.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -1216,6 +1234,7 @@ impl CGWConnectionServer {
                                         if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                             gid,
                                             mac_addresses,
+                                            self.local_cgw_id,
                                             uuid,
                                             false,
                                             Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
@@ -1247,6 +1266,7 @@ impl CGWConnectionServer {
                                 if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                     gid,
                                     mac_list.clone(),
+                                    self.local_cgw_id,
                                     uuid,
                                     false,
                                     Some(format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist")),
@@ -1276,7 +1296,12 @@ impl CGWConnectionServer {
                                         .notify_devices_on_gid_change(mac_list.clone(), 0i32);
 
                                     if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
-                                        gid, mac_list, uuid, true, None,
+                                        gid,
+                                        mac_list,
+                                        self.local_cgw_id,
+                                        uuid,
+                                        true,
+                                        None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     } else {
@@ -1307,6 +1332,7 @@ impl CGWConnectionServer {
                                         if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                             gid,
                                             mac_addresses,
+                                            self.local_cgw_id,
                                             uuid,
                                             false,
                                             Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
@@ -1341,6 +1367,7 @@ impl CGWConnectionServer {
                                 .is_none()
                             {
                                 if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                                    self.local_cgw_id,
                                     uuid,
                                     false,
                                     Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist")),
@@ -1381,9 +1408,10 @@ impl CGWConnectionServer {
                                                 Err(e) => {
                                                     error!("Failed to validate config message! Invalid configure message for device: {device_mac}!");
                                                     if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                                                    uuid,
-                                                    false,
-                                                    Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
+                                                        self.local_cgw_id,
+                                                        uuid,
+                                                        false,
+                                                        Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
                                                 ) {
                                                     self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                                 } else {
@@ -1412,6 +1440,7 @@ impl CGWConnectionServer {
                                 }
                             } else {
                                 if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                                    self.local_cgw_id,
                                     uuid,
                                     false,
                                     Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
@@ -1432,7 +1461,11 @@ impl CGWConnectionServer {
                             match self.cgw_remote_discovery.rebalance_all_groups().await {
                                 Ok(groups_res) => {
                                     if let Ok(resp) = cgw_construct_rebalance_group_response(
-                                        gid, uuid, true, None,
+                                        gid,
+                                        self.local_cgw_id,
+                                        uuid,
+                                        true,
+                                        None,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
                                     } else {
@@ -1448,6 +1481,7 @@ impl CGWConnectionServer {
 
                                     if let Ok(resp) = cgw_construct_rebalance_group_response(
                                         gid,
+                                        self.local_cgw_id,
                                         uuid,
                                         false,
                                         Some(format!("Failed to rebalance groups! Error: {e}")),
@@ -1616,6 +1650,7 @@ impl CGWConnectionServer {
                                         device_mac,
                                         device.get_device_group_id(),
                                         &diff,
+                                        self.local_cgw_id,
                                     ) {
                                         self.enqueue_mbox_message_from_cgw_to_nb_api(
                                             device.get_device_group_id(),
@@ -1712,9 +1747,12 @@ impl CGWConnectionServer {
                             .await;
                     }
 
-                    if let Ok(resp) =
-                        cgw_construct_infra_join_msg(device_group_id, device_mac, ip_addr)
-                    {
+                    if let Ok(resp) = cgw_construct_infra_join_msg(
+                        device_group_id,
+                        device_mac,
+                        ip_addr,
+                        self.local_cgw_id,
+                    ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
                     } else {
                         error!("Failed to construct device_join message!");
@@ -1785,7 +1823,11 @@ impl CGWConnectionServer {
                             .await;
                     }
 
-                    if let Ok(resp) = cgw_construct_infra_leave_msg(device_group_id, device_mac) {
+                    if let Ok(resp) = cgw_construct_infra_leave_msg(
+                        device_group_id,
+                        device_mac,
+                        self.local_cgw_id,
+                    ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
                     } else {
                         error!("Failed to construct device_leave message!");
@@ -1867,6 +1909,7 @@ impl CGWConnectionServer {
                 Ok(replaced_item) => {
                     if let Some(req) = replaced_item {
                         if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                            self.local_cgw_id,
                             req.uuid,
                             false,
                             Some("Request replaced with new!".to_string()),
@@ -1878,9 +1921,12 @@ impl CGWConnectionServer {
                     }
                 }
                 Err(e) => {
-                    if let Ok(resp) =
-                        cgw_construct_infra_enqueue_response(uuid, false, Some(e.to_string()))
-                    {
+                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                        self.local_cgw_id,
+                        uuid,
+                        false,
+                        Some(e.to_string()),
+                    ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
                     } else {
                         error!("Failed to construct infra_request_result message!");
@@ -1889,6 +1935,7 @@ impl CGWConnectionServer {
             }
         } else {
             if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                self.local_cgw_id,
                 uuid,
                 false,
                 Some(format!(
@@ -1914,6 +1961,7 @@ impl CGWConnectionServer {
             for (infra, requests) in failed_requests {
                 for req in requests {
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                        self.local_cgw_id,
                         req.1.uuid,
                         req.1.command.id,
                         false,
@@ -1926,6 +1974,10 @@ impl CGWConnectionServer {
                 }
             }
         }
+    }
+
+    pub fn get_local_id(&self) -> i32 {
+        self.local_cgw_id
     }
 }
 

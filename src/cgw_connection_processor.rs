@@ -343,6 +343,7 @@ impl CGWConnectionProcessor {
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
                             debug!("Got reply event for pending request id: {pending_req_id}");
                             if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                                self.cgw_server.get_local_id(),
                                 pending_req_uuid,
                                 pending_req_id,
                                 true,
@@ -595,6 +596,7 @@ impl CGWConnectionProcessor {
 
                     for req in flushed_reqs {
                         if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                            self.cgw_server.get_local_id(),
                             req.uuid,
                             req.command.id,
                             false,
@@ -620,6 +622,7 @@ impl CGWConnectionProcessor {
                         .await;
                     fsm_state = CGWUCentralMessageProcessorState::Idle;
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                        self.cgw_server.get_local_id(),
                         pending_req_uuid,
                         pending_req_id,
                         false,

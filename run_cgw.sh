@@ -44,7 +44,7 @@ CONTAINTER_CERTS_VOLUME="/etc/cgw/certs"
 CONTAINTER_NB_INFRA_CERTS_VOLUME="/etc/cgw/nb_infra/certs"
 DEFAULT_NB_INFRA_TLS="no"
 
-DEFAULT_ALLOW_CERT_MISMATCH="no"
+DEFAULT_ALLOW_CERT_MISMATCH="yes"
 
 DEFAULT_UCENTRAL_AP_DATAMODEL_URI="https://raw.githubusercontent.com/Telecominfraproject/wlan-ucentral-schema/main/ucentral.schema.json"
 DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI="https://raw.githubusercontent.com/Telecominfraproject/ols-ucentral-schema/main/ucentral.schema.json"
@@ -175,7 +175,7 @@ docker run \
 	-e CGW_REDIS_USERNAME                \
 	-e CGW_REDIS_PASSWORD                \
 	-e CGW_REDIS_TLS                     \
-	-e CGW_FEATURE_TOPOMAP_ENABLE        \
+	-e CGW_FEATURE_TOPOMAP_ENABLE='1'    \
 	-e CGW_METRICS_PORT                  \
 	-e CGW_ALLOW_CERT_MISMATCH           \
 	-e CGW_NB_INFRA_TLS                  \

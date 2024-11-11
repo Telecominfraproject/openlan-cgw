@@ -7,7 +7,7 @@ import re
 import os
 
 
-TEMPLATE_LOCATION = "./data/message_templates.json"
+TEMPLATE_LOCATION = "./sim_data/message_templates.json"
 
 
 @dataclass

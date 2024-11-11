@@ -9,7 +9,7 @@ CA_CERT_PATH=./tipcerts
 CLIENT_CERT_PATH=$(pwd)/../cert_generator/certs/client
 CLIENT_CERT_PATH=./tipcerts
 #--no-cert-check
-python3 single.py --mac "$MAC" \
+PYTHONPATH="$PYTHONPATH:$PWD:$PWD/src/" python3 single.py --mac "$MAC" \
     --server "$URL" \
     --ca-cert "$CA_CERT_PATH/ca.crt" \
     --client-certs-path "$CLIENT_CERT_PATH" \

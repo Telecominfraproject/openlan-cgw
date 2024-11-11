@@ -162,3 +162,14 @@ There are several environment variable to configure certificates path and names 
 The infrastructure connectivity use root certs store - the directory with trusted certificates
 The environemt variable to configure certificates path:
 1. CGW_NB_INFRA_CERTS_PATH - path to certificates located on host machine
+
+# Automated Testing
+Automated python-based tests are located inside the *tests* directory.
+Currently, tests should be run manually by changin PWD to *tests* and launching helper script *run.sh*:
+```console
+cd ./test
+./run.sh
+```
+*NOTE:* currently, tests are not running inside a container.
+This means, that it's up to the caller make sure tests can communicate with whatever CGW's deployment as well as thirdparty services.
+E.g. tests inside running *host* enviroment must be able to communicate with CGW, Redis, Kafka, PGSQL etc.

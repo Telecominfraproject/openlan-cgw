@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from utils import get_msg_templates, Args
-from log import logger
+from .utils import get_msg_templates, Args
+from .log import logger
 from websockets.sync import client
 from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError, ConnectionClosed
 from websockets.frames import *
@@ -19,6 +19,7 @@ import json
 import ssl
 import os
 import re
+
 
 class Message:
     def __init__(self, mac: str, size: int):

@@ -37,6 +37,7 @@ pub struct InfraGroupCreateResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_name: String,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
@@ -46,6 +47,7 @@ pub struct InfraGroupCreateResponse {
 pub struct InfraGroupDeleteResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
@@ -56,6 +58,7 @@ pub struct InfraGroupInfrasAddResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_group_infras: Vec<MacAddress>,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
@@ -66,6 +69,7 @@ pub struct InfraGroupInfrasDelResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_group_infras: Vec<MacAddress>,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
@@ -74,7 +78,18 @@ pub struct InfraGroupInfrasDelResponse {
 #[derive(Debug, Serialize)]
 pub struct InfraGroupInfraMessageEnqueueResponse {
     pub r#type: &'static str,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupInfraRequestResult {
+    pub r#type: &'static str,
+    pub reporter_shard_id: i32,
+    pub uuid: Uuid,
+    pub id: u64,
     pub success: bool,
     pub error_message: Option<String>,
 }
@@ -83,6 +98,7 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
 pub struct RebalanceGroupsResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
@@ -94,6 +110,7 @@ pub struct InfraGroupInfraCapabilitiesChanged {
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
     pub changes: Vec<CGWDeviceChange>,
+    pub reporter_shard_id: i32,
 }
 
 #[derive(Debug, Serialize)]
@@ -146,7 +163,8 @@ pub struct InfraJoinMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
-    infra_public_ip: SocketAddr,
+    pub infra_public_ip: SocketAddr,
+    pub reporter_shard_id: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -154,11 +172,13 @@ pub struct InfraLeaveMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
+    pub reporter_shard_id: i32,
 }
 
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
     infra_name: String,
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
@@ -167,6 +187,7 @@ pub fn cgw_construct_infra_group_create_response(
         r#type: "infrastructure_group_create_response",
         infra_group_id,
         infra_name,
+        reporter_shard_id,
         uuid,
         success,
         error_message,
@@ -177,12 +198,14 @@ pub fn cgw_construct_infra_group_create_response(
 
 pub fn cgw_construct_infra_group_delete_response(
     infra_group_id: i32,
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
     let group_delete = InfraGroupDeleteResponse {
         r#type: "infrastructure_group_delete_response",
+        reporter_shard_id,
         infra_group_id,
         uuid,
         success,
@@ -195,6 +218,7 @@ pub fn cgw_construct_infra_group_delete_response(
 pub fn cgw_construct_infra_group_infras_add_response(
     infra_group_id: i32,
     infra_group_infras: Vec<MacAddress>,
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
@@ -203,6 +227,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
         r#type: "infrastructure_group_infras_add_response",
         infra_group_id,
         infra_group_infras,
+        reporter_shard_id,
         uuid,
         success,
         error_message,
@@ -214,6 +239,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
 pub fn cgw_construct_infra_group_infras_del_response(
     infra_group_id: i32,
     infra_group_infras: Vec<MacAddress>,
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
@@ -222,6 +248,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
         r#type: "infrastructure_group_infras_del_response",
         infra_group_id,
         infra_group_infras,
+        reporter_shard_id,
         uuid,
         success,
         error_message,
@@ -231,12 +258,14 @@ pub fn cgw_construct_infra_group_infras_del_response(
 }
 
 pub fn cgw_construct_infra_enqueue_response(
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
     let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
-        r#type: "infrastructure_group_infra_message_enqueu_response",
+        r#type: "infrastructure_group_infra_message_enqueue_response",
+        reporter_shard_id,
         uuid,
         success,
         error_message,
@@ -247,6 +276,7 @@ pub fn cgw_construct_infra_enqueue_response(
 
 pub fn cgw_construct_rebalance_group_response(
     infra_group_id: i32,
+    reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
@@ -254,6 +284,7 @@ pub fn cgw_construct_rebalance_group_response(
     let rebalanse_resp = RebalanceGroupsResponse {
         r#type: "rebalance_groups_response",
         infra_group_id,
+        reporter_shard_id,
         uuid,
         success,
         error_message,
@@ -266,6 +297,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
     infra_group_infra: MacAddress,
     infra_group_id: i32,
     diff: &HashMap<String, OldNew>,
+    reporter_shard_id: i32,
 ) -> Result<String> {
     let mut changes: Vec<CGWDeviceChange> = Vec::new();
 
@@ -282,6 +314,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
         infra_group_id,
         infra_group_infra,
         changes,
+        reporter_shard_id,
     };
 
     Ok(serde_json::to_string(&dev_cap_msg)?)
@@ -376,12 +409,14 @@ pub fn cgw_construct_infra_join_msg(
     infra_group_id: i32,
     infra_group_infra: MacAddress,
     infra_public_ip: SocketAddr,
+    reporter_shard_id: i32,
 ) -> Result<String> {
     let infra_join_msg = InfraJoinMessage {
         r#type: "infra_join",
         infra_group_id,
         infra_group_infra,
         infra_public_ip,
+        reporter_shard_id,
     };
 
     Ok(serde_json::to_string(&infra_join_msg)?)
@@ -390,14 +425,35 @@ pub fn cgw_construct_infra_join_msg(
 pub fn cgw_construct_infra_leave_msg(
     infra_group_id: i32,
     infra_group_infra: MacAddress,
+    reporter_shard_id: i32,
 ) -> Result<String> {
     let infra_leave_msg = InfraLeaveMessage {
         r#type: "infra_leave",
         infra_group_id,
         infra_group_infra,
+        reporter_shard_id,
     };
 
     Ok(serde_json::to_string(&infra_leave_msg)?)
+}
+
+pub fn cgw_construct_infra_request_result_msg(
+    reporter_shard_id: i32,
+    uuid: Uuid,
+    id: u64,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let infra_request_result = InfraGroupInfraRequestResult {
+        r#type: "infra_request_result",
+        reporter_shard_id,
+        uuid,
+        id,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&infra_request_result)?)
 }
 
 struct CustomContext;

@@ -26,7 +26,7 @@ pub enum Error {
 
     UCentralValidator(String),
 
-    UCentralMessagesQueue(&'static str),
+    UCentralMessagesQueue(String),
 
     AppArgsParser(String),
 
@@ -91,12 +91,12 @@ impl std::fmt::Display for Error {
             | Error::Runtime(message)
             | Error::Redis(message)
             | Error::Tcp(message)
+            | Error::UCentralMessagesQueue(message)
             | Error::UCentralValidator(message) => write!(f, "{}", message),
             Error::ConnectionProcessor(message)
             | Error::DbAccessor(message)
             | Error::RemoteDiscovery(message)
             | Error::UCentralParser(message)
-            | Error::UCentralMessagesQueue(message)
             | Error::StaticStr(message) => write!(f, "{}", message),
             Error::Io(io_error) => write!(f, "{}", io_error),
             Error::ClientVerifierBuilder(verifier_error) => write!(f, "{}", verifier_error),

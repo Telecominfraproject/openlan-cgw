@@ -18,9 +18,12 @@ DEFAULT_WSS_PORT=15002
 DEFAULT_WSS_T_NUM=4
 
 DEFAULT_CERTS_PATH="`realpath ./utils/cert_generator/certs/server/`"
+DEFAULT_CLIENT_CERTS_PATH="`realpath ./utils/cert_generator/certs/client/`"
 DEFAULT_WSS_CAS="cas.pem"
 DEFAULT_WSS_CERT="cert.pem"
 DEFAULT_WSS_KEY="key.pem"
+DEFAULT_CLIENT_CERT="base.crt"
+DEFAULT_CLIENT_KEY="base.key"
 
 DEFAULT_KAFKA_HOST="docker-broker-1"
 DEFAULT_KAFKA_PORT=9092
@@ -94,7 +97,12 @@ if [ -z "${!CGW_REDIS_PASSWORD}" ]; then
 	export CGW_REDIS_PASSWORD="${CGW_REDIS_PASSWORD}"
 fi
 
-if [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] || [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] || [ ! -f $CGW_CERTS_PATH/$CGW_WSS_KEY ] ; then
+if      [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] ||
+	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] ||
+	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_KEY ] ||
+	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] ||
+	[ ! -f $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_CERT ] ||
+	[ ! -f $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_KEY ]; then
 	echo "WARNING: at specified path $CGW_CERTS_PATH either CAS, CERT or KEY is missing!"
 	echo "WARNING: changing source folder for certificates to default: $DEFAULT_CERTS_PATH and generating self-signed..."
 	export CGW_CERTS_PATH="$DEFAULT_CERTS_PATH";
@@ -104,11 +112,20 @@ if [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] || [ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT
 	export CGW_NB_INFRA_CERTS_PATH="$DEFAULT_CERTS_PATH"
 
 	cd ./utils/cert_generator/ && \
+		rm ./certs/ca/*crt 2>&1 >/dev/null; \
+		rm ./certs/ca/*key 2>&1 >/dev/null; \
+		rm ./certs/server/*crt 2>&1 >/dev/null; \
+		rm ./certs/server/*key 2>&1 >/dev/null; \
+		rm ./certs/client/*crt 2>&1 >/dev/null; \
+		rm ./certs/client/*key 2>&1 >/dev/null; \
 		./generate_certs.sh -a && \
 		./generate_certs.sh -s && \
-		cp ./certs/ca/ca.crt $DEFAULT_CERTS_PATH/cas.pem
+		./generate_certs.sh -c 1 -m 02:00:00:00:00:00 && \
+		cp ./certs/ca/ca.crt $DEFAULT_CERTS_PATH/$DEFAULT_WSS_CAS && \
 		cp ./certs/server/gw.crt $DEFAULT_CERTS_PATH/cert.pem && \
 		cp ./certs/server/gw.key $DEFAULT_CERTS_PATH/key.pem && \
+		cp ./certs/client/*crt $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_CERT && \
+		cp ./certs/client/*key $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_KEY && \
 		echo "Generating self-signed certificates done!"
 fi
 

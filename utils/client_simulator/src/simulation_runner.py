@@ -3,8 +3,11 @@ from .utils import get_msg_templates, Args
 from .log import logger
 from websockets.sync import client
 from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError, ConnectionClosed
+from websockets.frames import *
 from typing import List
 import multiprocessing
+import socket
+import struct
 import threading
 import resource
 import string
@@ -20,13 +23,17 @@ import re
 
 class Message:
     def __init__(self, mac: str, size: int):
+        tmp_mac = copy.deepcopy(mac)
+        tmp_mac = tmp_mac.replace(":", "")
         self.templates = get_msg_templates()
-        self.connect = json.dumps(self.templates["connect"]).replace("MAC", mac)
+        self.connect = json.dumps(self.templates["connect"]).replace("MAC", tmp_mac)
         self.state = json.dumps(self.templates["state"]).replace("MAC", mac)
         self.reboot_response = json.dumps(self.templates["reboot_response"]).replace("MAC", mac)
         self.log = copy.deepcopy(self.templates["log"])
         self.log["params"]["data"] = {"msg": ''.join(random.choices(string.ascii_uppercase + string.digits, k=size))}
         self.log = json.dumps(self.log).replace("MAC", mac)
+        self.join = json.dumps(self.templates["join"]).replace("MAC", mac)
+        self.leave = json.dumps(self.templates["leave"]).replace("MAC", mac)
 
     @staticmethod
     def to_json(msg) -> str:
@@ -61,12 +68,24 @@ class Device:
             self.ssl_context.check_hostname = False
             self.ssl_context.verify_mode = ssl.CERT_NONE
 
+    def send_ping(self, socket: client.ClientConnection):
+        socket.ping()
+
     def send_hello(self, socket: client.ClientConnection):
         logger.debug(self.messages.connect)
         socket.send(self.messages.connect)
 
     def send_log(self, socket: client.ClientConnection):
         socket.send(self.messages.log)
+
+    def send_state(self, socket: client.ClientConnection):
+        socket.send(self.messages.state)
+
+    def send_join(self, socket: client.ClientConnection):
+        socket.send(self.messages.join)
+
+    def send_leave(self, socket: client.ClientConnection):
+        socket.send(self.messages.leave)
 
     def handle_messages(self, socket: client.ClientConnection):
         try:
@@ -117,7 +136,8 @@ class Device:
                     logger.error("Connection to GW is lost. Trying to reconnect...")
                     self.connect()
                 if time.time() - start > self.interval:
-                    logger.info(f"Sent log")
+                    logger.info(f"Device sim heartbeat")
+                    self.send_state(self._socket)
                     self.send_log(self._socket)
                     start = time.time()
                 self.handle_messages(self._socket)
@@ -140,7 +160,8 @@ class Device:
                     logger.error("Connection to GW is lost. Trying to reconnect...")
                     self.connect()
                 if time.time() - start > self.interval:
-                    logger.info(f"Sent log")
+                    logger.info(f"Device sim heartbeat")
+                    self.send_state(self._socket)
                     self.send_log(self._socket)
                     start = time.time()
                 self.handle_messages(self._socket)
@@ -150,11 +171,16 @@ class Device:
 
 
 def get_avail_mac_addrs(path, mask="XX:XX:XX:XX:XX:XX"):
-    _mask = "".join(("[0-9a-fA-F]" if c == "X" else c) for c in mask.upper())
-    certs = sorted(os.listdir(path))
-    macs = set(cert.split(".")[0] for cert in certs if "crt" in cert and re.match(_mask, cert))
-    return list(macs)
+    mask = mask.upper()
+    _mask = "".join(("[0-9a-fA-F]" if c == "X" else c) for c in mask)
+    macs = open(path + '/macs.txt', 'r').read().split()
+    macs = list(macs)
+    new_macs = list()
+    for mac in macs:
+        if re.match(_mask, mac):
+            new_macs.append(mac)
 
+    return new_macs
 
 def update_fd_limit():
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -178,8 +204,8 @@ def process(args: Args, mask: str, start_event: multiprocessing.Event, stop_even
     update_fd_limit()
 
     devices = [Device(mac, args.server, args.ca_path, args.msg_interval, args.msg_size,
-                      os.path.join(args.cert_path, f"{mac}.crt"),
-                      os.path.join(args.cert_path, f"{mac}.key"),
+                      os.path.join(args.cert_path, f"base.crt"),
+                      os.path.join(args.cert_path, f"base.key"),
                       args.check_cert,
                       start_event, stop_event)
                for mac, _ in zip(macs, range(args.number_of_connections))]

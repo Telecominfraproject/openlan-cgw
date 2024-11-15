@@ -20,7 +20,7 @@ spawn:
 		-v ${CA_CERT_PATH}:/etc/ca \
 		-v ${CLIENT_CERT_PATH}:/etc/certs \
 		${IMG_NAME} \
-		python3 main.py -M ${MAC} -N ${COUNT} -s ${URL} \
+		PYTHONPATH="$PYTHONPATH:$PWD:$PWD/src/" python3 main.py -M ${MAC} -N ${COUNT} -s ${URL} \
 			--ca-cert /etc/ca/ca.crt \
 			--client-certs-path /etc/certs \
 			--msg-interval ${MSG_INTERVAL} \

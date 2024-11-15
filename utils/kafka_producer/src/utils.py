@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import List, Tuple
-from typing import Tuple
 import copy
 import json
 import uuid
@@ -23,6 +22,8 @@ class MacRange:
     Raises ValueError
     """
     def __init__(self, input: str = "XX:XX:XX:XX:XX:XX") -> None:
+        input = input.replace("-", ":", 5)
+
         self.__base_as_num, self.__len = self.__parse_input(input.upper())
         self.__idx = 0
 
@@ -53,7 +54,9 @@ class MacRange:
 
     @staticmethod
     def mac2num(mac: str) -> int:
-        return int(mac.replace(":", ""), base=16)
+        mac = mac.replace(":", "", 5)
+        mac = mac.replace("-", "", 5)
+        return int(mac, base=16)
 
     @staticmethod
     def num2mac(mac: int) -> str:
@@ -78,7 +81,7 @@ class MacRange:
 
 
 class Message:
-    TEMPLATE_FILE = "./data/message_template.json"
+    TEMPLATE_FILE = "./kafka_data/message_template.json"
     GROUP_ADD = "add_group"
     GROUP_DEL = "del_group"
     DEV_TO_GROUP = "add_to_group"
@@ -96,35 +99,42 @@ class Message:
         with open(self.TEMPLATE_FILE) as f:
             self.templates = json.loads(f.read())
 
-    def group_create(self, id: str, shard_id: int, name: str) -> bytes:
+    @staticmethod
+    def parse_uuid(uuid_val = None) -> str:
+        if uuid_val is None:
+            return str(uuid.uuid1())
+
+        return str(uuid.UUID(int=uuid_val))
+
+    def group_create(self, id: str, shard_id: int, name: str, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD])
         msg[self.GROUP_ID] = id
         msg[self.SHARD_ID] = shard_id
         msg[self.GROUP_NAME] = name
-        msg[self.MSG_UUID] = str(uuid.uuid1())
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def group_delete(self, id: str) -> bytes:
+    def group_delete(self, id: str, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_DEL])
         msg[self.GROUP_ID] = id
-        msg[self.MSG_UUID] = str(uuid.uuid1())
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def add_dev_to_group(self, id: str, mac_range: MacRange) -> bytes:
+    def add_dev_to_group(self, id: str, mac_range: MacRange, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_TO_GROUP])
         msg[self.GROUP_ID] = id
         msg[self.DEV_LIST] = list(mac_range)
-        msg[self.MSG_UUID] = str(uuid.uuid1())
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def remove_dev_from_group(self, id: str, mac_range: MacRange) -> bytes:
+    def remove_dev_from_group(self, id: str, mac_range: MacRange, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
         msg[self.GROUP_ID] = id
         msg[self.DEV_LIST] = list(mac_range)
-        msg[self.MSG_UUID] = str(uuid.uuid1())
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def to_device(self, id: str, mac: str, data, sequence: int = 0):
+    def to_device(self, id: str, mac: str, data, sequence: int = 0, uuid_val: int = None):
         msg = copy.copy(self.templates[self.TO_DEVICE])
         msg[self.GROUP_ID] = id
         msg[self.MAC] = mac
@@ -132,7 +142,8 @@ class Message:
             msg[self.DATA] = data
         else:
             msg[self.DATA] = {"data": data}
-        msg[self.MSG_UUID] = str(uuid.uuid1(node=MacRange.mac2num(mac), clock_seq=sequence))
+        #msg[self.MSG_UUID] = str(uuid.uuid1(node=MacRange.mac2num(mac), clock_seq=sequence))
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
 

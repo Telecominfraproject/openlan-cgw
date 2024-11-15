@@ -87,6 +87,15 @@ class Device:
     def send_leave(self, socket: client.ClientConnection):
         socket.send(self.messages.leave)
 
+    def get_single_message(self, socket: client.ClientConnection):
+        try:
+            msg = socket.recv(self.interval)
+            return self.messages.from_json(msg)
+        except TimeoutError:
+            return None
+        except:
+            raise
+
     def handle_messages(self, socket: client.ClientConnection):
         try:
             msg = socket.recv(self.interval)

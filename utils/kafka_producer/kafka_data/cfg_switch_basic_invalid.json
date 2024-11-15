@@ -1,0 +1,56 @@
+{
+  "jsonrpc": "2.0",
+  "method": "configure",
+  "params": {
+    "serial": "MAC_PLACEHOLDER",
+    "uuid": UUID_PLACEHOLDER,
+    "when": 0,
+    "config": {
+      "services": {},
+      "ethernet": [
+        {
+          "select-ports": [
+            "Ethernet*"
+          ],
+          "speed": 1000,
+          "duplex": "full",
+          "enabled": "YES, TOTALLY ENABLE IT",
+          "poe": {
+            "admin-mode": true
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "vlan": {
+            "id": 1,
+            "proto": "802.1q"
+          },
+          "ethernet": [
+            {
+              "select-ports": [
+                "Ethernet*"
+              ],
+              "vlan-tag": "un-tagged"
+            }
+          ],
+          "role": "upstream",
+          "name": "mgmt-vlan"
+        }
+      ],
+      "switch": {
+        "loop-detection": {
+          "instances": [
+            {
+              "enabled": true,
+              "id": 1,
+              "priority": 32768
+            }
+          ],
+          "protocol": "rpvstp"
+        }
+      },
+      "uuid": UUID_PLACEHOLDER
+    }
+  }
+}

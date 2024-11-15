@@ -130,3 +130,43 @@ class TestCgwBasic:
 
          assert infra_is_assigned,\
                 f"While detected join message for default infra MAC, expected it to be assigned to group (key != default group id)"
+
+   # Base test:
+   # - assigned infra connects to CGW, and kafka sim can validate it
+   #   through the <infra_join> msg + kafka key
+    @pytest.mark.usefixtures("test_context",
+                             "cgw_probe",
+                             "kafka_probe",
+                             "kafka_default_infra_group",
+                             "kafka_default_infra",
+                             "device_sim_connect",
+                             "device_sim_send_ucentral_connect")
+    def test_assigned_infra_reboot(self, test_context): 
+        uuid_val = random.randint(1, 100)
+        default_group = test_context.default_kafka_group()
+        mac = test_context.default_dev_sim_mac()
+
+        # id = uuid in configure request
+        msg = test_context.kafka_producer.device_message_config_ap_basic(mac, id=100)
+        print(f"Got msg: {msg}")
+        test_context.kafka_producer.handle_single_device_message(msg, default_group, mac, uuid_val)
+        recv_msg = test_context.device_sim.get_single_message(test_context.device_sim._socket)
+        print(f"Got reply websocket: {recv_msg}")
+
+        msg = test_context.kafka_producer.device_message_reboot(mac, id=1)
+        print(f"Got msg: {msg}")
+        test_context.kafka_producer.handle_single_device_message(msg, default_group, mac, uuid_val)
+        recv_msg = test_context.device_sim.get_single_message(test_context.device_sim._socket)
+        print(f"Got reply websocket: {recv_msg}")
+
+        msg = test_context.kafka_producer.device_message_factory(mac, id=2, keep_rediretor=True)
+        print(f"Got msg: {msg}")
+        test_context.kafka_producer.handle_single_device_message(msg, default_group, mac, uuid_val)
+        recv_msg = test_context.device_sim.get_single_message(test_context.device_sim._socket)
+        print(f"Got reply websocket: {recv_msg}")
+
+        msg = test_context.kafka_producer.device_message_ping(mac, id=3)
+        print(f"Got msg: {msg}")
+        test_context.kafka_producer.handle_single_device_message(msg, default_group, mac, uuid_val)
+        recv_msg = test_context.device_sim.get_single_message(test_context.device_sim._socket)
+        print(f"Got reply websocket: {recv_msg}")

@@ -10,5 +10,7 @@ ln -sf ../utils/kafka_producer/kafka_data kafka_data
 ln -sf ../utils/cert_generator/certs/client/ certs
 ln -sf ../utils/cert_generator/certs/ca/ ca-certs
 
+pip install -r requirements.txt
+
 pytest -v
 #pytest -v -s .

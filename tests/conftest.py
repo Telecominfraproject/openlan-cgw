@@ -134,7 +134,7 @@ def kafka_default_infra_group(test_context):
     uuid_val = random.randint(1, 100)
     default_group = test_context.default_kafka_group()
 
-    test_context.kafka_producer.handle_single_group_create(test_context.default_kafka_group(), uuid_val)
+    test_context.kafka_producer.handle_single_group_create(default_group, uuid_val)
     ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val)
     if not ret_msg:
         print('Failed to receive create group result, was expecting ' + str(uuid_val) + ' uuid reply')

@@ -2,6 +2,11 @@ import pytest
 import json
 import random
 
+from metrics import cgw_metrics_get_connections_num, \
+    cgw_metrics_get_active_shards_num, \
+    cgw_metrics_get_groups_assigned_num, \
+    cgw_metrics_get_group_infras_assigned_num
+
 class TestCgwBasic:
    # Base test:
    # - test_context can be created - 'tests core' alloc / create
@@ -66,32 +71,35 @@ class TestCgwBasic:
                              "device_sim_connect",
                              "device_sim_send_ucentral_connect")
     def test_unassigned_infra_base(self, test_context):
-         join_message_received = False
-         infra_is_unassigned = False
-         messages = test_context.kafka_consumer.get_msgs()
-         msg_mac = test_context.default_dev_sim_mac()
+        join_message_received = False
+        infra_is_unassigned = False
+        messages = test_context.kafka_consumer.get_msgs()
+        msg_mac = test_context.default_dev_sim_mac()
 
-         assert messages,\
-                 f"Failed to receive any messages (events) from sim-device, while expected connect / infra_join"
+        assert messages,\
+                f"Failed to receive any messages (events) from sim-device, while expected connect / infra_join"
 
-         if not messages:
-             raise Exception('Failed to receive infra assign result when expected')
+        if not messages:
+            raise Exception('Failed to receive infra assign result when expected')
 
-         # Expecting TWO messages to be present in the message list
-         for message in messages:
-             if message.value['type'] == 'infra_join' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
-                 join_message_received = True
-                 continue
+        # Expecting TWO messages to be present in the message list
+        for message in messages:
+            if message.value['type'] == 'infra_join' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
+                join_message_received = True
+                continue
 
-             if message.value['type'] == 'unassigned_infra_connection' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
-                 infra_is_unassigned = True
-                 continue
+            if message.value['type'] == 'unassigned_infra_connection' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
+                infra_is_unassigned = True
+                continue
 
-         assert join_message_received,\
-                 f"Failed to find 'infra_join' message for default infra MAC"
+        assert cgw_metrics_get_active_shards_num() == 1
+        assert cgw_metrics_get_connections_num() == 1
 
-         assert infra_is_unassigned,\
-                f"Failed to find unassigned 'unassigned_infra_connection' message for default infra MAC"
+        assert join_message_received,\
+                f"Failed to find 'infra_join' message for default infra MAC"
+
+        assert infra_is_unassigned,\
+               f"Failed to find unassigned 'unassigned_infra_connection' message for default infra MAC"
 
 
    # Base test:
@@ -105,28 +113,33 @@ class TestCgwBasic:
                              "device_sim_connect",
                              "device_sim_send_ucentral_connect")
     def test_assigned_infra_base(self, test_context):
-         join_message_received = False
-         infra_is_assigned = False
-         messages = test_context.kafka_consumer.get_msgs()
-         msg_mac = test_context.default_dev_sim_mac()
-         default_group = test_context.default_kafka_group().encode('utf-8')
+        join_message_received = False
+        infra_is_assigned = False
+        messages = test_context.kafka_consumer.get_msgs()
+        msg_mac = test_context.default_dev_sim_mac()
+        default_group = test_context.default_kafka_group().encode('utf-8')
 
-         assert messages,\
-                 f"Failed to receive any messages (events) from sim-device, while expected connect / infra_join"
+        assert messages,\
+                f"Failed to receive any messages (events) from sim-device, while expected connect / infra_join"
 
-         if not messages:
-             raise Exception('Failed to receive infra assign result when expected')
+        if not messages:
+            raise Exception('Failed to receive infra assign result when expected')
 
-         # We can deduce whether infra's assigned by inspecting a single msg
-         for message in messages:
-             if message.value['type'] == 'infra_join' and message.value['infra_group_infra'] == msg_mac:
-                 join_message_received = True
-                 if message.key == default_group and str(message.value['infra_group_id']).encode('utf-8') == default_group:
-                     infra_is_assigned = True
-                 break
+        # We can deduce whether infra's assigned by inspecting a single msg
+        for message in messages:
+            if message.value['type'] == 'infra_join' and message.value['infra_group_infra'] == msg_mac:
+                join_message_received = True
+                if message.key == default_group and str(message.value['infra_group_id']).encode('utf-8') == default_group:
+                    infra_is_assigned = True
+                break
 
-         assert join_message_received,\
-                 f"Failed to find 'infra_join' message for default infra MAC"
+        assert cgw_metrics_get_active_shards_num() == 1
+        assert cgw_metrics_get_groups_assigned_num() == 1
+        assert cgw_metrics_get_connections_num() == 1
+        assert cgw_metrics_get_group_infras_assigned_num(int(default_group)) == 1
 
-         assert infra_is_assigned,\
-                f"While detected join message for default infra MAC, expected it to be assigned to group (key != default group id)"
+        assert join_message_received,\
+                f"Failed to find 'infra_join' message for default infra MAC"
+
+        assert infra_is_assigned,\
+               f"While detected join message for default infra MAC, expected it to be assigned to group (key != default group id)"

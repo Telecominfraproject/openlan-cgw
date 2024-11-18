@@ -53,14 +53,22 @@ class Producer:
         if group is None:
             raise Exception('producer: Cannot create new group without group id specified!')
 
-        self.conn.send(self.topic, self.message.group_create(group, 0, "cgw_default_group_name", uuid_val),
+        self.conn.send(self.topic, self.message.group_create(group, "cgw_default_group_name", uuid_val),
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 
-    def handle_group_creation(self, create: List[Tuple[str, int, str]], delete: List[str]) -> None:
+    def handle_single_group_create_to_shard(self, group: str, shard_id: int, uuid_val: int = None):
+        if group is None:
+            raise Exception('producer: Cannot create new group without group id specified!')
+
+        self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, "cgw_default_group_name", uuid_val),
+                bytes(group, encoding="utf-8"))
+        self.conn.flush()
+
+    def handle_group_creation(self, create: List[Tuple[str, str]], delete: List[str]) -> None:
         with self as conn:
-            for group, shard_id, name in create:
-                conn.send(self.topic, self.message.group_create(group, shard_id, name),
+            for group, name in create:
+                conn.send(self.topic, self.message.group_create(group, name),
                           bytes(group, encoding="utf-8"))
             for group in delete:
                 conn.send(self.topic, self.message.group_delete(group),
@@ -91,7 +99,7 @@ class Producer:
 
         self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range),
                 bytes(group, encoding="utf-8"))
-        conn.flush()
+        self.conn.flush()
 
     def handle_device_assignment(self, add: List[Tuple[str, MacRange]], remove: List[Tuple[str, MacRange]]) -> None:
         with self as conn:

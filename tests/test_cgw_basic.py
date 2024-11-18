@@ -8,68 +8,68 @@ from metrics import cgw_metrics_get_connections_num, \
     cgw_metrics_get_group_infras_assigned_num
 
 class TestCgwBasic:
-   # Base test:
-   # - test_context can be created - 'tests core' alloc / create
-   # - tests can connect to kafka broker
-   # - CGW is up
-   # - TODO:
-   #    * redis is up
-   #    * PGSQL is up
+    # Base test:
+    # - test_context can be created - 'tests core' alloc / create
+    # - tests can connect to kafka broker
+    # - CGW is up
+    # - TODO:
+    #    * redis is up
+    #    * PGSQL is up
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe")
+                            "cgw_probe",
+                            "kafka_probe")
     def test_basic_probe(self, test_context):
         pass
 
-   # Base test:
-   # - tests kafka client can create / receive messages through kafka bus
-   # - test infra group can be successfully created
+    # Base test:
+    # - tests kafka client can create / receive messages through kafka bus
+    # - test infra group can be successfully created
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe",
-                             "kafka_default_infra_group")
+                            "cgw_probe",
+                            "kafka_probe",
+                            "kafka_default_infra_group")
     def test_kafka_sanity(self, test_context):
         pass
 
-   # Base test:
-   # - test infra can be addded successfully to the default infra group
+    # Base test:
+    # - test infra can be addded successfully to the default infra group
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe",
-                             "kafka_default_infra_group",
-                             "kafka_default_infra")
+                            "cgw_probe",
+                            "kafka_probe",
+                            "kafka_default_infra_group",
+                            "kafka_default_infra")
     def test_kafka_basic(self, test_context):
         pass
 
-   # Base test:
-   # - certificates can be found / Used
-   # - device sim can connect to CGW
+    # Base test:
+    # - certificates can be found / Used
+    # - device sim can connect to CGW
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "device_sim_connect")
+                            "cgw_probe",
+                            "device_sim_connect")
     def test_device_sim_sanity(self, test_context):
         pass
 
-   # Base test:
-   # - device sim can send connect message to cgw
-   # - kafka client can verify (pull msgs from kafka bus)
-   #   that simulator's indeed connected
+    # Base test:
+    # - device sim can send connect message to cgw
+    # - kafka client can verify (pull msgs from kafka bus)
+    #   that simulator's indeed connected
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe",
-                             "device_sim_connect",
-                             "device_sim_send_ucentral_connect")
+                            "cgw_probe",
+                            "kafka_probe",
+                            "device_sim_connect",
+                            "device_sim_send_ucentral_connect")
     def test_device_sim_base(self, test_context):
         pass
 
-   # Base test:
-   # - unassigned infra connects to CGW, and kafka sim can validate it
-   #   through the <infra_join> msg
+    # Base test:
+    # - unassigned infra connects to CGW, and kafka sim can validate it
+    #   through the <infra_join> msg
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe",
-                             "device_sim_connect",
-                             "device_sim_send_ucentral_connect")
+                            "cgw_probe",
+                            "kafka_probe",
+                            "device_sim_connect",
+                            "device_sim_send_ucentral_connect")
     def test_unassigned_infra_base(self, test_context):
         join_message_received = False
         infra_is_unassigned = False
@@ -102,16 +102,16 @@ class TestCgwBasic:
                f"Failed to find unassigned 'unassigned_infra_connection' message for default infra MAC"
 
 
-   # Base test:
-   # - assigned infra connects to CGW, and kafka sim can validate it
-   #   through the <infra_join> msg + kafka key
+    # Base test:
+    # - assigned infra connects to CGW, and kafka sim can validate it
+    #   through the <infra_join> msg + kafka key
     @pytest.mark.usefixtures("test_context",
-                             "cgw_probe",
-                             "kafka_probe",
-                             "kafka_default_infra_group",
-                             "kafka_default_infra",
-                             "device_sim_connect",
-                             "device_sim_send_ucentral_connect")
+                            "cgw_probe",
+                            "kafka_probe",
+                            "kafka_default_infra_group",
+                            "kafka_default_infra",
+                            "device_sim_connect",
+                            "device_sim_send_ucentral_connect")
     def test_assigned_infra_base(self, test_context):
         join_message_received = False
         infra_is_assigned = False

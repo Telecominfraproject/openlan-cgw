@@ -71,3 +71,31 @@ def cgw_metrics_get_group_infras_assigned_num(group_id: int) -> int:
         print(f"Group {group_id} infras assigned num not found.")
 
     return group_infras_assigned_num
+
+
+def cgw_metrics_get_groups_capacity() -> int:
+    groups_capacity = 0
+    metrics = cgw_metric_get()
+
+    match = re.search(r"cgw_groups_capacity (\d+)", metrics)
+    if match:
+        groups_capacity = int(match.group(1))
+        print(f"Groups capacity: {groups_capacity}")
+    else:
+        print("Groups capacity.")
+
+    return groups_capacity
+
+
+def cgw_metrics_get_groups_threshold() -> int:
+    groups_threshold = 0
+    metrics = cgw_metric_get()
+
+    match = re.search(r"cgw_groups_threshold (\d+)", metrics)
+    if match:
+        groups_threshold = int(match.group(1))
+        print(f"Groups assigned num: {groups_threshold}")
+    else:
+        print("Groups assigned num not found.")
+
+    return groups_threshold

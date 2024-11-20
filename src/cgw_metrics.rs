@@ -104,10 +104,8 @@ pub enum CGWMetricsCounterType {
 
 pub enum CGWMetricsCounterOpType {
     Inc,
-    #[allow(dead_code)]
     IncBy(i64),
     Dec,
-    #[allow(dead_code)]
     DecBy(i64),
     Set(i64),
 }
@@ -244,6 +242,12 @@ impl CGWMetrics {
                     CGWMetricsCounterOpType::Dec => {
                         counter.dec();
                     }
+                    CGWMetricsCounterOpType::IncBy(inc_val) => {
+                        counter.add(inc_val);
+                    }
+                    CGWMetricsCounterOpType::DecBy(dec_val) => {
+                        counter.sub(dec_val);
+                    }
                     _ => {}
                 }
             } else if let Ok(counter) = IntGauge::new(
@@ -251,7 +255,12 @@ impl CGWMetrics {
                 "Number of infras assigned to this particular group",
             ) {
                 if REGISTRY.register(Box::new(counter.clone())).is_ok() {
-                    counter.set(1);
+                    match op {
+                        CGWMetricsCounterOpType::Inc => counter.set(1),
+                        CGWMetricsCounterOpType::IncBy(set_val)
+                        | CGWMetricsCounterOpType::Set(set_val) => counter.set(set_val),
+                        _ => counter.set(0),
+                    }
                     lock.insert(group_id, counter);
                 } else {
                     error!("Failed to register GroupInfrasAssignedNum metric for GID {group_id}!");

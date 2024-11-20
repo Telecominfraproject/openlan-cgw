@@ -88,7 +88,7 @@ class Producer:
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 
-    def handle_single_device_deassign(self, group: str, mac: str):
+    def handle_single_device_deassign(self, group: str, mac: str, uuid_val: int):
         if group is None:
             raise Exception('Cannot deassign infra from group without group id specified!')
 
@@ -97,7 +97,7 @@ class Producer:
 
         mac_range = MacRange(mac)
 
-        self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range),
+        self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range, uuid_val),
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 

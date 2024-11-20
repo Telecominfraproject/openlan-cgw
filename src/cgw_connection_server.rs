@@ -995,20 +995,15 @@ impl CGWConnectionServer {
                         }
                     }
                     None => {
-                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                            self.local_cgw_id,
-                            Uuid::default(),
-                            false,
-                            Some(format!(
-                                "Received message for unknown group {gid_numeric} - unassigned?"
-                            )),
-                        ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid_numeric, resp);
-                        } else {
-                            error!("Failed to construct device_enqueue message!");
-                        }
-
-                        warn!("Received msg for gid {gid_numeric}, while this group is unassigned to any of CGWs, rejecting!");
+                        // Failed to find destination GID shard ID owner
+                        // It is more likely GID does not exist
+                        // Add request to local message buffer - let CGW process request
+                        // We relayig on uderlaying logic to handle specific request and manage corner cases
+                        local_cgw_msg_buf.push(
+                            CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
+                                key, payload, origin,
+                            ),
+                        );
                     }
                 }
             }

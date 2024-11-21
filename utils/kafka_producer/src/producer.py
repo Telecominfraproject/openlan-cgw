@@ -101,6 +101,28 @@ class Producer:
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 
+    def handle_multiple_devices_assign(self, group: str, mac_list: list, uuid_val: int):
+        if group is None:
+            raise Exception('producer: Cannot assign infra to group without group id specified!')
+
+        if mac_list is None:
+            raise Exception('producer: Cannot assign infra to group without infra MAC list specified!')
+
+        self.conn.send(self.topic, self.message.add_devices_to_group(group, mac_list, uuid_val),
+                bytes(group, encoding="utf-8"))
+        self.conn.flush()
+
+    def handle_multiple_devices_deassign(self, group: str, mac_list: list, uuid_val: int):
+        if group is None:
+            raise Exception('Cannot deassign infra from group without group id specified!')
+
+        if mac_list is None:
+            raise Exception('Cannot deassign infra from group without infra MAC list specified!')
+
+        self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_list, uuid_val),
+                bytes(group, encoding="utf-8"))
+        self.conn.flush()
+
     def handle_device_assignment(self, add: List[Tuple[str, MacRange]], remove: List[Tuple[str, MacRange]]) -> None:
         with self as conn:
             for group, mac_range in add:

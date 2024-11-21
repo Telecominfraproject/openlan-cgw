@@ -99,3 +99,17 @@ def cgw_metrics_get_groups_threshold() -> int:
         print("Groups assigned num not found.")
 
     return groups_threshold
+
+
+def cgw_metrics_get_group_ifras_capacity() -> int:
+    group_infras_capacity = 0
+    metrics = cgw_metric_get()
+
+    match = re.search(r"cgw_group_ifras_capacity (\d+)", metrics)
+    if match:
+        group_infras_capacity = int(match.group(1))
+        print(f"Groups capacity: {group_infras_capacity}")
+    else:
+        print("Groups capacity.")
+
+    return group_infras_capacity

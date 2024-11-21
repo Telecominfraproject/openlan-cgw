@@ -142,6 +142,20 @@ class Message:
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
+    def add_devices_to_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_TO_GROUP])
+        msg[self.GROUP_ID] = id
+        msg[self.DEV_LIST] = mac_list
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def remove_devices_from_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
+        msg[self.GROUP_ID] = id
+        msg[self.DEV_LIST] = mac_list
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
     def to_device(self, id: str, mac: str, data, sequence: int = 0, uuid_val: int = None):
         msg = copy.copy(self.templates[self.TO_DEVICE])
         msg[self.GROUP_ID] = id

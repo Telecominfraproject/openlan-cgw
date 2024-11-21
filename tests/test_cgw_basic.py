@@ -12,12 +12,13 @@ class TestCgwBasic:
     # - test_context can be created - 'tests core' alloc / create
     # - tests can connect to kafka broker
     # - CGW is up
-    # - TODO:
-    #    * redis is up
-    #    * PGSQL is up
+    # - PostgreSQL is up
+    # - Redis is up
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "psql_probe",
+                            "redis_probe")
     def test_basic_probe(self, test_context):
         pass
 
@@ -27,6 +28,8 @@ class TestCgwBasic:
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
                             "kafka_probe",
+                            "psql_probe",
+                            "redis_probe",
                             "kafka_default_infra_group")
     def test_kafka_sanity(self, test_context):
         pass
@@ -36,6 +39,8 @@ class TestCgwBasic:
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
                             "kafka_probe",
+                            "psql_probe",
+                            "redis_probe",
                             "kafka_default_infra_group",
                             "kafka_default_infra")
     def test_kafka_basic(self, test_context):
@@ -108,6 +113,8 @@ class TestCgwBasic:
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
                             "kafka_probe",
+                            "psql_probe",
+                            "redis_probe",
                             "kafka_default_infra_group",
                             "kafka_default_infra",
                             "device_sim_connect",

@@ -5,6 +5,8 @@ import time
 from client_simulator.src.simulation_runner import Device as DeviceSimulator
 from kafka_producer.src.producer import Producer as KafkaProducer
 from kafka_producer.src.consumer import Consumer as KafkaConsumer
+from psql_client.psql_client import PostgreSQLClient as PSQLClient
+from redis_client.redis_client import RedisClient as RedisClient
 import requests
 from typing import List, Tuple
 import random
@@ -51,6 +53,12 @@ class TestContext:
         self.kafka_producer = producer
         self.kafka_consumer = consumer
 
+        psql_client = PSQLClient(host="localhost", port=5432, database="cgw", user="cgw", password="123")
+        self.psql_client = psql_client
+
+        redis_client = RedisClient(host="localhost", port=6379)
+        self.redis_client = redis_client
+
 @pytest.fixture(scope='function')
 def test_context():
     ctx = TestContext()
@@ -69,6 +77,9 @@ def test_context():
 
     ctx.kafka_producer.disconnect()
     ctx.kafka_consumer.disconnect()
+
+    ctx.psql_client.disconnect()
+    ctx.redis_client.disconnect()
 
 @pytest.fixture(scope='function')
 def cgw_probe(test_context):
@@ -99,6 +110,20 @@ def device_sim_connect(test_context):
     # Make sure we initiate connect;
     # If this thing throws - any tests that depend on this ficture would fail.
     test_context.device_sim.connect()
+
+@pytest.fixture(scope='function')
+def psql_probe(test_context):
+    try:
+        test_context.psql_client.connect()
+    except:
+        raise Exception('Failed to connect to PSQL DB!')
+
+@pytest.fixture(scope='function')
+def redis_probe(test_context):
+    try:
+        test_context.redis_client.connect()
+    except:
+        raise Exception('Failed to connect to Redis DB!')
 
 @pytest.fixture(scope='function')
 def device_sim_reconnect(test_context):
@@ -144,6 +169,19 @@ def kafka_default_infra_group(test_context):
         print(ret_msg.value['error_message'])
         raise Exception('Default infra group creation failed!')
 
+    group_info = test_context.psql_client.get_infrastructure_group(int(default_group))
+    if not group_info:
+        print(f'Failed to get group {default_group} from PSQL!')
+        raise Exception('Default infra group creation failed!')
+
+    assert group_info[0] == int(default_group)
+
+    group_info = test_context.redis_client.get_infrastructure_group(int(default_group))
+    if not group_info:
+        print(f'Failed to get group {default_group} from Redis!')
+        raise Exception('Default infra group creation failed!')
+
+    assert group_info.get('gid') == default_group
 
 @pytest.fixture(scope='function')
 def kafka_default_infra(test_context):
@@ -165,4 +203,20 @@ def kafka_default_infra(test_context):
 
     if ret_msg.value['success'] is False:
         print(ret_msg.value['error_message'])
-        raise Exception('Default infra group creation failed!')
+        raise Exception('Default infra assign failed!')
+
+    infra_info = test_context.psql_client.get_infra(default_infra_mac)
+    if not infra_info:
+        print(f'Failed to get infra {default_infra_mac} from PSQL!')
+        raise Exception('Default infra assign failed!')
+
+    db_mac = infra_info[0]
+    db_mac = db_mac.replace(":", "-", 5)
+    assert db_mac == default_infra_mac
+
+    infra_info = test_context.redis_client.get_infra(0, default_infra_mac)
+    if not infra_info:
+        print(f'Failed to get infra {default_infra_mac} from Redis!')
+        raise Exception('Default infra assign failed!')
+    
+    assert infra_info.get('group_id') == int(default_group)

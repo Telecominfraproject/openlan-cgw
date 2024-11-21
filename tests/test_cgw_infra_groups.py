@@ -10,7 +10,9 @@ from metrics import cgw_metrics_get_active_shards_num, \
 class TestCgwInfraGroup:
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_single_infra_group_add_del(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -19,7 +21,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         uuid_val = uuid.uuid4()
         group_id = 100
@@ -37,9 +47,30 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group create failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 1
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infra group create failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infra group create failed!')
+
+        # Validate group
+        assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Delete single group
         uuid_val = uuid.uuid4()
@@ -56,14 +87,31 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group delete failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_multiple_infra_group_add_del(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -72,7 +120,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         groups_num = random.randint(1, 10)
 
@@ -93,9 +149,30 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group create failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (group + 1)
+            # Get group info from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            if not group_info_redis:
+                print(f'Failed to get group {group_id} info from Redis!')
+                raise Exception('Infra group create failed!')
+
+            # Get group info from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            if not group_info_psql:
+                print(f'Failed to get group {group_id} info from PSQL!')
+                raise Exception('Infra group create failed!')
+
+            # Validate group
+            assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!!')
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == (group + 1)
 
         # Make sure assigned groups number from CGW side is expected
         assert cgw_metrics_get_groups_assigned_num() == groups_num
@@ -117,17 +194,34 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group delete failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (groups_num - (group + 1))
-    
+            # Get shard info from Redis
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!')
+
+            # Validate group removed from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate group removed from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() ==  (groups_num - (group + 1))
+
         # Make sure after clean-up assigned group num is zero
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_create_existing_infra_group(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -136,7 +230,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         uuid_val = uuid.uuid4()
         group_id = 100
@@ -154,9 +256,30 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group create failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 1
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infra group create failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infra group create failed!')
+
+        # Validate group
+        assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Try to create the same group
         test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int)
@@ -171,9 +294,15 @@ class TestCgwInfraGroup:
 
         # Expected request to be failed
         if ret_msg.value['success'] is True:
-            raise Exception('Infra group creation completed, while expected to be failed!')
+            raise Exception('Infra group create completed, while expected to be failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 1
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Delete single group
         uuid_val = uuid.uuid4()
@@ -190,14 +319,31 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group delete failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_remove_not_existing_infra_group(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -206,7 +352,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         group_id = 100
         uuid_val = uuid.uuid4()
@@ -222,14 +376,23 @@ class TestCgwInfraGroup:
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is True:
-            raise Exception('Infra group deletion completed, while expected to be failed!')
+            raise Exception('Infra group delete completed, while expected to be failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_single_infra_group_add_del_to_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -238,7 +401,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         uuid_val = uuid.uuid4()
         group_id = 100
@@ -257,9 +428,30 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group create failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 1
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infra group create failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infra group create failed!')
+
+        # Validate group
+        assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Delete single group
         uuid_val = uuid.uuid4()
@@ -276,14 +468,31 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation failed!')
+            raise Exception('Infra group delete failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_multiple_infra_group_add_del_to_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -292,7 +501,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         shard_id = 0
         groups_num = random.randint(1, 10)
@@ -314,12 +531,33 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group create failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (group + 1)
+            # Get group info from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            if not group_info_redis:
+                print(f'Failed to get group {group_id} info from Redis!')
+                raise Exception('Infra group create failed!')
+
+            # Get group info from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            if not group_info_psql:
+                print(f'Failed to get group {group_id} info from PSQL!')
+                raise Exception('Infra group create failed!')
+
+            # Validate group
+            assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!!')
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() ==  (group + 1)
 
         # Make sure assigned groups number from CGW side is expected
-        assert cgw_metrics_get_groups_assigned_num() == groups_num
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == groups_num
 
         for group in range(0, groups_num):
             # Delete single group
@@ -338,17 +576,34 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group delete failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (groups_num - (group + 1))
+            # Get shard info from Redis
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!')
+
+            # Validate group removed from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate group removed from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == (groups_num - (group + 1))
     
         # Make sure after clean-up assigned group num is zero
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_single_infra_group_add_to_not_existing_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -357,7 +612,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         uuid_val = uuid.uuid4()
         group_id = 100
@@ -376,14 +639,31 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is True:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation completed, while expected to be failed!')
+            raise Exception('Infra group create completed, while expected to be failed!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
 
     @pytest.mark.usefixtures("test_context",
                             "cgw_probe",
-                            "kafka_probe")
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
     def test_infra_group_capacity_overflow(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
             f'Cannot create default group: kafka producer is not connected to Kafka'
@@ -392,7 +672,15 @@ class TestCgwInfraGroup:
             f'Cannot create default group: kafka consumer is not connected to Kafka'
 
         assert cgw_metrics_get_active_shards_num() == 1
-        assert cgw_metrics_get_groups_assigned_num() == 0
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
 
         groups_capacity = cgw_metrics_get_groups_capacity()
         groups_threshold = cgw_metrics_get_groups_threshold()
@@ -416,12 +704,33 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group create failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (group + 1)
+            # Get group info from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            if not group_info_redis:
+                print(f'Failed to get group {group_id} info from Redis!')
+                raise Exception('Infra group create failed!')
+
+            # Get group info from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            if not group_info_psql:
+                print(f'Failed to get group {group_id} info from PSQL!')
+                raise Exception('Infra group create failed!')
+
+            # Validate group
+            assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!!')
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == (group + 1)
 
         # Make sure we reach MAX groups number assigned to CGW
-        assert cgw_metrics_get_groups_assigned_num() == groups_num
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == groups_num
 
         # Try to create additional group to simulate group capacity overflow
         group_to_fail_id = 2024
@@ -438,10 +747,24 @@ class TestCgwInfraGroup:
 
         if ret_msg.value['success'] is True:
             print(ret_msg.value['error_message'])
-            raise Exception('Infra group creation completed, while expected to be failed due to capacity overflow!')
+            raise Exception('Infra group create completed, while expected to be failed due to capacity overflow!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_to_fail_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_to_fail_id)
+        assert group_info_redis == {}
+
+        # Get shard info
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!!')
 
         # Double check groups number assigned to CGW
-        assert cgw_metrics_get_groups_assigned_num() == groups_num
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == groups_num
 
         # Cleanup all the rest groups
         for group in range(0, groups_num):
@@ -461,8 +784,23 @@ class TestCgwInfraGroup:
 
             if ret_msg.value['success'] is False:
                 print(ret_msg.value['error_message'])
-                raise Exception('Infra group creation failed!')
+                raise Exception('Infra group delete failed!')
 
-            assert cgw_metrics_get_groups_assigned_num() == (groups_num - (group + 1))
+            # Get shard info from Redis
+            shard_info = test_context.redis_client.get_shard(0)
+            if not shard_info:
+                print(f'Failed to get shard 0 info from Redis!')
+                raise Exception('Failed to get shard 0 info from Redis!')
 
-        assert cgw_metrics_get_groups_assigned_num() == 0
+            # Validate group removed from Redis
+            group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate group removed from PSQL
+            group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+            assert group_info_redis == {}
+
+            # Validate number of assigned groups
+            assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == (groups_num - (group + 1))
+
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0

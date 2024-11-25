@@ -873,3 +873,348 @@ class TestCgwInfra:
 
         # Validate number of assigned groups
         assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
+
+
+    # Test scenario: add infras with MACs (A, B, C, D, E, F, G)
+    # First : add MACs (A, B, C) - expected all should be added succesfully
+    # Second: add MACs (D, A, B) - expected partial create (dup MACs at the end)    - only MAC (D) should be added succesfully
+    # Third : add MACs (A, B, E) - expected partial create (dup MACs at the begin)  - only MAC (E) should be added succesfully
+    # Forth : add MACs (F, A, G) - expected partial create (dup MACs at the middle) - only MAC (F, D) should be added succesfully
+    # We want to make sure that - does not matter where in infra MACs list duplicate infra MACs exists - it wount affect infra add
+    @pytest.mark.usefixtures("test_context",
+                            "cgw_probe",
+                            "kafka_probe",
+                            "redis_probe",
+                            "psql_probe")
+    def test_partial_infras_add(self, test_context):
+        assert test_context.kafka_producer.is_connected(),\
+            f'Cannot create default group: kafka producer is not connected to Kafka'
+
+        assert test_context.kafka_consumer.is_connected(),\
+            f'Cannot create default group: kafka consumer is not connected to Kafka'
+
+        assert cgw_metrics_get_active_shards_num() == 1
+
+        # Get shard infro from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0
+
+        uuid_val = uuid.uuid4()
+        group_id = 100
+
+        # Create single group
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if not ret_msg:
+            print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive create group result when expected')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_create_response')
+        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+
+        if ret_msg.value['success'] is False:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infra group create failed!')
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infra group create failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infra group create failed!')
+
+        # Validate group
+        assert group_info_psql[0] == int(group_info_redis.get('gid')) == group_id
+
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
+
+        # Infras add (A, B, C)
+        infras_mac_list = ["11-22-33-44-55-01", "11-22-33-44-55-02", "11-22-33-44-55-03"]
+        test_context.kafka_producer.handle_multiple_devices_assign(str(group_id), infras_mac_list, uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if ret_msg is None:
+            print('Failed to receive infra assign result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive infra assign result when expected')
+
+        if ret_msg.value['success'] is False:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infras assign failed!')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
+        assert (int(ret_msg.value["infra_group_id"]) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infras assign failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infras assign failed!')
+
+        # Get infras from Redis Infra Cache
+        redis_infras_list = []
+        for infra_mac in infras_mac_list:
+            infra_info_redis = test_context.redis_client.get_infra(0, infra_mac)
+            if not infra_info_redis:
+                print(f'Failed to get infra {infra_mac} info from Redis!')
+                raise Exception('Infras assign failed!')
+            else:
+                redis_infras_list.append(infra_info_redis)
+
+        # Get infras from PSQL
+        psql_infras_info = test_context.psql_client.get_infras_by_group_id(group_id)
+        if not psql_infras_info:
+            print(f'Failed to get infras {infra_mac} info from PSQL, group ID {group_id}!')
+            raise Exception('Infras assign failed!')
+
+        # Validate infras assigned number
+        assert redis_infras_list.__len__() == psql_infras_info.__len__() == int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 3
+
+        # Infras add (D, A, B)
+        infras_mac_list_new = ["11-22-33-44-55-04", "11-22-33-44-55-01", "11-22-33-44-55-02"]
+        test_context.kafka_producer.handle_multiple_devices_assign(str(group_id), infras_mac_list_new, uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if ret_msg is None:
+            print('Failed to receive infra assign result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive infra assign result when expected')
+
+        if ret_msg.value['success'] is True:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infras assign completed, while expected to be failed!')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
+        assert (int(ret_msg.value["infra_group_id"]) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infras assign failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infras assign failed!')
+
+        # Get infras from Redis Infra Cache
+        infras_expected_to_be_installed = list(set(infras_mac_list + infras_mac_list_new))
+        redis_infras_list = []
+        for infra_mac in infras_expected_to_be_installed:
+            infra_info_redis = test_context.redis_client.get_infra(0, infra_mac)
+            if not infra_info_redis:
+                print(f'Failed to get infra {infra_mac} info from Redis!')
+                raise Exception('Infras assign failed!')
+            else:
+                redis_infras_list.append(infra_info_redis)
+
+        # Get infras from PSQL
+        psql_infras_info = test_context.psql_client.get_infras_by_group_id(group_id)
+        if not psql_infras_info:
+            print(f'Failed to get infras {infra_mac} info from PSQL, group ID {group_id}!')
+            raise Exception('Infras assign failed!')
+
+        # Validate infras assigned number
+        assert redis_infras_list.__len__() == psql_infras_info.__len__() == int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 4
+
+        # Infras add (A, B, E)
+        infras_mac_list_new = ["11-22-33-44-55-01", "11-22-33-44-55-02", "11-22-33-44-55-05"]
+        test_context.kafka_producer.handle_multiple_devices_assign(str(group_id), infras_mac_list_new, uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if ret_msg is None:
+            print('Failed to receive infra assign result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive infra assign result when expected')
+
+        if ret_msg.value['success'] is True:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infras assign completed, while expected to be failed!')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
+        assert (int(ret_msg.value["infra_group_id"]) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infras assign failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infras assign failed!')
+
+        # Get infras from Redis Infra Cache
+        infras_expected_to_be_installed = list(set(infras_expected_to_be_installed + infras_mac_list_new))
+        redis_infras_list = []
+        for infra_mac in infras_expected_to_be_installed:
+            infra_info_redis = test_context.redis_client.get_infra(0, infra_mac)
+            if not infra_info_redis:
+                print(f'Failed to get infra {infra_mac} info from Redis!')
+                raise Exception('Infras assign failed!')
+            else:
+                redis_infras_list.append(infra_info_redis)
+
+        # Get infras from PSQL
+        psql_infras_info = test_context.psql_client.get_infras_by_group_id(group_id)
+        if not psql_infras_info:
+            print(f'Failed to get infras {infra_mac} info from PSQL, group ID {group_id}!')
+            raise Exception('Infras assign failed!')
+
+        # Validate infras assigned number
+        assert redis_infras_list.__len__() == psql_infras_info.__len__() == int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 5
+
+        # Infras add (F, A, G)
+        infras_mac_list_new = ["11-22-33-44-55-06", "11-22-33-44-55-01", "11-22-33-44-55-07"]
+        test_context.kafka_producer.handle_multiple_devices_assign(str(group_id), infras_mac_list_new, uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if ret_msg is None:
+            print('Failed to receive infra assign result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive infra assign result when expected')
+
+        if ret_msg.value['success'] is True:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infras assign completed, while expected to be failed!')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
+        assert (int(ret_msg.value["infra_group_id"]) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01"])
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infras assign failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infras assign failed!')
+
+        # Get infras from Redis Infra Cache
+        infras_expected_to_be_installed = list(set(infras_expected_to_be_installed + infras_mac_list_new))
+        redis_infras_list = []
+        for infra_mac in infras_expected_to_be_installed:
+            infra_info_redis = test_context.redis_client.get_infra(0, infra_mac)
+            if not infra_info_redis:
+                print(f'Failed to get infra {infra_mac} info from Redis!')
+                raise Exception('Infras assign failed!')
+            else:
+                redis_infras_list.append(infra_info_redis)
+
+        # Get infras from PSQL
+        psql_infras_info = test_context.psql_client.get_infras_by_group_id(group_id)
+        if not psql_infras_info:
+            print(f'Failed to get infras {infra_mac} info from PSQL, group ID {group_id}!')
+            raise Exception('Infras assign failed!')
+
+        # Validate infras assigned number
+        assert redis_infras_list.__len__() == psql_infras_info.__len__() == int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 7
+
+        # Infras del
+        uuid_val = uuid.uuid4()
+        test_context.kafka_producer.handle_multiple_devices_deassign(str(group_id), infras_expected_to_be_installed, uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if ret_msg is None:
+            print('Failed to receive infra deassign result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive infras deassign result when expected')
+
+        if ret_msg.value['success'] is False:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infras deassign failed!')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
+        assert (int(ret_msg.value["infra_group_id"]) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+        assert (list(ret_msg.value["infra_group_infras"]) == infras_expected_to_be_installed)
+
+        # Get infras from Redis Infra Cache
+        for infra_mac in infras_mac_list:
+            infra_info_redis = test_context.redis_client.get_infra(0, infra_mac)
+            if infra_info_redis != None:
+                print(f'Unexpectedly get infra {infra_mac} info from Redis!')
+                raise Exception('Infras deassign failed!')
+
+        # Get infras from PSQL
+        psql_infras_info = test_context.psql_client.get_infras_by_group_id(group_id)
+        if psql_infras_info != []:
+            print(f'Unexpectedly get infras {infra_mac} from PSQL, group ID {group_id}!')
+            raise Exception('Infras deassign failed!')
+
+        # Get group info from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        if not group_info_redis:
+            print(f'Failed to get group {group_id} info from Redis!')
+            raise Exception('Infras deassign failed!')
+
+        # Get group info from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        if not group_info_psql:
+            print(f'Failed to get group {group_id} info from PSQL!')
+            raise Exception('Infras deassign failed!')
+
+        # Validate number of assigned infra number
+        assert int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 0
+
+        # Delete single group
+        uuid_val = uuid.uuid4()
+
+        test_context.kafka_producer.handle_single_group_delete(str(group_id), uuid_val.int)
+        ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
+        if not ret_msg:
+            print('Failed to receive delete group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
+            raise Exception('Failed to receive delete group result when expected')
+
+        assert (ret_msg.value['type'] == 'infrastructure_group_delete_response')
+        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
+
+        if ret_msg.value['success'] is False:
+            print(ret_msg.value['error_message'])
+            raise Exception('Infra group delete failed!')
+
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(0)
+        if not shard_info:
+            print(f'Failed to get shard 0 info from Redis!')
+            raise Exception('Failed to get shard 0 info from Redis!')
+
+        # Validate group removed from Redis
+        group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate group removed from PSQL
+        group_info_psql = test_context.psql_client.get_infrastructure_group(group_id)
+        assert group_info_redis == {}
+
+        # Validate number of assigned groups
+        assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 0

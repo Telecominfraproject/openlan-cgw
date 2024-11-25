@@ -67,9 +67,18 @@ def test_context():
 
     ctx.device_sim.disconnect()
 
-    # Let's make sure we destroy default group after we're done with tests.
+    # Let's make sure we destroy all groups after we're done with tests.
     if ctx.kafka_producer.is_connected():
+        # 1. Destroy default group
         ctx.kafka_producer.handle_single_group_delete(ctx.default_kafka_group())
+        # 2. Get all groups from Redis or PostgeSQL
+        groups_list = ctx.psql_client.get_all_infrastructure_groups()
+
+        if groups_list != None:
+            # 3. Interate over groups
+            for group in groups_list:
+                # 4. Send group_del request
+                ctx.kafka_producer.handle_single_group_delete(str(group[0]))
 
     # We have to clear any messages after done working with kafka
     if ctx.kafka_consumer.is_connected():

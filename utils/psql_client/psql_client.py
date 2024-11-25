@@ -84,6 +84,15 @@ class PostgreSQLClient:
 
         return group_info
 
+    def get_all_infrastructure_groups(self) -> List[Tuple[int, int, int]]:
+        """Fetch group record by group id."""
+        group_list = list()
+
+        self.execute_query(f"select * from infrastructure_groups;")
+        group_list = self.fetchall()
+
+        return group_list
+
     def get_infra(self, mac: str) -> Tuple[str, int]:
         """Fetch group record by infra mac."""
         infra_info = None

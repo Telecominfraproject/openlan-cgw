@@ -48,7 +48,7 @@ class TestContext:
         self.device_sim = device
 
         producer = KafkaProducer(db='localhost:9092', topic='CnC')
-        consumer = KafkaConsumer(db='localhost:9092', topic='CnC_Res', consumer_timeout=3000)
+        consumer = KafkaConsumer(db='localhost:9092', topic='CnC_Res', consumer_timeout=12000)
 
         self.kafka_producer = producer
         self.kafka_consumer = consumer

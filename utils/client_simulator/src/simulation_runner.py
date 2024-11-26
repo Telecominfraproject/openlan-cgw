@@ -117,7 +117,7 @@ class Device:
 
     def connect(self):
         if self._socket is None:
-            self._socket = client.connect(self.server_addr, ssl_context=self.ssl_context, open_timeout=7200)
+            self._socket = client.connect(self.server_addr, ssl=self.ssl_context, open_timeout=7200)
         return self._socket
 
     def disconnect(self):

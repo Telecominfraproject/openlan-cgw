@@ -995,20 +995,15 @@ impl CGWConnectionServer {
                         }
                     }
                     None => {
-                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                            self.local_cgw_id,
-                            Uuid::default(),
-                            false,
-                            Some(format!(
-                                "Received message for unknown group {gid_numeric} - unassigned?"
-                            )),
-                        ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid_numeric, resp);
-                        } else {
-                            error!("Failed to construct device_enqueue message!");
-                        }
-
-                        warn!("Received msg for gid {gid_numeric}, while this group is unassigned to any of CGWs, rejecting!");
+                        // Failed to find destination GID shard ID owner
+                        // It is more likely GID does not exist
+                        // Add request to local message buffer - let CGW process request
+                        // We relayig on uderlaying logic to handle specific request and manage corner cases
+                        local_cgw_msg_buf.push(
+                            CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
+                                key, payload, origin,
+                            ),
+                        );
                     }
                 }
             }
@@ -1905,32 +1900,31 @@ impl CGWConnectionServer {
             let queue_msg: CGWUCentralMessagesQueueItem =
                 CGWUCentralMessagesQueueItem::new(command, message, uuid, timeout);
             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-            match queue_lock.push_device_message(mac, queue_msg).await {
-                Ok(replaced_item) => {
-                    if let Some(req) = replaced_item {
-                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                            self.local_cgw_id,
-                            req.uuid,
-                            false,
-                            Some("Request replaced with new!".to_string()),
-                        ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
-                        } else {
-                            error!("Failed to construct infra_request_result message!");
-                        }
-                    }
-                }
-                Err(e) => {
-                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
+
+            let resp_result = match queue_lock.push_device_message(mac, queue_msg).await {
+                Ok(replaced_item) => match replaced_item {
+                    Some(req) => cgw_construct_infra_enqueue_response(
                         self.local_cgw_id,
-                        uuid,
+                        req.uuid,
                         false,
-                        Some(e.to_string()),
-                    ) {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
-                    } else {
-                        error!("Failed to construct infra_request_result message!");
+                        Some("Request replaced with new!".to_string()),
+                    ),
+                    None => {
+                        cgw_construct_infra_enqueue_response(self.local_cgw_id, uuid, true, None)
                     }
+                },
+                Err(e) => cgw_construct_infra_enqueue_response(
+                    self.local_cgw_id,
+                    uuid,
+                    false,
+                    Some(e.to_string()),
+                ),
+            };
+
+            match resp_result {
+                Ok(resp) => self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp),
+                Err(e) => {
+                    error!("Failed to construct infra_request_result message! Error: {e}")
                 }
             }
         } else {

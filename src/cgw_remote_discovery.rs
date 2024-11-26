@@ -297,7 +297,7 @@ impl CGWRemoteDiscovery {
 
         CGWMetrics::get_ref().change_counter(
             CGWMetricsCounterType::GroupsThreshold,
-            CGWMetricsCounterOpType::Set(app_args.cgw_groups_capacity.into()),
+            CGWMetricsCounterOpType::Set(app_args.cgw_groups_threshold.into()),
         );
 
         let redis_req_data: Vec<String> = redisdb_shard_info.into();
@@ -601,7 +601,9 @@ impl CGWRemoteDiscovery {
         gid: i32,
         incremet_value: i32,
     ) -> Result<()> {
-        debug!("Incrementing assigned infras num group_id_{gid}");
+        debug!(
+            "Incrementing assigned infras num group_id_{gid}: increment value: {incremet_value}"
+        );
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
@@ -620,11 +622,12 @@ impl CGWRemoteDiscovery {
             ));
         }
 
+        debug!("Incrementing assigned infras num group_id_{gid}: increment value: {incremet_value} - metrics");
         CGWMetrics::get_ref()
             .change_group_counter(
                 gid,
                 CGWMetricsCounterType::GroupInfrasAssignedNum,
-                CGWMetricsCounterOpType::Inc,
+                CGWMetricsCounterOpType::IncBy(incremet_value as i64),
             )
             .await;
 
@@ -636,7 +639,9 @@ impl CGWRemoteDiscovery {
         gid: i32,
         decremet_value: i32,
     ) -> Result<()> {
-        debug!("Decrementing assigned infras num group_id_{gid}");
+        debug!(
+            "Decrementing assigned infras num group_id_{gid}: decrement_value: {decremet_value}"
+        );
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
@@ -659,7 +664,7 @@ impl CGWRemoteDiscovery {
             .change_group_counter(
                 gid,
                 CGWMetricsCounterType::GroupInfrasAssignedNum,
-                CGWMetricsCounterOpType::Dec,
+                CGWMetricsCounterOpType::DecBy(decremet_value as i64),
             )
             .await;
 
@@ -1005,7 +1010,7 @@ impl CGWRemoteDiscovery {
             .increment_group_assigned_infras_num(gid, assigned_infras_num)
             .await
         {
-            error!("create_ifras_list: failed to decrement assigned infras num! Error: {e}");
+            error!("create_ifras_list: failed to increment assigned infras num! Error: {e}");
         }
 
         if !failed_infras.is_empty() {

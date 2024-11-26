@@ -83,6 +83,7 @@ class MacRange:
 class Message:
     TEMPLATE_FILE = "./kafka_data/message_template.json"
     GROUP_ADD = "add_group"
+    GROUP_ADD_TO_SHARD = "add_group_to_shard"
     GROUP_DEL = "del_group"
     DEV_TO_GROUP = "add_to_group"
     DEV_FROM_GROUP = "del_from_group"
@@ -106,8 +107,15 @@ class Message:
 
         return str(uuid.UUID(int=uuid_val))
 
-    def group_create(self, id: str, shard_id: int, name: str, uuid_val: int = None) -> bytes:
+    def group_create(self, id: str, name: str, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD])
+        msg[self.GROUP_ID] = id
+        msg[self.GROUP_NAME] = name
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def group_create_to_shard(self, id: str, shard_id: int, name: str, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.GROUP_ADD_TO_SHARD])
         msg[self.GROUP_ID] = id
         msg[self.SHARD_ID] = shard_id
         msg[self.GROUP_NAME] = name
@@ -131,6 +139,20 @@ class Message:
         msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
         msg[self.GROUP_ID] = id
         msg[self.DEV_LIST] = list(mac_range)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def add_devices_to_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_TO_GROUP])
+        msg[self.GROUP_ID] = id
+        msg[self.DEV_LIST] = mac_list
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def remove_devices_from_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
+        msg[self.GROUP_ID] = id
+        msg[self.DEV_LIST] = mac_list
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 

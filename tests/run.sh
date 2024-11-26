@@ -9,6 +9,10 @@ ln -sf ../utils/client_simulator/sim_data sim_data
 ln -sf ../utils/kafka_producer/kafka_data kafka_data
 ln -sf ../utils/cert_generator/certs/client/ certs
 ln -sf ../utils/cert_generator/certs/ca/ ca-certs
+ln -sf ../utils/psql_client/ psql_client
+ln -sf ../utils/redis_client/ redis_client
+
+pip install -r requirements.txt
 
 pytest -v
 #pytest -v -s .

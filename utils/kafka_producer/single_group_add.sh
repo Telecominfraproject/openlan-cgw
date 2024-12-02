@@ -9,4 +9,4 @@
 #
 # ARGS:
 # $1 - group id
-./run.sh -s localhost:9092 -c 1 --new-group $1 0 some_name_0
+./run.sh -s localhost:9092 -c 1 --new-group $1 some_name_0

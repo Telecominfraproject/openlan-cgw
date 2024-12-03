@@ -1,0 +1,130 @@
+services:
+  broker:
+    image: docker.io/bitnami/kafka:latest
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://docker-broker-1:9092,EXTERNAL://kafka_b:9094
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@docker-broker-1:9093
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - BITNAMI_DEBUG=yes
+      - KAFKA_CFG_NUM_PARTITIONS=2
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - cgw_multi_instances_network
+
+  postgresql:
+    image: "postgres:latest"
+    ports:
+      - "5432:5432"
+    user: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=400"
+      - "-c"
+      - "shared_buffers=20MB"
+    env_file:
+      - postgresql.env
+    restart: always
+    volumes:
+      - ./postgresql/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - cgw_multi_instances_network
+
+  redis:
+    image: 'bitnami/redis:latest'
+    ports:
+      - "6379:6379"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    networks:
+      - cgw_multi_instances_network
+  init-broker-container:
+    image: docker.io/bitnami/kafka:latest
+    depends_on:
+      - broker
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # rather than giving sleep 15 use this
+      # to block init container to wait for Kafka broker to be ready
+      kafka-topics --bootstrap-server broker:9092 --list
+
+      # create CnC and CnC_Res topics
+      kafka-topics.sh --create --partitions {{ cgw_instances_num }} --bootstrap-server broker:9092 --topic CnC
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic CnC_Res
+      "
+    networks:
+      - cgw_multi_instances_network
+
+{% for i in range(0, cgw_instances_num) %}
+  cgw_instance_{{ i }}:
+    image: {{ cgw_image_name }}:{{ cgw_image_tag }}
+    container_name: {{ cgw_container_name }}_{{ i }}
+    ports:
+      - "{{ cgw_wss_base_port + i }}:{{ cgw_wss_base_port + i }}"
+      - "{{ cgw_grpc_public_base_port + i }}:{{ cgw_grpc_public_base_port + i }}"
+      - "{{ cgw_metrics_base_port + i }}:{{ cgw_metrics_base_port + i }}"
+    environment:
+      - CGW_DB_HOST={{ cgw_db_host }}
+      - CGW_DB_PORT={{ cgw_db_port }}
+      - CGW_DB_NAME={{ cgw_db_name }} 
+      - CGW_DB_USERNAME={{ cgw_db_username }}
+      - CGW_DB_PASS={{ cgw_db_password }}
+      - CGW_DB_TLS={{ cgw_db_tls }}
+      - CGW_GRPC_LISTENING_IP={{ cgw_grpc_listening_ip }}
+      - CGW_GRPC_LISTENING_PORT={{ cgw_grpc_listening_base_port + i }}
+      - CGW_GRPC_PUBLIC_HOST={{ cgw_grpc_public_host }}
+      - CGW_GRPC_PUBLIC_PORT={{ cgw_grpc_public_base_port + i }}
+      - CGW_ID={{ cgw_base_id + i }}
+      - CGW_KAFKA_HOST={{ cgw_kafka_host }}
+      - CGW_KAFKA_PORT={{ cgw_kafka_port }}
+      - CGW_KAFKA_CONSUME_TOPIC={{ cgw_kafka_consumer_topic }}
+      - CGW_KAFKA_PRODUCE_TOPIC={{ cgw_kafka_producer_topic }}
+      - CGW_LOG_LEVEL={{ cgw_log_level }}
+      - CGW_REDIS_HOST={{ cgw_redis_host }}
+      - CGW_REDIS_PORT={{ cgw_redis_port }}
+      - CGW_REDIS_TLS={{ cgw_redis_tls }}
+      - CGW_REDIS_USERNAME={{ cgw_redis_username }}
+      - CGW_REDIS_PASSWORD={{ cgw_redis_password }}
+      - CGW_METRICS_PORT={{ cgw_metrics_base_port + i }}
+      - CGW_WSS_IP={{ cgw_wss_ip }}
+      - CGW_WSS_PORT={{ cgw_wss_base_port + i }}
+      - CGW_WSS_CAS={{ cgw_wss_cas }}
+      - CGW_WSS_CERT={{ cgw_wss_cert }}
+      - CGW_WSS_KEY={{ cgw_wss_key }}
+      - DEFAULT_WSS_THREAD_NUM={{ cgw_wss_t_num }}
+      - CGW_ALLOW_CERT_MISMATCH={{ cgw_allow_certs_missmatch }}
+      - CGW_NB_INFRA_TLS={{ cgw_nb_infra_tls }}
+      - CGW_UCENTRAL_AP_DATAMODEL_URI={{ cgw_ucentral_ap_datamodel_uri }}
+      - CGW_UCENTRAL_SWITCH_DATAMODEL_URI={{ cgw_ucentral_switch_datamodel_uri }}
+      - CGW_GROUPS_CAPACITY={{ cgw_groups_capacity }}
+      - CGW_GROUPS_THRESHOLD={{ cgw_groups_threshold }}
+      - CGW_GROUP_INFRAS_CAPACITY={{ cgw_group_infras_capacity }}
+    depends_on:
+      broker:
+        condition: service_healthy
+    volumes:
+      - {{ default_certs_path }}:{{ container_certs_voulume }}
+      - {{ default_certs_path }}:{{ container_nb_infra_certs_voulume }}
+    networks:
+      - cgw_multi_instances_network
+{% endfor %}
+
+networks:
+  cgw_multi_instances_network:

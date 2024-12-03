@@ -8,6 +8,7 @@ use crate::cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealth
 
 use eui48::MacAddress;
 use futures::stream::TryStreamExt;
+use murmur2::murmur2;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::error::KafkaResult;
@@ -20,6 +21,7 @@ use rdkafka::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::ops::Range;
 use std::sync::Arc;
 use tokio::{
     runtime::{Builder, Runtime},
@@ -62,6 +64,8 @@ pub struct InfraGroupInfrasAddResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kafka_partition_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -73,6 +77,8 @@ pub struct InfraGroupInfrasDelResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kafka_partition_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,6 +88,8 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kafka_partition_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -222,6 +230,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    kafka_partition_key: Option<String>,
 ) -> Result<String> {
     let dev_add = InfraGroupInfrasAddResponse {
         r#type: "infrastructure_group_infras_add_response",
@@ -231,6 +240,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
         uuid,
         success,
         error_message,
+        kafka_partition_key,
     };
 
     Ok(serde_json::to_string(&dev_add)?)
@@ -243,6 +253,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    kafka_partition_key: Option<String>,
 ) -> Result<String> {
     let dev_del = InfraGroupInfrasDelResponse {
         r#type: "infrastructure_group_infras_del_response",
@@ -252,6 +263,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
         uuid,
         success,
         error_message,
+        kafka_partition_key,
     };
 
     Ok(serde_json::to_string(&dev_del)?)
@@ -262,6 +274,7 @@ pub fn cgw_construct_infra_enqueue_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    kafka_partition_key: Option<String>,
 ) -> Result<String> {
     let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
         r#type: "infrastructure_group_infra_message_enqueue_response",
@@ -269,6 +282,7 @@ pub fn cgw_construct_infra_enqueue_response(
         uuid,
         success,
         error_message,
+        kafka_partition_key,
     };
 
     Ok(serde_json::to_string(&dev_enq_resp)?)
@@ -456,11 +470,125 @@ pub fn cgw_construct_infra_request_result_msg(
     Ok(serde_json::to_string(&infra_request_result)?)
 }
 
-struct CustomContext;
+struct CGWConsumerContextData {
+    // Tuple consistion of physical partition id (0,1,2.. etc)
+    // and the corresponding _kafka routing key_, or just kafka key,
+    // that can be used with this topic to access specified topic.
+    // It can be used to optimize CGW to GID to Kafka topic mapping,
+    // e.g. cloud has knowledge of what kafka key to use, to direct
+    // a NB message to specific exact CGW, without the need of
+    // alway backing to the use of relaying mechanism.
+    // P.S. this optimization technic does not necessarily
+    // make relaying obsolete. Relaying is still used to
+    // forward at least one (first) NB request from
+    // the shard that received message to the designated
+    // recipient. Whenever recipient shard receives the NB
+    // request and sends response back to NB services,
+    // shard should reply back with routing_key included.
+    // It's up to cloud (NB services) then to use specified
+    // kafka key to make sure the kafka message reaches
+    // recipient shard in exactly one hop (direct forwarding),
+    // or omit kafka key completely to once again use the
+    // relaying mechanism.
+    partition_mapping: HashMap<u32, String>,
+    assigned_partition_list: Vec<u32>,
+    last_used_key_idx: u32,
+    partition_num: usize,
+
+    // A bit ugly, but we need a way to get
+    // consumer (to retrieve patition num) whenever
+    // client->context rebalance callback is being called.
+    consumer_client: Option<Arc<CGWCNCConsumerType>>,
+}
+
+struct CustomContext {
+    ctx_data: std::sync::RwLock<CGWConsumerContextData>,
+}
+
+impl CGWConsumerContextData {
+    fn recalculate_partition_to_key_mapping(&mut self, partition_num: usize) {
+        const DEFAULT_HASH_SEED: u32 = 0x9747b28c;
+
+        // The factor of 10 is selected to cover >=15000 of topics,
+        // meaning with 15K partitions, this algorithm can still
+        // confidently covert all 15K partitions with unique
+        // kafka string-keys.
+        // Even then, anything past 10K of partitions per topics
+        // could be an overkill in the first place, hence
+        // this algo should be sufficient.
+        let loop_range = Range {
+            start: 0,
+            end: partition_num * 10,
+        };
+        let mut key_map: HashMap<u32, String> = HashMap::new();
+
+        for x in loop_range {
+            let key_str = x.to_string();
+            let key_bytes = key_str.as_bytes();
+
+            if key_map.len() == partition_num {
+                break;
+            }
+
+            // Default partitioner users the following formula:
+            // toPositive(murmur2(keyBytes)) % numPartitions
+            let hash_res = murmur2(key_bytes, DEFAULT_HASH_SEED) & 0x7fffffff;
+            let part_idx = hash_res.rem_euclid(partition_num as u32);
+
+            if !key_map.contains_key(&part_idx) {
+                debug!("Inserted key '{key_str}' for '{part_idx}' partition");
+                key_map.insert(part_idx, key_str);
+            }
+        }
+
+        info!(
+            "Filled {} unique keys for {} of partitions",
+            key_map.len(),
+            partition_num
+        );
+
+        if key_map.len() != partition_num {
+            // All this means, is that if some partition X has
+            // no corresponding 1:1 kafka key.
+            // From CGW perspective, this means that application
+            // will always instruct NB to use a set of keys that
+            // we were able to map, ignoring any other un-mapped
+            // partitions, rendering them unused completely.
+            // But it's up to NB still to either use or not provided
+            // routing kafka key by CGW.
+            warn!("Filled fulfill all range of kafka topics for 1:1 mapping, some partitions will not be mapped!");
+        }
+
+        self.partition_mapping = key_map;
+    }
+
+    fn get_partition_info(&mut self) -> (Vec<u32>, HashMap<u32, String>) {
+        (
+            self.assigned_partition_list.clone(),
+            self.partition_mapping.clone(),
+        )
+    }
+}
+
 impl ClientContext for CustomContext {}
 
 impl ConsumerContext for CustomContext {
     fn pre_rebalance(&self, rebalance: &Rebalance<'_>) {
+        debug!("Pre rebalance entry");
+
+        // We need to make sure the <before>
+        // we're _actually_ assigned a partition list,
+        // we don't fool any internal code that depends
+        // on the topic list, and zero-out it when not
+        // ready, and return anything only when it's
+        // available.
+        if let Ok(mut ctx) = self.ctx_data.write() {
+            ctx.partition_mapping.clear();
+            ctx.assigned_partition_list.clear();
+            ctx.last_used_key_idx = 0;
+            ctx.partition_num = 0;
+        }
+
         let mut part_list = String::new();
         if let rdkafka::consumer::Rebalance::Assign(partitions) = rebalance {
             for x in partitions.elements() {
@@ -480,13 +608,50 @@ impl ConsumerContext for CustomContext {
     }
 
     fn post_rebalance(&self, rebalance: &Rebalance<'_>) {
+        let mut assigned_partition_list: Vec<u32> = Vec::new();
         let mut part_list = String::new();
 
         if let rdkafka::consumer::Rebalance::Assign(partitions) = rebalance {
             for x in partitions.elements() {
                 part_list += &(x.partition().to_string() + " ");
+                assigned_partition_list.push(x.partition() as u32);
             }
             debug!("post_rebalance callback, assigned partition(s): {part_list}");
+        }
+
+        if let Ok(mut ctx) = self.ctx_data.write() {
+            if let Some(consumer) = &ctx.consumer_client {
+                if let Ok(metadata) =
+                    consumer.fetch_metadata(Some(CONSUMER_TOPICS[0]), Duration::from_millis(2000))
+                {
+                    let topic = &metadata.topics()[0];
+                    let partition_num: usize = topic.partitions().len();
+
+                    debug!("topic: {}, partitions: {}", topic.name(), partition_num);
+
+                    // We recalculate mapping only if the underlying
+                    // _number_ of partitions's changed.
+                    // Also, the underlying assignment to a specific
+                    // partitions is irrelevant itself,
+                    // as key:partition mapping changes only whenever
+                    // underlying number of partitions is altered.
+                    //
+                    // This also means that the underlying block
+                    // will get executed at least once throughout the
+                    // CGW lifetime - at least once upon startup,
+                    // whenever _this_ CGW consumer group
+                    // consumer instance - CGW shard - is being
+                    // assigned a list of partitions to consume from.
+                    if ctx.partition_num != partition_num {
+                        ctx.partition_num = partition_num;
+                        ctx.assigned_partition_list = assigned_partition_list;
+
+                        ctx.recalculate_partition_to_key_mapping(partition_num);
+                    }
+                } else {
+                    warn!("Tried to fetch consumer metadata but failed. CGW will not be able to reply with optimized Kafka key for efficient routing!");
+                }
+            }
         }
 
         part_list.clear();
@@ -508,13 +673,13 @@ impl ConsumerContext for CustomContext {
         });
     }
 
-    fn commit_callback(&self, _result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
         let mut part_list = String::new();
         for x in _offsets.elements() {
             part_list += &(x.partition().to_string() + " ");
         }
         debug!("commit_callback callback, partition(s): {part_list}");
-        debug!("Consumer callback: commited offset");
+        debug!("Consumer callback: commiting offsets: {:?}", result);
     }
 }
 
@@ -527,17 +692,25 @@ struct CGWCNCProducer {
 }
 
 struct CGWCNCConsumer {
-    c: CGWCNCConsumerType,
+    c: Arc<CGWCNCConsumerType>,
 }
 
 impl CGWCNCConsumer {
     pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Self> {
-        let consum: CGWCNCConsumerType = Self::create_consumer(cgw_id, kafka_args)?;
+        let consum = Self::create_consumer(cgw_id, kafka_args)?;
         Ok(CGWCNCConsumer { c: consum })
     }
 
-    fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<CGWCNCConsumerType> {
-        let context = CustomContext;
+    fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Arc<CGWCNCConsumerType>> {
+        let context = CustomContext {
+            ctx_data: std::sync::RwLock::new(CGWConsumerContextData {
+                partition_mapping: HashMap::new(),
+                assigned_partition_list: Vec::new(),
+                last_used_key_idx: 0u32,
+                partition_num: 0usize,
+                consumer_client: None,
+            }),
+        };
 
         let consumer: CGWCNCConsumerType = match ClientConfig::new()
             .set("group.id", GROUP_ID)
@@ -562,8 +735,12 @@ impl CGWCNCConsumer {
             }
         };
 
+        let consumer = Arc::new(consumer);
+        // Need to set this guy for context
+        let consumer_clone = consumer.clone();
+
         debug!(
-            "(consumer) (producer) Created lazy connection to kafka broker ({}:{})...",
+            "(consumer) Created lazy connection to kafka broker ({}:{})...",
             kafka_args.kafka_host, kafka_args.kafka_port,
         );
 
@@ -574,6 +751,10 @@ impl CGWCNCConsumer {
             );
             return Err(Error::Kafka(e));
         };
+
+        if let Ok(mut ctx) = consumer.context().ctx_data.write() {
+            ctx.consumer_client = Some(consumer_clone);
+        }
 
         Ok(consumer)
     }
@@ -614,6 +795,7 @@ pub struct CGWNBApiClient {
     working_runtime_handle: Runtime,
     cgw_server_tx_mbox: CGWConnectionServerMboxTx,
     prod: CGWCNCProducer,
+    consumer: Arc<CGWCNCConsumer>,
     // TBD: stplit different implementators through a defined trait,
     // that implements async R W operations?
 }
@@ -631,14 +813,16 @@ impl CGWNBApiClient {
             .enable_all()
             .build()?;
 
+        let consumer: Arc<CGWCNCConsumer> = Arc::new(CGWCNCConsumer::new(cgw_id, kafka_args)?);
+        let consumer_clone = consumer.clone();
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
             prod: CGWCNCProducer::new(kafka_args)?,
+            consumer: consumer_clone,
         });
 
         let cl_clone = cl.clone();
-        let consumer: CGWCNCConsumer = CGWCNCConsumer::new(cgw_id, kafka_args)?;
         cl.working_runtime_handle.spawn(async move {
             loop {
                 let cl_clone = cl_clone.clone();
@@ -685,6 +869,26 @@ impl CGWNBApiClient {
         });
 
         Ok(cl)
+    }
+
+    pub fn get_partition_to_local_shard_mapping(&self) -> Vec<(u32, String)> {
+        let mut return_vec: Vec<(u32, String)> = Vec::new();
+        if let Ok(mut ctx) = self.consumer.c.context().ctx_data.write() {
+            let (assigned_partition_list, mut partition_mapping) = ctx.get_partition_info();
+
+            if !partition_mapping.is_empty()
+                && ctx.partition_num > 0
+                && !assigned_partition_list.is_empty()
+            {
+                for x in assigned_partition_list {
+                    if let Some(key) = partition_mapping.remove(&x) {
+                        return_vec.push((x, key));
+                    }
+                }
+            }
+        }
+
+        return_vec
     }
 
     pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {

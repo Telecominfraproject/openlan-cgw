@@ -173,3 +173,21 @@ cd ./test
 *NOTE:* currently, tests are not running inside a container.
 This means, that it's up to the caller make sure tests can communicate with whatever CGW's deployment as well as thirdparty services.
 E.g. tests inside running *host* enviroment must be able to communicate with CGW, Redis, Kafka, PGSQL etc.
+
+# Automated multi-CGW instances start/stop with Docker Compose
+Automated multi-CGW start/stop based on "docker-compose-template.yml.j2" file located inside the *utils/docker* directory.
+To bring-up multiple (minumum 1) CGW instances we use templated "docker-compose-template.yml.j2" file.
+The "StartMultiCGW.py" script located inside the *utils/docker* directory used to:
+  1. Stop all running Docker Composes.
+  2. Update/generate certificates
+  3. Generate "docker-compose-multi-cgw.yml" Docker Compose file that includes:
+    - Kafka service
+    - Redis service
+    - PostgreSQL service
+    - [N] CGW instances
+  4. Start Docker Compose using generated "docker-compose-multi-cgw.yml" file.
+
+The "CGW_INSTANCES_NUM" environment variable is used to specify number of CGW instances.
+Makefile has 2 targets to start/stop Docker Compose
+  - start-multi-cgw
+  - stop-multi-cgw

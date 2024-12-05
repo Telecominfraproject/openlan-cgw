@@ -894,21 +894,23 @@ pub fn cgw_ucentral_ap_parse_message(
             }
         }
     } else if map.contains_key("result") {
-        if !map.contains_key("id") {
-            warn!("Received JRPC <result> without id!");
-            return Err(Error::UCentralParser("Received JRPC <result> without id"));
+        if let Value::Object(result) = &map["result"] {
+            if !result.contains_key("id") {
+                warn!("Received JRPC <result> without id!");
+                return Err(Error::UCentralParser("Received JRPC <result> without id"));
+            }
+
+            let id = result["id"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+            let reply_event = CGWUCentralEvent {
+                serial: Default::default(),
+                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+                decompressed: None,
+            };
+
+            return Ok(reply_event);
         }
-
-        let id = map["id"]
-            .as_u64()
-            .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
-        let reply_event = CGWUCentralEvent {
-            serial: Default::default(),
-            evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
-            decompressed: None,
-        };
-
-        return Ok(reply_event);
     }
 
     Err(Error::UCentralParser("Failed to parse event/method"))

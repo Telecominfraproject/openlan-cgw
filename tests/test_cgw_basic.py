@@ -3,7 +3,6 @@ import json
 import random
 
 from metrics import cgw_metrics_get_connections_num, \
-    cgw_metrics_get_active_shards_num, \
     cgw_metrics_get_groups_assigned_num, \
     cgw_metrics_get_group_infras_assigned_num
 
@@ -97,7 +96,6 @@ class TestCgwBasic:
                 infra_is_unassigned = True
                 continue
 
-        assert cgw_metrics_get_active_shards_num() == 1
         assert cgw_metrics_get_connections_num() == 1
 
         assert join_message_received,\
@@ -140,7 +138,6 @@ class TestCgwBasic:
                     infra_is_assigned = True
                 break
 
-        assert cgw_metrics_get_active_shards_num() == 1
         assert cgw_metrics_get_groups_assigned_num() == 1
         assert cgw_metrics_get_connections_num() == 1
         assert cgw_metrics_get_group_infras_assigned_num(int(default_group)) == 1

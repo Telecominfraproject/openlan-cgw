@@ -852,7 +852,7 @@ impl CGWConnectionServer {
                     // DB stuff - create group for remote shards to be aware of change
                     let group = CGWDBInfrastructureGroup {
                         id: gid,
-                        reserved_size: 1000i32,
+                        reserved_size: infras_capacity,
                         actual_size: 0i32,
                     };
                     match self

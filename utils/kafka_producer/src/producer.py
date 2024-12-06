@@ -1,4 +1,4 @@
-from .utils import Message, MacRange
+from .utils import Message, MacRange, UCentralConfigRequest
 from .log import logger
 
 from typing import List, Tuple
@@ -7,14 +7,122 @@ import time
 import uuid
 import sys
 import random
+import json
 
 
 class Producer:
+    @staticmethod
+    def device_message_reboot(mac: str, id: int = None):
+        msg = {}
+        params = {}
+
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        params["serial"] = mac
+        params["when"] = 0
+
+        msg["jsonrpc"] = "2.0"
+        msg["method"] = "reboot"
+        msg["params"] = params
+        msg["id"] = id
+
+        return msg
+
+    @staticmethod
+    def device_message_factory(mac: str, id: int = None, keep_rediretor: bool = None):
+        msg = {}
+        params = {}
+
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        if keep_rediretor is None:
+            keep_rediretor = True
+
+        params["serial"] = mac
+        params["when"] = 0
+        params["keep_rediretor"] = keep_rediretor
+
+        msg["jsonrpc"] = "2.0"
+        msg["method"] = "factory"
+        msg["params"] = params
+        msg["id"] = id
+
+        return msg
+
+    @staticmethod
+    def device_message_ping(mac: str, id: int = None):
+        msg = {}
+        params = {}
+
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        params["serial"] = mac
+
+        msg["jsonrpc"] = "2.0"
+        msg["method"] = "ping"
+        msg["params"] = params
+        msg["id"] = id
+
+        return msg
+
+    def device_message_config_ap_basic(self, mac: str, id: int = None) -> str:
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        msg = self.ucentral_configs.get_ap_basic_cfg(mac, id);
+        return json.loads(msg)
+
+    def device_message_config_ap_basic_invalid(self, mac: str, id: int = None) -> str:
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        msg = self.ucentral_configs.get_ap_basic_invalid_cfg(mac, id);
+        return json.loads(msg)
+
+    def device_message_config_switch_basic(self, mac: str, id: int = None) -> str:
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        msg = self.ucentral_configs.get_switch_basic_cfg(mac, id);
+        return json.loads(msg)
+
+    def device_message_config_switch_basic_invalid(self, mac: str, id: int = None) -> str:
+        if mac is None:
+            raise Exception('Cannot format message without MAC specified')
+
+        if id is None:
+            id = 1
+
+        msg = self.ucentral_configs.get_switch_basic_invalid_cfg(mac, id);
+        return json.loads(msg)
+
     def __init__(self, db: str, topic: str) -> None:
         self.db = db
         self.conn = None
         self.topic = topic
         self.message = Message()
+        self.ucentral_configs = UCentralConfigRequest()
 
     def __enter__(self) -> kafka.KafkaProducer:
         return self.connect()
@@ -133,6 +241,11 @@ class Producer:
                 conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range),
                           bytes(group, encoding="utf-8"))
             conn.flush()
+
+    def handle_single_device_message(self, message: dict, group: str, mac: str, uuid_val: int) -> None:
+        self.conn.send(self.topic, self.message.to_device(group, mac, message, 0, uuid_val),
+                bytes(group, encoding="utf-8"))
+        self.conn.flush()
 
     def handle_device_messages(self, message: dict, group: str, mac_range: MacRange,
                                count: int, time_s: int, interval_s: int) -> None:

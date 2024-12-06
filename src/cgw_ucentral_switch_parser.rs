@@ -8,7 +8,7 @@ use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClients,
     CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
     CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
-    CGWUCentralEventType, CGWUCentralJRPCMessage,
+    CGWUCentralEventType, CGWUCentralJRPCMessage, CGWUCentralEventReply
 };
 
 fn parse_lldp_data(
@@ -253,11 +253,25 @@ pub fn cgw_ucentral_switch_parse_message(
             }
         }
     } else if map.contains_key("result") {
-        info!("Processing <result> JSONRPC msg");
-        info!("{:?}", map);
-        return Err(Error::UCentralParser(
-            "Result handling is not yet implemented",
-        ));
+        // For now, let's mimic AP's basic reply / result
+        // format.
+        if let Value::Object(result) = &map["result"] {
+            if !result.contains_key("id") {
+                warn!("Received JRPC <result> without id!");
+                return Err(Error::UCentralParser("Received JRPC <result> without id"));
+            }
+
+            let id = result["id"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+            let reply_event = CGWUCentralEvent {
+                serial: Default::default(),
+                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+                decompressed: None,
+            };
+
+            return Ok(reply_event);
+        }
     }
 
     Err(Error::UCentralParser("Failed to parse event/method"))

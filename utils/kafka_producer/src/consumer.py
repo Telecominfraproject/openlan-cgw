@@ -86,6 +86,27 @@ class Consumer:
 
         return res_list
 
+    def get_infra_request_result_msg(self, uuid_val: int, timeout_ms: int = 12000):
+        res_uuid = str(uuid.UUID(int=uuid_val))
+
+        assert self.is_connected(),\
+                f"consumer: Cannot get Kafka result msg, Not connected!"
+
+        while True:
+            # We explicitly use get_single_msg instead of <get_msgs>
+            # to make sure we return as soon as we find result,
+            # without waiting for potential T/O
+            message = self.get_single_msg(timeout_ms=timeout_ms)
+            if message is None:
+                break
+
+            logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
+                    (message.topic, message.key, message.value, message.timestamp))
+            if 'uuid' in message.value.keys():
+                if res_uuid == message.value['uuid'] and message.value['type'] == 'infra_request_result':
+                    return message
+        return None
+
     def get_result_msg(self, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = str(uuid.UUID(int=uuid_val))
 
@@ -102,8 +123,9 @@ class Consumer:
 
             logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
                     (message.topic, message.key, message.value, message.timestamp))
-            if res_uuid == message.value['uuid']:
-                return message
+            if 'uuid' in message.value.keys():
+                if res_uuid == message.value['uuid']:
+                    return message
         return None
 
     def get_single_msg(self, timeout_ms: int = 12000):

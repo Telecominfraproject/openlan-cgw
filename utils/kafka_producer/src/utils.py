@@ -79,6 +79,52 @@ class MacRange:
             return self.mac2num(base), int(count)
         return self.mac2num(input), 1
 
+class UCentralConfigRequest:
+    TEMPLATE_FILE_AP_BASIC = "./kafka_data/cfg_ap_basic.json"
+    TEMPLATE_FILE_AP_BASIC_INVALID = "./kafka_data/cfg_ap_basic_invalid.json"
+    TEMPLATE_FILE_SWITCH_BASIC = "./kafka_data/cfg_switch_basic.json"
+    TEMPLATE_FILE_SWITCH_BASIC_INVALID = "./kafka_data/cfg_switch_basic_invalid.json"
+
+    @staticmethod
+    def parse_uuid(uuid_val = None) -> str:
+        if uuid_val is None:
+            return str(1)
+
+        return str(uuid_val)
+
+    def __init__(self) -> None:
+        with open(self.TEMPLATE_FILE_AP_BASIC) as f:
+            self.ap_basic = f.read()
+        with open(self.TEMPLATE_FILE_AP_BASIC_INVALID) as f:
+            self.ap_basic_invalid = f.read()
+        with open(self.TEMPLATE_FILE_SWITCH_BASIC) as f:
+            self.switch_basic = f.read()
+        with open(self.TEMPLATE_FILE_SWITCH_BASIC_INVALID) as f:
+            self.switch_basic_invalid = f.read()
+
+    def get_ap_basic_cfg(self, mac: str, uuid_val = None):
+        req = copy.deepcopy(self.ap_basic);
+        req = req.replace("MAC_PLACEHOLDER", mac)
+        req = req.replace("UUID_PLACEHOLDER", UCentralConfigRequest.parse_uuid(uuid_val))
+        return req
+
+    def get_ap_basic_invalid_cfg(self, mac: str, uuid_val = None):
+        req = copy.deepcopy(self.ap_basic_invalid);
+        req = req.replace("MAC_PLACEHOLDER", mac)
+        req = req.replace("UUID_PLACEHOLDER", UCentralConfigRequest.parse_uuid(uuid_val))
+        return req
+
+    def get_switch_basic_cfg(self, mac: str, uuid_val = None):
+        req = copy.deepcopy(self.switch_basic);
+        req = req.replace("MAC_PLACEHOLDER", mac)
+        req = req.replace("UUID_PLACEHOLDER", UCentralConfigRequest.parse_uuid(uuid_val))
+        return req
+
+    def get_switch_basic_invalid_cfg(self, mac: str, uuid_val = None):
+        req = copy.deepcopy(self.switch_basic_invalid);
+        req = req.replace("MAC_PLACEHOLDER", mac)
+        req = req.replace("UUID_PLACEHOLDER", UCentralConfigRequest.parse_uuid(uuid_val))
+        return req
 
 class Message:
     TEMPLATE_FILE = "./kafka_data/message_template.json"

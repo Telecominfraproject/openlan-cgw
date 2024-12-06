@@ -45,6 +45,7 @@ class TestContext:
         # However, we're making a fixture, hence all values must be the same
         # on the initial step.
         connect_msg = json.loads(device.messages.connect)
+        connect_msg['params']['capabilities']['platform'] = "ap"
         connect_msg['params']['firmware'] = "Test_FW_A"
         connect_msg['params']['uuid'] = 1
         device.messages.connect = json.dumps(connect_msg)

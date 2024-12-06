@@ -20,7 +20,7 @@ RUN mkdir -p /usr/src/openlan-cgw
 # Set the working directory
 WORKDIR /usr/src/openlan-cgw
 COPY src src
-COPY build.rs Cargo.toml Cargo.lock .
+COPY build.rs Cargo.toml Cargo.lock ./
 
 #RUN cargo build --target x86_64-unknown-linux-gnu --release && \
 RUN cargo build --target x86_64-unknown-linux-gnu && \

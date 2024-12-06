@@ -22,6 +22,10 @@ class TestContext:
     def default_kafka_group() -> str:
         return '9999'
 
+    @staticmethod
+    def default_shard_id() -> int:
+        return 0
+
     def __init__(self):
         device = DeviceSimulator(
                 mac=self.default_dev_sim_mac(),
@@ -167,8 +171,9 @@ def kafka_default_infra_group(test_context):
 
     uuid_val = random.randint(1, 100)
     default_group = test_context.default_kafka_group()
+    default_shard_id = test_context.default_shard_id()
 
-    test_context.kafka_producer.handle_single_group_create(default_group, uuid_val)
+    test_context.kafka_producer.handle_single_group_create_to_shard(default_group, default_shard_id, uuid_val)
     ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val)
     if not ret_msg:
         print('Failed to receive create group result, was expecting ' + str(uuid_val) + ' uuid reply')
@@ -203,6 +208,7 @@ def kafka_default_infra(test_context):
     uuid_val = random.randint(1, 100)
     default_group = test_context.default_kafka_group()
     default_infra_mac = test_context.default_dev_sim_mac()
+    default_shard_id = test_context.default_shard_id()
 
     test_context.kafka_producer.handle_single_device_assign(default_group, default_infra_mac, uuid_val)
     ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val)
@@ -223,7 +229,7 @@ def kafka_default_infra(test_context):
     db_mac = db_mac.replace(":", "-", 5)
     assert db_mac == default_infra_mac
 
-    infra_info = test_context.redis_client.get_infra(0, default_infra_mac)
+    infra_info = test_context.redis_client.get_infra(default_shard_id, default_infra_mac)
     if not infra_info:
         print(f'Failed to get infra {default_infra_mac} from Redis!')
         raise Exception('Default infra assign failed!')

@@ -5,6 +5,7 @@ import time
 from client_simulator.src.simulation_runner import Device as DeviceSimulator
 from kafka_producer.src.producer import Producer as KafkaProducer
 from kafka_producer.src.consumer import Consumer as KafkaConsumer
+from kafka_producer.src.admin import Admin as KafkaAdmin
 from psql_client.psql_client import PostgreSQLClient as PSQLClient
 from redis_client.redis_client import RedisClient as RedisClient
 import requests
@@ -25,6 +26,10 @@ class TestContext:
     @staticmethod
     def default_shard_id() -> int:
         return 0
+
+    @staticmethod
+    def default_producer_topic() -> str:
+        return 'CnC'
 
     def __init__(self):
         device = DeviceSimulator(
@@ -53,9 +58,11 @@ class TestContext:
 
         producer = KafkaProducer(db='localhost:9092', topic='CnC')
         consumer = KafkaConsumer(db='localhost:9092', topic='CnC_Res', consumer_timeout=12000)
+        admin = KafkaAdmin(host='localhost', port=9092)
 
         self.kafka_producer = producer
         self.kafka_consumer = consumer
+        self.kafka_admin = admin
 
         psql_client = PSQLClient(host="localhost", port=5432, database="cgw", user="cgw", password="123")
         self.psql_client = psql_client
@@ -90,6 +97,7 @@ def test_context():
 
     ctx.kafka_producer.disconnect()
     ctx.kafka_consumer.disconnect()
+    ctx.kafka_admin.disconnect()
 
     ctx.psql_client.disconnect()
     ctx.redis_client.disconnect()
@@ -117,6 +125,13 @@ def kafka_probe(test_context):
 
     # We have to clear any messages before we can work with kafka
     test_context.kafka_consumer.flush()
+
+@pytest.fixture(scope='function')
+def kafka_admin_probe(test_context):
+    try:
+        test_context.kafka_admin.connect()
+    except:
+        raise Exception('Failed to connect to Kafka broker!')
 
 @pytest.fixture(scope='function')
 def device_sim_connect(test_context):

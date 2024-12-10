@@ -1876,8 +1876,7 @@ impl CGWConnectionServer {
         self: Arc<Self>,
         socket: TcpStream,
         tls_acceptor: tokio_rustls::TlsAcceptor,
-        addr: SocketAddr,
-        conn_idx: i64,
+        addr: SocketAddr
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)
@@ -1900,7 +1899,7 @@ impl CGWConnectionServer {
             };
 
             let allow_mismatch = server_clone.allow_mismatch;
-            let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
+            let conn_processor = CGWConnectionProcessor::new(server_clone, addr);
             if let Err(e) = conn_processor
                 .start(tls_stream, client_cn, allow_mismatch)
                 .await

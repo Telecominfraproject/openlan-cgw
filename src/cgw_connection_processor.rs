@@ -79,19 +79,17 @@ pub struct CGWConnectionProcessor {
     cgw_server: Arc<CGWConnectionServer>,
     pub serial: MacAddress,
     pub addr: SocketAddr,
-    pub idx: i64,
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
     pub device_type: CGWDeviceType,
 }
 
 impl CGWConnectionProcessor {
-    pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
+    pub fn new(server: Arc<CGWConnectionServer>, addr: SocketAddr) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server.clone(),
             serial: MacAddress::default(),
             addr,
-            idx: conn_idx,
             group_id: 0,
             feature_topomap_enabled: server.feature_topomap_enabled,
             // Default to AP, it's safe, as later-on it will be changed

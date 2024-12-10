@@ -1,0 +1,13 @@
+FROM python:3.9-alpine as builder
+LABEL Description="OpenLan CGW Tests running environment"
+
+RUN apk add --no-cache bash
+
+COPY tests/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+VOLUME /cgw_workdir
+
+WORKDIR /cgw_workdir/tests
+
+CMD ["/cgw_workdir/tests/run.sh"]

@@ -34,7 +34,7 @@ class TestContext:
     def __init__(self):
         device = DeviceSimulator(
                 mac=self.default_dev_sim_mac(),
-                server='wss://localhost:15002',
+                server='wss://cgw_instance_0:15002',
                 ca_cert='./ca-certs/ca.crt',
                 msg_interval=10, msg_size=1024,
                 client_cert='./certs/base.crt', client_key='./certs/base.key', check_cert=False,
@@ -57,18 +57,18 @@ class TestContext:
 
         self.device_sim = device
 
-        producer = KafkaProducer(db='localhost:9092', topic='CnC')
-        consumer = KafkaConsumer(db='localhost:9092', topic='CnC_Res', consumer_timeout=12000)
-        admin = KafkaAdmin(host='localhost', port=9092)
+        producer = KafkaProducer(db='broker:9092', topic='CnC')
+        consumer = KafkaConsumer(db='broker:9092', topic='CnC_Res', consumer_timeout=12000)
+        admin = KafkaAdmin(host='broker', port=9092)
 
         self.kafka_producer = producer
         self.kafka_consumer = consumer
         self.kafka_admin = admin
 
-        psql_client = PSQLClient(host="localhost", port=5432, database="cgw", user="cgw", password="123")
+        psql_client = PSQLClient(host="postgresql", port=5432, database="cgw", user="cgw", password="123")
         self.psql_client = psql_client
 
-        redis_client = RedisClient(host="localhost", port=6379)
+        redis_client = RedisClient(host="redis", port=6379)
         self.redis_client = redis_client
 
 @pytest.fixture(scope='function')
@@ -106,7 +106,7 @@ def test_context():
 @pytest.fixture(scope='function')
 def cgw_probe(test_context):
     try:
-        r = requests.get("http://localhost:8080/health")
+        r = requests.get("http://cgw_instance_0:8080/health")
         print("CGW status: " + str(r.status_code) + ', txt:' + r.text)
         assert r is not None and r.status_code == 200, \
                 f"CGW is in a bad state (health != 200), can't proceed"

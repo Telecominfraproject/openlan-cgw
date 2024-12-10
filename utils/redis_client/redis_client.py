@@ -12,7 +12,10 @@ class RedisClient:
         """Connect to the Redis database."""
         try:
             # Establish connection to Redis server
-            self.connection = redis.StrictRedis(host=self.host, port=self.port, db=0, decode_responses=True)
+            self.connection = redis.StrictRedis(
+                    host=self.host, port=self.port,
+                    db=0, decode_responses=True, socket_timeout=5.0,
+                    socket_connect_timeout=2.0)
             # Check if the connection is successful
             self.connection.ping()
             print(f"Connected to Redis server at {self.host}:{self.port}")

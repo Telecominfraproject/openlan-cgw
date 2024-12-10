@@ -132,7 +132,11 @@ class Producer:
 
     def connect(self) -> kafka.KafkaProducer:
         if self.is_connected() is False:
-            self.conn = kafka.KafkaProducer(bootstrap_servers=self.db, client_id="producer")
+            self.conn = kafka.KafkaProducer(
+                    bootstrap_servers=self.db,
+                    client_id="producer",
+                    max_block_ms=12000,
+                    request_timeout_ms=12000)
             logger.info("producer: connected to kafka")
         else:
             logger.info("producer: already connected to kafka")

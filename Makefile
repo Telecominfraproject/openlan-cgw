@@ -11,14 +11,17 @@ CGW_IMG_TAG := $(shell \
 	fi)
 CGW_IMG_CONTAINER_NAME := "openlan_cgw"
 
+CGW_TEST_ENV_IMG_ID := cgw-test-env
+CGW_TEST_ENV_IMG_TAG := $(shell cat Dockerfile.test_env | sha1sum | awk '{print substr($$1,0,11);}')
 CGW_BUILD_ENV_IMG_ID := openlan-cgw-build-env
 CGW_BUILD_ENV_IMG_TAG := $(shell cat Dockerfile | sha1sum | awk '{print substr($$1,0,11);}')
 
+CGW_TEST_ENV_IMG_CONTAINER_NAME := "cgw_test_env"
 CGW_BUILD_ENV_IMG_CONTAINER_NAME := "cgw_build_env"
 
-.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run run_docker_services start-multi-cgw stop-multi-cgw
+.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run run_docker_services start-multi-cgw stop-multi-cgw test-env-img run-tests
 
-all: cgw-build-env-img run_docker_services run
+all: start-multi-cgw
 	@echo "uCentral CGW build app (container) done"
 
 # Executed inside build-env
@@ -77,3 +80,19 @@ stop-multi-cgw:
 
 run_docker_services:
 	@cd ./utils/docker/ && docker compose up -d
+
+test-env-img:
+	@echo "Stopping / removing container ${CGW_TEST_ENV_IMG_CONTAINER_NAME}"
+	@docker stop ${CGW_TEST_ENV_IMG_CONTAINER_NAME} > /dev/null 2>&1 || true;
+	@docker container rm ${CGW_TEST_ENV_IMG_CONTAINER_NAME} > /dev/null 2>&1 || true;
+	@echo "Trying to build ${CGW_TEST_ENV_IMG_ID}, looking if exists.."
+	@docker inspect --type=image ${CGW_TEST_ENV_IMG_ID}:${CGW_TEST_ENV_IMG_TAG} >/dev/null 2>&1 || \
+		(docker build --file ./Dockerfile.test_env \
+		--tag ${CGW_TEST_ENV_IMG_ID}:${CGW_TEST_ENV_IMG_TAG} \
+		.)
+	@echo "${CGW_TEST_ENV_IMG_ID} build done"
+
+run-tests: test-env-img
+	@docker run -it --name ${CGW_TEST_ENV_IMG_CONTAINER_NAME} --network=docker_cgw_multi_instances_network \
+		-v ./:/cgw_workdir \
+		${CGW_TEST_ENV_IMG_ID}:${CGW_TEST_ENV_IMG_TAG}

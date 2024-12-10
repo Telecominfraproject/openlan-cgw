@@ -2,11 +2,12 @@ import re
 import requests
 
 
-def cgw_metric_get(host: str = "localhost", port: int = 8080) -> str:
+def cgw_metric_get(host: str = "cgw_instance_0", port: int = 8080) -> str:
     metrics = ""
 
     try:
-        r = requests.get(f"http://{host}:{port}/metrics")
+        # Try to fetch metrics with 5 seconds timeout value
+        r = requests.get(f"http://{host}:{port}/metrics", timeout=5)
         print("CGW metrics: " + str(r.status_code) + ', txt:' + r.text)
         assert r is not None and r.status_code == 200, \
                 f"CGW metrics is not available"

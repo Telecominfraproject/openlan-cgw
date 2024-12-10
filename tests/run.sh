@@ -2,6 +2,14 @@
 
 # Separate exports for clearer visibility of _what exactly_
 # we're putting in python path
+
+rm -rf /tmp/cgw_tests_runner;
+mkdir /tmp/cgw_tests_runner && \
+	cp -rf ../tests /tmp/cgw_tests_runner/ && \
+	cp -rf ../utils /tmp/cgw_tests_runner/;
+
+cd /tmp/cgw_tests_runner/tests
+
 export PYTHONPATH="$PYTHONPATH:$PWD"
 export PYTHONPATH="$PYTHONPATH:$PWD/../utils"
 

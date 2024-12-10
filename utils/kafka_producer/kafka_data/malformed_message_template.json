@@ -1,0 +1,34 @@
+{
+    "add_group": {
+        "type": "infrastructure_group_create",
+        "infra_name": "name",
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+    },
+    "add_group_to_shard": {
+        "type": "infrastructure_group_create_to_shard",
+        "infra_name": "name",
+        "infra_shard_id": 0,
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+    },
+    "del_group": {
+        "type": "infrastructure_group_delete",
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+    },
+    "add_to_group": {
+        "type": "infrastructure_group_infras_add",
+        "infra_group_infras": [],
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+    },
+    "del_from_group": {
+        "type": "infrastructure_group_infras_del",
+        "infra_group_infras": [],
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
+    },
+    "message_infra": {
+        "type": "infrastructure_group_infra_message_enqueue",
+        "mac": "mac",
+        "msg": {},
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff",
+        "timeout": 60
+    }
+}

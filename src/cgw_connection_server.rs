@@ -783,6 +783,19 @@ impl CGWConnectionServer {
                     Some(val) => val,
                     None => {
                         warn!("Failed to parse recv msg with key {key}, discarded!");
+
+                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                            self.local_cgw_id,
+                            Uuid::default(),
+                            false,
+                            Some(format!("Failed to parse NB API message with key {key}")),
+                            local_shard_partition_key.clone(),
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                        } else {
+                            error!("Failed to construct device_enqueue message!");
+                        }
+
                         continue;
                     }
                 };
@@ -1529,6 +1542,18 @@ impl CGWConnectionServer {
                         }
                     }
                 } else {
+                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                        self.local_cgw_id,
+                        Uuid::default(),
+                        false,
+                        Some(format!("Failed to parse NB API message with key {key}")),
+                        local_shard_partition_key.clone(),
+                    ) {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                    } else {
+                        error!("Failed to construct device_enqueue message!");
+                    }
+
                     error!("Failed to parse msg from NBAPI (malformed?)!");
                     continue;
                 }

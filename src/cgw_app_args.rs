@@ -526,21 +526,25 @@ pub struct AppArgs {
     /// Topomap featue status (enabled/disabled)
     pub feature_topomap_enabled: bool,
 
-    /// Utilize TLS connection with NB infrastructure (Redis, PostgreSQL)
-    pub nb_infra_tls: bool,
-
+    /// CGW Websocket args
     pub wss_args: CGWWSSArgs,
 
+    /// CGW GRPC args
     pub grpc_args: CGWGRPCArgs,
 
+    /// CGW Kafka args
     pub kafka_args: CGWKafkaArgs,
 
+    /// CGW DB args
     pub db_args: CGWDBArgs,
 
+    /// CGW Redis args
     pub redis_args: CGWRedisArgs,
 
+    /// CGW Metrics args
     pub metrics_args: CGWMetricsArgs,
 
+    /// CGW Validation schema URI args
     pub validation_schema: CGWValidationSchemaArgs,
 }
 
@@ -632,7 +636,6 @@ impl AppArgs {
             log_level,
             cgw_id,
             feature_topomap_enabled,
-            nb_infra_tls,
             wss_args,
             grpc_args,
             kafka_args,

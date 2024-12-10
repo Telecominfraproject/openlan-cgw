@@ -216,10 +216,10 @@ def kafka_default_infra_group(test_context):
 @pytest.fixture(scope='function')
 def kafka_default_infra(test_context):
     assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Cannot create default infra: kafka producer is not connected to Kafka'
 
     assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Cannot create default infra: kafka consumer is not connected to Kafka'
 
     uuid_val = random.randint(1, 100)
     default_group = test_context.default_kafka_group()

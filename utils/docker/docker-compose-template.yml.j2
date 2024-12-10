@@ -89,7 +89,7 @@ services:
       - CGW_DB_TLS={{ cgw_db_tls }}
       - CGW_GRPC_LISTENING_IP={{ cgw_grpc_listening_ip }}
       - CGW_GRPC_LISTENING_PORT={{ cgw_grpc_listening_base_port + i }}
-      - CGW_GRPC_PUBLIC_HOST={{ cgw_grpc_public_host }}
+      - CGW_GRPC_PUBLIC_HOST={{ cgw_grpc_public_host }}_{{ i }}
       - CGW_GRPC_PUBLIC_PORT={{ cgw_grpc_public_base_port + i }}
       - CGW_ID={{ cgw_base_id + i }}
       - CGW_KAFKA_HOST={{ cgw_kafka_host }}

@@ -733,7 +733,10 @@ impl CGWConnectionServer {
             debug!("Received {num_of_msg_read} messages from NB API, processing...");
 
             let partition_mapping = self.nb_api_client.get_partition_to_local_shard_mapping();
-            debug!("Kafka partitions idx:key mapping info: {:?}", partition_mapping);
+            debug!(
+                "Kafka partitions idx:key mapping info: {:?}",
+                partition_mapping
+            );
             if !partition_mapping.is_empty() {
                 partition_array_idx += 1;
                 if partition_array_idx >= partition_mapping.len() {

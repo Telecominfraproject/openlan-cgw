@@ -139,7 +139,7 @@ class Consumer:
 
         return None
 
-    def get_msg_by_substring(self, substring: int):
+    def get_msg_by_substring(self, substring: int, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = uuid.UUID(int=uuid_val)
 
         assert self.is_connected(),\

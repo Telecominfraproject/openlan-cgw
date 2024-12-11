@@ -24,7 +24,7 @@ class TestCgwMalformedPackets:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), \
-                                            message.group_create("cgw_default_group_name", uuid_val.int), bytes(str(group_id), encoding="utf-8"))
+                                            message.group_create(uuid_val.int), bytes(str(group_id), encoding="utf-8"))
         ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -57,7 +57,7 @@ class TestCgwMalformedPackets:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), \
-                                            message.group_create_to_shard(default_shard_id, "cgw_default_group_name", uuid_val.int), bytes(str(group_id), encoding="utf-8"))
+                                            message.group_create_to_shard(default_shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"))
         ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')

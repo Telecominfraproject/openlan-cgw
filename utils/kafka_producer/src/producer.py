@@ -165,7 +165,7 @@ class Producer:
         if group is None:
             raise Exception('producer: Cannot create new group without group id specified!')
 
-        self.conn.send(self.topic, self.message.group_create(group, "cgw_default_group_name", uuid_val),
+        self.conn.send(self.topic, self.message.group_create(group, uuid_val),
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 
@@ -173,14 +173,14 @@ class Producer:
         if group is None:
             raise Exception('producer: Cannot create new group without group id specified!')
 
-        self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, "cgw_default_group_name", uuid_val),
+        self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, uuid_val),
                 bytes(group, encoding="utf-8"))
         self.conn.flush()
 
-    def handle_group_creation(self, create: List[Tuple[str, str]], delete: List[str]) -> None:
+    def handle_group_creation(self, create: List[str], delete: List[str]) -> None:
         with self as conn:
-            for group, name in create:
-                conn.send(self.topic, self.message.group_create(group, name),
+            for group in create:
+                conn.send(self.topic, self.message.group_create(group),
                           bytes(group, encoding="utf-8"))
             for group in delete:
                 conn.send(self.topic, self.message.group_delete(group),

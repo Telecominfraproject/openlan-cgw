@@ -38,7 +38,6 @@ type CGWCNCProducerType = FutureProducer;
 pub struct InfraGroupCreateResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_name: String,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
@@ -185,7 +184,6 @@ pub struct InfraLeaveMessage {
 
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
-    infra_name: String,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -194,7 +192,6 @@ pub fn cgw_construct_infra_group_create_response(
     let group_create = InfraGroupCreateResponse {
         r#type: "infrastructure_group_create_response",
         infra_group_id,
-        infra_name,
         reporter_shard_id,
         uuid,
         success,

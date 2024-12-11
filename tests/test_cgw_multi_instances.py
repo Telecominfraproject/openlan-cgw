@@ -284,7 +284,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), \
-                                            message.group_create_to_shard(str(group_id), default_shard_id, "cgw_default_group_name", uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                            message.group_create_to_shard(str(group_id), default_shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -415,7 +415,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), \
-                                            message.group_create_to_shard(str(group_id), shard_id, "cgw_default_group_name", uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                            message.group_create_to_shard(str(group_id), shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -536,7 +536,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), \
-                                            message.group_create(str(group_id), "cgw_default_group_name", uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                            message.group_create(str(group_id), uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')

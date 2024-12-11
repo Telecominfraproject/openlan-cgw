@@ -479,14 +479,12 @@ impl CGWConnectionServer {
         struct InfraGroupCreate {
             r#type: String,
             infra_group_id: String,
-            infra_name: String,
             uuid: Uuid,
         }
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreateToShard {
             r#type: String,
             infra_group_id: String,
-            infra_name: String,
             infra_shard_id: i32,
             uuid: Uuid,
         }
@@ -828,7 +826,6 @@ impl CGWConnectionServer {
                         Ok(_dst_cgw_id) => {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
-                                String::default(),
                                 self.local_cgw_id,
                                 uuid,
                                 true,
@@ -844,7 +841,6 @@ impl CGWConnectionServer {
 
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
-                                String::default(),
                                 self.local_cgw_id,
                                 uuid,
                                 false,
@@ -879,7 +875,6 @@ impl CGWConnectionServer {
                         Ok(_dst_cgw_id) => {
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
-                                String::default(),
                                 self.local_cgw_id,
                                 uuid,
                                 true,
@@ -897,7 +892,6 @@ impl CGWConnectionServer {
 
                             if let Ok(resp) = cgw_construct_infra_group_create_response(
                                 gid,
-                                String::default(),
                                 self.local_cgw_id,
                                 uuid,
                                 false,

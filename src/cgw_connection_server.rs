@@ -1148,6 +1148,7 @@ impl CGWConnectionServer {
                                 }
 
                                 warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}!");
+                                continue;
                             }
 
                             let devices_cache_lock = self.devices_cache.clone();
@@ -1307,6 +1308,7 @@ impl CGWConnectionServer {
                                 }
 
                                 warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid}!");
+                                continue;
                             }
 
                             let lock = self.devices_cache.clone();
@@ -1410,6 +1412,7 @@ impl CGWConnectionServer {
                                 }
 
                                 warn!("Unexpected: tried to sink down msg to device of nonexisting group (gid {gid}, uuid {uuid}!");
+                                continue;
                             }
 
                             // 1. Parse message from NB

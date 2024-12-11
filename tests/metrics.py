@@ -6,12 +6,14 @@ def cgw_metric_get(host: str = "localhost", port: int = 8080) -> str:
     metrics = ""
 
     try:
-        r = requests.get(f"http://{host}:{port}/metrics")
-        print("CGW metrics: " + str(r.status_code) + ', txt:' + r.text)
+        # Try to fetch metrics with 5 seconds timeout value
+        r = requests.get(f"http://{host}:{port}/metrics", timeout=5)
+        print("CGW metrics ret code: " + str(r.status_code))
         assert r is not None and r.status_code == 200, \
                 f"CGW metrics is not available"
         metrics = r.text
-    except:
+    except Exception as e:
+        print("CGW metrics: raised exception when tried to fetch metrics:" + e)
         raise Exception('CGW metrics fetch failed (Not running?)')
 
     return metrics

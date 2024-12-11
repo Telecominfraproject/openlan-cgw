@@ -126,7 +126,9 @@ class Device:
 
     def connect(self):
         if self._socket is None:
-            self._socket = client.connect(self.server_addr, ssl=self.ssl_context, open_timeout=7200)
+            # 20 seconds is more then enough to establish conne and exchange
+            # them handshakes.
+            self._socket = client.connect(self.server_addr, ssl=self.ssl_context, open_timeout=20, close_timeout=20)
         return self._socket
 
     def disconnect(self):

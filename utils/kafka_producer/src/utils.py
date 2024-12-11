@@ -215,6 +215,74 @@ class Message:
         return json.dumps(msg).encode('utf-8')
 
 
+class MalformedMessage:
+    TEMPLATE_FILE = "./kafka_data/malformed_message_template.json"
+    GROUP_ADD = "add_group"
+    GROUP_ADD_TO_SHARD = "add_group_to_shard"
+    GROUP_DEL = "del_group"
+    DEV_TO_GROUP = "add_to_group"
+    DEV_FROM_GROUP = "del_from_group"
+    TO_DEVICE = "message_infra"
+    GROUP_NAME = "infra_name"
+    SHARD_ID = "infra_shard_id"
+    DEV_LIST = "infra_group_infras"
+    MAC = "mac"
+    DATA = "msg"
+    MSG_UUID = "uuid"
+
+    def __init__(self) -> None:
+        with open(self.TEMPLATE_FILE) as f:
+            self.templates = json.loads(f.read())
+
+    @staticmethod
+    def parse_uuid(uuid_val = None) -> str:
+        if uuid_val is None:
+            return str(uuid.uuid1())
+
+        return str(uuid.UUID(int=uuid_val))
+
+    def group_create(self, name: str, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.GROUP_ADD])
+        msg[self.GROUP_NAME] = name
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def group_create_to_shard(self, shard_id: int, name: str, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.GROUP_ADD_TO_SHARD])
+        msg[self.SHARD_ID] = shard_id
+        msg[self.GROUP_NAME] = name
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def group_delete(self, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.GROUP_DEL])
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def add_dev_to_group(self, mac_range: MacRange, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_TO_GROUP])
+        msg[self.DEV_LIST] = list(mac_range)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def remove_dev_from_group(self, mac_range: MacRange, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
+        msg[self.DEV_LIST] = list(mac_range)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def to_device(self, mac: str, data, uuid_val: int = None):
+        msg = copy.copy(self.templates[self.TO_DEVICE])
+        msg[self.MAC] = mac
+        if type(data) is dict:
+            msg[self.DATA] = data
+        else:
+            msg[self.DATA] = {"data": data}
+
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+
 @dataclass
 class Args:
     add_groups: List[Tuple[str, int, str]]

@@ -783,6 +783,19 @@ impl CGWConnectionServer {
                     Some(val) => val,
                     None => {
                         warn!("Failed to parse recv msg with key {key}, discarded!");
+
+                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                            self.local_cgw_id,
+                            Uuid::default(),
+                            false,
+                            Some(format!("Failed to parse NB API message with key {key}")),
+                            local_shard_partition_key.clone(),
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                        } else {
+                            error!("Failed to construct device_enqueue message!");
+                        }
+
                         continue;
                     }
                 };
@@ -1529,6 +1542,18 @@ impl CGWConnectionServer {
                         }
                     }
                 } else {
+                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                        self.local_cgw_id,
+                        Uuid::default(),
+                        false,
+                        Some(format!("Failed to parse NB API message with key {key}")),
+                        local_shard_partition_key.clone(),
+                    ) {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                    } else {
+                        error!("Failed to construct device_enqueue message!");
+                    }
+
                     error!("Failed to parse msg from NBAPI (malformed?)!");
                     continue;
                 }
@@ -1876,8 +1901,7 @@ impl CGWConnectionServer {
         self: Arc<Self>,
         socket: TcpStream,
         tls_acceptor: tokio_rustls::TlsAcceptor,
-        addr: SocketAddr,
-        conn_idx: i64,
+        addr: SocketAddr
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)
@@ -1900,7 +1924,7 @@ impl CGWConnectionServer {
             };
 
             let allow_mismatch = server_clone.allow_mismatch;
-            let conn_processor = CGWConnectionProcessor::new(server_clone, conn_idx, addr);
+            let conn_processor = CGWConnectionProcessor::new(server_clone, addr);
             if let Err(e) = conn_processor
                 .start(tls_stream, client_cn, allow_mismatch)
                 .await

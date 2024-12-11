@@ -1115,6 +1115,8 @@ impl CGWRemoteDiscovery {
                     "Failed to relay message! CGW{} seems to be unreachable at [{}:{}]! Error: {}",
                     shard_id, cl.shard.server_host, cl.shard.server_port, e
                 );
+
+                return Err(e);
             }
 
             return Ok(());

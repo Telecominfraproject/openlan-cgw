@@ -293,7 +293,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone
-                        .ack_connection(socket, tls_acceptor_clone, remote_addr, conn_idx)
+                        .ack_connection(socket, tls_acceptor_clone, remote_addr)
                         .await;
                 });
 

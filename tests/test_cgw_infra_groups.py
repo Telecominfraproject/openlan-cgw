@@ -14,10 +14,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_single_infra_group_add_del(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -113,10 +113,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_multiple_infra_group_add_del(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -223,10 +223,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_create_existing_infra_group(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -345,10 +345,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_remove_not_existing_infra_group(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -394,10 +394,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_single_infra_group_add_del_to_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -493,10 +493,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_multiple_infra_group_add_del_to_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -603,10 +603,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_single_infra_group_add_to_not_existing_shard(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 
@@ -663,10 +663,10 @@ class TestCgwInfraGroup:
                             "psql_probe")
     def test_infra_group_capacity_overflow(self, test_context):
         assert test_context.kafka_producer.is_connected(),\
-            f'Cannot create default group: kafka producer is not connected to Kafka'
+            f'Kafka producer is not connected to Kafka'
 
         assert test_context.kafka_consumer.is_connected(),\
-            f'Cannot create default group: kafka consumer is not connected to Kafka'
+            f'Kafka consumer is not connected to Kafka'
 
         default_shard_id = test_context.default_shard_id()
 

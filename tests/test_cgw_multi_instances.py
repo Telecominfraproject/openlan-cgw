@@ -118,7 +118,9 @@ class TestCgwMultiInstances:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert (ret_msg.value["reporter_shard_id"] == default_shard_id)
 
         # Get group info from Redis
@@ -168,7 +170,9 @@ class TestCgwMultiInstances:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert (ret_msg.value["reporter_shard_id"] == default_shard_id)
 
         # Validate infra removed from Redis Infra Cache

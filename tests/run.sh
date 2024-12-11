@@ -25,4 +25,4 @@ ln -sf ../utils/redis_client/ redis_client
 pip install -r requirements.txt
 
 pytest -v
-#pytest -v -s .
+#pytest -v -s test_cgw_infras.py

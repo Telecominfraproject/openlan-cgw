@@ -605,7 +605,7 @@ impl CGWConnectionServer {
         None
     }
 
-    fn notify_devices_on_gid_change(self: Arc<Self>, mac_list: Vec<MacAddress>, new_gid: i32) {
+    fn notify_devices_on_gid_change(self: Arc<Self>, infras_list: Vec<MacAddress>, new_gid: i32) {
         tokio::spawn(async move {
             // If we receive NB API add/del infra req,
             // and under storm of connections,
@@ -618,7 +618,7 @@ impl CGWConnectionServer {
             let msg: CGWConnectionProcessorReqMsg =
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_gid);
 
-            for mac in mac_list.iter() {
+            for mac in infras_list.iter() {
                 if let Some(c) = connmap_r_lock.get(mac) {
                     match c.send(msg.clone()) {
                         Ok(_) => debug!("Notified {mac} about GID change (->{new_gid})"),
@@ -1125,7 +1125,7 @@ impl CGWConnectionServer {
                         CGWNBApiParsedMsg {
                             uuid,
                             gid,
-                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(mac_list),
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(infras_list),
                         } => {
                             if (self
                                 .cgw_remote_discovery
@@ -1135,7 +1135,7 @@ impl CGWConnectionServer {
                             {
                                 if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                     gid,
-                                    mac_list.clone(),
+                                    infras_list.clone(),
                                     self.local_cgw_id,
                                     uuid,
                                     false,
@@ -1153,7 +1153,7 @@ impl CGWConnectionServer {
                             let devices_cache_lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_ifras_list(gid, mac_list.clone(), devices_cache_lock)
+                                .create_ifras_list(gid, infras_list.clone(), devices_cache_lock)
                                 .await
                             {
                                 Ok(success_ifras) => {
@@ -1164,7 +1164,8 @@ impl CGWConnectionServer {
 
                                     if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                         gid,
-                                        mac_list,
+                                        // Empty vec: no infras assign <failed>
+                                        Vec::new(),
                                         self.local_cgw_id,
                                         uuid,
                                         true,
@@ -1238,7 +1239,7 @@ impl CGWConnectionServer {
                                     }
                                 }
                                 Err(macs) => {
-                                    if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
+                                    if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs
                                     {
                                         // We have a full list of macs we've tried to <add> to GID;
                                         // Remove elements from cloned list based on whethere
@@ -1246,8 +1247,8 @@ impl CGWConnectionServer {
                                         // Whenever done - notify corresponding conn.processors,
                                         // that they should updated their state to have GID
                                         // change reflected;
-                                        let mut macs_to_notify = mac_list.clone();
-                                        macs_to_notify.retain(|&m| !mac_addresses.contains(&m));
+                                        let mut macs_to_notify = infras_list.clone();
+                                        macs_to_notify.retain(|&m| !failed_infras.contains(&m));
 
                                         // Do so, only if there are at least any <successfull>
                                         // GID changes;
@@ -1258,7 +1259,7 @@ impl CGWConnectionServer {
 
                                         if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                             gid,
-                                            mac_addresses,
+                                            failed_infras,
                                             self.local_cgw_id,
                                             uuid,
                                             false,
@@ -1281,7 +1282,7 @@ impl CGWConnectionServer {
                         CGWNBApiParsedMsg {
                             uuid,
                             gid,
-                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfrasDel(mac_list),
+                            msg_type: CGWNBApiParsedMsgType::InfrastructureGroupInfrasDel(infras_list),
                         } => {
                             if (self
                                 .cgw_remote_discovery
@@ -1291,7 +1292,7 @@ impl CGWConnectionServer {
                             {
                                 if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                     gid,
-                                    mac_list.clone(),
+                                    infras_list.clone(),
                                     self.local_cgw_id,
                                     uuid,
                                     false,
@@ -1311,7 +1312,7 @@ impl CGWConnectionServer {
                             let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .destroy_ifras_list(gid, mac_list.clone(), lock)
+                                .destroy_ifras_list(gid, infras_list.clone(), lock)
                                 .await
                             {
                                 Ok(()) => {
@@ -1320,11 +1321,12 @@ impl CGWConnectionServer {
                                     //
                                     // Group del == unassigned (0)
                                     self.clone()
-                                        .notify_devices_on_gid_change(mac_list.clone(), 0i32);
+                                        .notify_devices_on_gid_change(infras_list.clone(), 0i32);
 
                                     if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                         gid,
-                                        mac_list,
+                                        // Empty vec: no infras de-assign <failed>
+                                        Vec::new(),
                                         self.local_cgw_id,
                                         uuid,
                                         true,
@@ -1339,7 +1341,7 @@ impl CGWConnectionServer {
                                     }
                                 }
                                 Err(macs) => {
-                                    if let Error::RemoteDiscoveryFailedInfras(mac_addresses) = macs
+                                    if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs
                                     {
                                         // We have a full list of macs we've tried to <del> from GID;
                                         // Remove elements from cloned list based on whethere
@@ -1347,8 +1349,8 @@ impl CGWConnectionServer {
                                         // Whenever done - notify corresponding conn.processors,
                                         // that they should updated their state to have GID
                                         // change reflected;
-                                        let mut macs_to_notify = mac_list.clone();
-                                        macs_to_notify.retain(|&m| !mac_addresses.contains(&m));
+                                        let mut macs_to_notify = infras_list.clone();
+                                        macs_to_notify.retain(|&m| !failed_infras.contains(&m));
 
                                         // Do so, only if there are at least any <successfull>
                                         // GID changes;
@@ -1359,7 +1361,7 @@ impl CGWConnectionServer {
 
                                         if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
                                             gid,
-                                            mac_addresses,
+                                            failed_infras,
                                             self.local_cgw_id,
                                             uuid,
                                             false,

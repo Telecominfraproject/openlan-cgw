@@ -58,12 +58,11 @@ pub struct InfraGroupDeleteResponse {
 pub struct InfraGroupInfrasAddResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infras: Vec<MacAddress>,
+    pub failed_infras: Vec<MacAddress>,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -71,12 +70,11 @@ pub struct InfraGroupInfrasAddResponse {
 pub struct InfraGroupInfrasDelResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infras: Vec<MacAddress>,
+    pub failed_infras: Vec<MacAddress>,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -87,7 +85,6 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -222,7 +219,7 @@ pub fn cgw_construct_infra_group_delete_response(
 
 pub fn cgw_construct_infra_group_infras_add_response(
     infra_group_id: i32,
-    infra_group_infras: Vec<MacAddress>,
+    failed_infras: Vec<MacAddress>,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -232,7 +229,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
     let dev_add = InfraGroupInfrasAddResponse {
         r#type: "infrastructure_group_infras_add_response",
         infra_group_id,
-        infra_group_infras,
+        failed_infras,
         reporter_shard_id,
         uuid,
         success,
@@ -245,7 +242,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
 
 pub fn cgw_construct_infra_group_infras_del_response(
     infra_group_id: i32,
-    infra_group_infras: Vec<MacAddress>,
+    failed_infras: Vec<MacAddress>,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -255,7 +252,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
     let dev_del = InfraGroupInfrasDelResponse {
         r#type: "infrastructure_group_infras_del_response",
         infra_group_id,
-        infra_group_infras,
+        failed_infras,
         reporter_shard_id,
         uuid,
         success,

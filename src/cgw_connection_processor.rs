@@ -105,7 +105,24 @@ impl CGWConnectionProcessor {
         client_cn: MacAddress,
         allow_mismatch: bool,
     ) -> Result<()> {
-        let ws_stream = tokio_tungstenite::accept_async(tls_stream).await?;
+        let ws_stream = tokio::select! {
+            _val = tokio_tungstenite::accept_async(tls_stream) => {
+                match _val {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Failed to accept TLS stream from: {}! Reason: {}. Closing connection",
+                               self.addr, e);
+                        return Err(Error::ConnectionProcessor("Failed to accept TLS stream!"));
+                    }
+                }
+            }
+            // TODO: configurable duration (upon server creation)
+            _val = sleep(Duration::from_millis(15000)) => {
+                error!("Failed to accept TLS stream from: {}! Closing connection", self.addr);
+                return Err(Error::ConnectionProcessor("Failed to accept TLS stream for too long"));
+            }
+
+        };
 
         let (sink, mut stream) = ws_stream.split();
 

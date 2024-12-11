@@ -5,10 +5,10 @@ use std::{collections::HashMap, str::FromStr};
 use crate::cgw_errors::{Error, Result};
 
 use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClients,
-    CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
-    CGWUCentralEventType, CGWUCentralJRPCMessage, CGWUCentralEventReply
+    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventReply, CGWUCentralEventState,
+    CGWUCentralEventStateClients, CGWUCentralEventStateClientsData,
+    CGWUCentralEventStateClientsType, CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks,
+    CGWUCentralEventStatePort, CGWUCentralEventType, CGWUCentralJRPCMessage,
 };
 
 fn parse_lldp_data(

@@ -8,10 +8,14 @@ while others are required to be running for the CGW to operate.
 
 **NOTE**: while runtime CGW depends on services like kafka, redis and PGSQL, the *make* / *make all* targets
 would build a complete out-of-the-box setup with default configs and container params: 
-- Kafka, Redis, PGSQL containers would be created and attached to default - automatically created - *docker_cgw_network* network; 
-  All three (and one additional - *init-broker-container* - needed for kafka topics initialization) will be created as part of single 
-  container project group.
-- CGW will be created as separate standalone container, attached to same *docker_cgw_network* network;
+- Kafka, Redis, PGSQL containers would be created and attached to default - automatically created - *docker_cgw_multi_instances_network* network; 
+  All three (and one additional - *init-broker-container* - needed for kafka topics initialization) are all part of single docker compose file. 
+- CGW, while also part of the same docker compose file, yet is being partially generated. 
+  The reason, is that multiple CGW instances can be created within single compose-file,
+and thus container details are being generated. 
+
+More information about the compose generation can be found in the
+'Automated multi-CGW instances start/stop with Docker Compose' topic.
 
 ## gRPC
 CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards). This functionality does not depend on some external thirdparty services.
@@ -53,9 +57,11 @@ Two new docker images will be generated on host system:
 # Running
 The following script can be used to launch the CGW app
 ```console
-$ make run
+$ make
 ```
-Command creates and executed (starts) docker container name 'openlan_cgw'
+Command creates and executed (starts) docker container group consisting of cgw services
+as well as thirdpart depending services (redis, kafka, pgsql) 
+
 To stop the container from running (remove it) use the following cmd:
 ```console
 $ make stop
@@ -170,9 +176,14 @@ Currently, tests should be run manually by changin PWD to *tests* and launching 
 cd ./test
 ./run.sh
 ```
+or using make target (added for convinience):
+```console
+make run-tests
+```
 *NOTE:* currently, tests are not running inside a container.
-This means, that it's up to the caller make sure tests can communicate with whatever CGW's deployment as well as thirdparty services.
-E.g. tests inside running *host* enviroment must be able to communicate with CGW, Redis, Kafka, PGSQL etc.
+To make sure tests can communicate with CGW-enviroment, tests are currently
+reaching environment through ports exposed to host system. 
+e.g. for WSS - tests try to reach 'wss://localhost:15002' by default and so on.
 
 # Automated multi-CGW instances start/stop with Docker Compose
 Automated multi-CGW start/stop based on "docker-compose-template.yml.j2" file located inside the *utils/docker* directory.

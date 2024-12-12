@@ -138,7 +138,7 @@ pub struct APClientJoinMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub client: MacAddress,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub ssid: String,
     pub band: String,
 }
@@ -148,7 +148,7 @@ pub struct APClientLeaveMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub client: MacAddress,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub band: String,
 }
 
@@ -361,7 +361,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
 pub fn cgw_construct_client_join_msg(
     infra_group_id: i32,
     client: MacAddress,
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     ssid: String,
     band: String,
 ) -> Result<String> {
@@ -369,7 +369,7 @@ pub fn cgw_construct_client_join_msg(
         r#type: "ap_client_join",
         infra_group_id,
         client,
-        infra_group_infra_device,
+        infra_group_infra,
         ssid,
         band,
     };
@@ -380,14 +380,14 @@ pub fn cgw_construct_client_join_msg(
 pub fn cgw_construct_client_leave_msg(
     infra_group_id: i32,
     client: MacAddress,
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     band: String,
 ) -> Result<String> {
     let client_join_msg = APClientLeaveMessage {
         r#type: "ap_client_leave",
         infra_group_id,
         client,
-        infra_group_infra_device,
+        infra_group_infra,
         band,
     };
 

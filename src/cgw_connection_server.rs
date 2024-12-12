@@ -485,7 +485,7 @@ impl CGWConnectionServer {
         struct InfraGroupCreateToShard {
             r#type: String,
             infra_group_id: String,
-            infra_shard_id: i32,
+            shard_id: i32,
             uuid: Uuid,
         }
         #[derive(Debug, Serialize, Deserialize)]
@@ -515,10 +515,17 @@ impl CGWConnectionServer {
         struct InfraGroupMsgJSON {
             r#type: String,
             infra_group_id: String,
-            mac: MacAddress,
+            infra_group_infra: MacAddress,
             msg: Map<String, Value>,
             uuid: Uuid,
             timeout: Option<u64>,
+        }
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct RebalanceGroups {
+            r#type: String,
+            infra_group_id: String,
+            uuid: Uuid,
         }
 
         let map: Map<String, Value> = serde_json::from_str(pload).ok()?;
@@ -544,7 +551,7 @@ impl CGWConnectionServer {
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
-                        json_msg.infra_shard_id,
+                        json_msg.shard_id,
                     ),
                 ));
             }
@@ -583,14 +590,14 @@ impl CGWConnectionServer {
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
-                        json_msg.mac,
+                        json_msg.infra_group_infra,
                         serde_json::to_string(&json_msg.msg).ok()?,
                         json_msg.timeout,
                     ),
                 ));
             }
             "rebalance_groups" => {
-                let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).ok()?;
+                let json_msg: RebalanceGroups = serde_json::from_str(pload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,

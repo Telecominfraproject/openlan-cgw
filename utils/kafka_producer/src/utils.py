@@ -135,9 +135,9 @@ class Message:
     DEV_FROM_GROUP = "del_from_group"
     TO_DEVICE = "message_infra"
     GROUP_ID = "infra_group_id"
-    SHARD_ID = "infra_shard_id"
+    SHARD_ID = "shard_id"
     DEV_LIST = "infra_group_infras"
-    MAC = "mac"
+    MAC = "infra_group_infra"
     DATA = "msg"
     MSG_UUID = "uuid"
 
@@ -220,9 +220,9 @@ class MalformedMessage:
     DEV_TO_GROUP = "add_to_group"
     DEV_FROM_GROUP = "del_from_group"
     TO_DEVICE = "message_infra"
-    SHARD_ID = "infra_shard_id"
+    SHARD_ID = "shard_id"
     DEV_LIST = "infra_group_infras"
-    MAC = "mac"
+    MAC = "infra_group_infra"
     DATA = "msg"
     MSG_UUID = "uuid"
 

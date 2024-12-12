@@ -7,7 +7,7 @@
     "add_group_to_shard": {
         "type": "infrastructure_group_create_to_shard",
         "infra_group_id": "key",
-        "infra_shard_id": 0,
+        "shard_id": 0,
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff"
     },
     "del_group": {
@@ -30,7 +30,7 @@
     "message_infra": {
         "type": "infrastructure_group_infra_message_enqueue",
         "infra_group_id": "key",
-        "mac": "mac",
+        "infra_group_infra": "mac",
         "msg": {},
         "uuid": "290d06b6-8eba-11ee-8005-aabbccddeeff",
         "timeout": 60

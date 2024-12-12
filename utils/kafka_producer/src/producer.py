@@ -161,20 +161,16 @@ class Producer:
             bytes(group, encoding="utf-8"))
         self.conn.flush()
 
-    def handle_single_group_create(self, group: str, uuid_val: int = None):
+    def handle_single_group_create(self, group: str, uuid_val: int = None, shard_id: int = None):
         if group is None:
             raise Exception('producer: Cannot create new group without group id specified!')
 
-        self.conn.send(self.topic, self.message.group_create(group, uuid_val),
-                bytes(group, encoding="utf-8"))
-        self.conn.flush()
-
-    def handle_single_group_create_to_shard(self, group: str, shard_id: int, uuid_val: int = None):
-        if group is None:
-            raise Exception('producer: Cannot create new group without group id specified!')
-
-        self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, uuid_val),
-                bytes(group, encoding="utf-8"))
+        if shard_id is None:
+            self.conn.send(self.topic, self.message.group_create(group, uuid_val),
+                    bytes(group, encoding="utf-8"))
+        else:
+            self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, uuid_val),
+                    bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_group_creation(self, create: List[str], delete: List[str]) -> None:

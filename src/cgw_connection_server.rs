@@ -1901,7 +1901,7 @@ impl CGWConnectionServer {
         self: Arc<Self>,
         socket: TcpStream,
         tls_acceptor: tokio_rustls::TlsAcceptor,
-        addr: SocketAddr
+        addr: SocketAddr,
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)

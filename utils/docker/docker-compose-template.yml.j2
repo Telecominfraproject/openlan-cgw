@@ -116,6 +116,7 @@ services:
       - CGW_GROUPS_CAPACITY={{ cgw_groups_capacity }}
       - CGW_GROUPS_THRESHOLD={{ cgw_groups_threshold }}
       - CGW_GROUP_INFRAS_CAPACITY={{ cgw_group_infras_capacity }}
+      - CGW_FEATURE_TOPOMAP_ENABLE='1'
     depends_on:
       broker:
         condition: service_healthy

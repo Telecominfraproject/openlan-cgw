@@ -34,7 +34,7 @@ class TestCgwInfraGroup:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -136,7 +136,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             # Create single group
-            test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+            test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -243,7 +243,7 @@ class TestCgwInfraGroup:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -281,7 +281,7 @@ class TestCgwInfraGroup:
         assert int(shard_info.get('assigned_groups_num')) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Try to create the same group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -414,7 +414,7 @@ class TestCgwInfraGroup:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -516,7 +516,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             # Create single group
-            test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+            test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -624,7 +624,7 @@ class TestCgwInfraGroup:
         shard_id = 2
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -689,7 +689,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             # Create single group
-            test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+            test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -732,7 +732,7 @@ class TestCgwInfraGroup:
         # Try to create additional group to simulate group capacity overflow
         group_to_fail_id = 2024
         uuid_val = uuid.uuid4()
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_to_fail_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_to_fail_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')

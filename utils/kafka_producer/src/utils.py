@@ -135,10 +135,9 @@ class Message:
     DEV_FROM_GROUP = "del_from_group"
     TO_DEVICE = "message_infra"
     GROUP_ID = "infra_group_id"
-    GROUP_NAME = "infra_name"
-    SHARD_ID = "infra_shard_id"
+    SHARD_ID = "shard_id"
     DEV_LIST = "infra_group_infras"
-    MAC = "mac"
+    MAC = "infra_group_infra"
     DATA = "msg"
     MSG_UUID = "uuid"
 
@@ -153,18 +152,16 @@ class Message:
 
         return str(uuid.UUID(int=uuid_val))
 
-    def group_create(self, id: str, name: str, uuid_val: int = None) -> bytes:
+    def group_create(self, id: str, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD])
         msg[self.GROUP_ID] = id
-        msg[self.GROUP_NAME] = name
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def group_create_to_shard(self, id: str, shard_id: int, name: str, uuid_val: int = None) -> bytes:
+    def group_create_to_shard(self, id: str, shard_id: int, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD_TO_SHARD])
         msg[self.GROUP_ID] = id
         msg[self.SHARD_ID] = shard_id
-        msg[self.GROUP_NAME] = name
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
@@ -223,10 +220,9 @@ class MalformedMessage:
     DEV_TO_GROUP = "add_to_group"
     DEV_FROM_GROUP = "del_from_group"
     TO_DEVICE = "message_infra"
-    GROUP_NAME = "infra_name"
-    SHARD_ID = "infra_shard_id"
+    SHARD_ID = "shard_id"
     DEV_LIST = "infra_group_infras"
-    MAC = "mac"
+    MAC = "infra_group_infra"
     DATA = "msg"
     MSG_UUID = "uuid"
 
@@ -241,16 +237,14 @@ class MalformedMessage:
 
         return str(uuid.UUID(int=uuid_val))
 
-    def group_create(self, name: str, uuid_val: int = None) -> bytes:
+    def group_create(self, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD])
-        msg[self.GROUP_NAME] = name
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def group_create_to_shard(self, shard_id: int, name: str, uuid_val: int = None) -> bytes:
+    def group_create_to_shard(self, shard_id: int, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD_TO_SHARD])
         msg[self.SHARD_ID] = shard_id
-        msg[self.GROUP_NAME] = name
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 

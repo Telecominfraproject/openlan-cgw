@@ -38,7 +38,6 @@ type CGWCNCProducerType = FutureProducer;
 pub struct InfraGroupCreateResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_name: String,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
@@ -59,12 +58,11 @@ pub struct InfraGroupDeleteResponse {
 pub struct InfraGroupInfrasAddResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infras: Vec<MacAddress>,
+    pub failed_infras: Vec<MacAddress>,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -72,12 +70,11 @@ pub struct InfraGroupInfrasAddResponse {
 pub struct InfraGroupInfrasDelResponse {
     pub r#type: &'static str,
     pub infra_group_id: i32,
-    pub infra_group_infras: Vec<MacAddress>,
+    pub failed_infras: Vec<MacAddress>,
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -88,7 +85,6 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub kafka_partition_key: Option<String>,
 }
 
@@ -142,7 +138,7 @@ pub struct APClientJoinMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub client: MacAddress,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub ssid: String,
     pub band: String,
 }
@@ -152,7 +148,7 @@ pub struct APClientLeaveMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub client: MacAddress,
-    pub infra_group_infra_device: MacAddress,
+    pub infra_group_infra: MacAddress,
     pub band: String,
 }
 
@@ -185,7 +181,6 @@ pub struct InfraLeaveMessage {
 
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
-    infra_name: String,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -194,7 +189,6 @@ pub fn cgw_construct_infra_group_create_response(
     let group_create = InfraGroupCreateResponse {
         r#type: "infrastructure_group_create_response",
         infra_group_id,
-        infra_name,
         reporter_shard_id,
         uuid,
         success,
@@ -225,7 +219,7 @@ pub fn cgw_construct_infra_group_delete_response(
 
 pub fn cgw_construct_infra_group_infras_add_response(
     infra_group_id: i32,
-    infra_group_infras: Vec<MacAddress>,
+    failed_infras: Vec<MacAddress>,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -235,7 +229,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
     let dev_add = InfraGroupInfrasAddResponse {
         r#type: "infrastructure_group_infras_add_response",
         infra_group_id,
-        infra_group_infras,
+        failed_infras,
         reporter_shard_id,
         uuid,
         success,
@@ -248,7 +242,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
 
 pub fn cgw_construct_infra_group_infras_del_response(
     infra_group_id: i32,
-    infra_group_infras: Vec<MacAddress>,
+    failed_infras: Vec<MacAddress>,
     reporter_shard_id: i32,
     uuid: Uuid,
     success: bool,
@@ -258,7 +252,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
     let dev_del = InfraGroupInfrasDelResponse {
         r#type: "infrastructure_group_infras_del_response",
         infra_group_id,
-        infra_group_infras,
+        failed_infras,
         reporter_shard_id,
         uuid,
         success,
@@ -367,7 +361,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
 pub fn cgw_construct_client_join_msg(
     infra_group_id: i32,
     client: MacAddress,
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     ssid: String,
     band: String,
 ) -> Result<String> {
@@ -375,7 +369,7 @@ pub fn cgw_construct_client_join_msg(
         r#type: "ap_client_join",
         infra_group_id,
         client,
-        infra_group_infra_device,
+        infra_group_infra,
         ssid,
         band,
     };
@@ -386,14 +380,14 @@ pub fn cgw_construct_client_join_msg(
 pub fn cgw_construct_client_leave_msg(
     infra_group_id: i32,
     client: MacAddress,
-    infra_group_infra_device: MacAddress,
+    infra_group_infra: MacAddress,
     band: String,
 ) -> Result<String> {
     let client_join_msg = APClientLeaveMessage {
         r#type: "ap_client_leave",
         infra_group_id,
         client,
-        infra_group_infra_device,
+        infra_group_infra,
         band,
     };
 

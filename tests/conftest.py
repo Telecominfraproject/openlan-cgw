@@ -189,7 +189,7 @@ def kafka_default_infra_group(test_context):
     default_group = test_context.default_kafka_group()
     default_shard_id = test_context.default_shard_id()
 
-    test_context.kafka_producer.handle_single_group_create_to_shard(default_group, default_shard_id, uuid_val)
+    test_context.kafka_producer.handle_single_group_create(default_group, uuid_val, default_shard_id)
     ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val)
     if not ret_msg:
         print('Failed to receive create group result, was expecting ' + str(uuid_val) + ' uuid reply')

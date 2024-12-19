@@ -1,0 +1,194 @@
+---
+# List of events and messages that CGW can raise as a reaction to different
+# events that happen within CGW (for example infra device connection).
+infra_join:
+  description:
+    Event, that CGW generates whenever assigned infra successfully connects to CGW.
+  type:
+    type: string
+    enum:
+    - infra_join
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+  infra_public_ip:
+    description:
+      Peer address of the connected infra, as seen on the socket level
+      of the CGW.
+    type: string
+
+infra_leave:
+  description:
+    Event, that CGW generates whenever assigned infra diconnects from the CGW.
+  type:
+    type: string
+    enum:
+    - infra_leave
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+
+unassigned_infra_connection:
+  description:
+    Event, that CGW generates whenever un-assigned infra successfully connects to CGW.
+  type:
+    type: string
+    enum:
+    - unassigned_infra_connection
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  group_owner_shard_id:
+    description:
+      ID of the shard that is the actual owner of the infra group.
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+
+foreign_infra_connection:
+  description:
+    Event, that CGW generates whenever foreign (assigned, but connected
+    to the wrong CGW instance)  infra successfully connects to CGW.
+  type:
+    type: string
+    enum:
+    - foreign_infra_connection
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+
+infrastructure_group_infra_capabilities_changed:
+  description:
+    Event, that CGW generates whenever CGW detects capabilities change
+    of the connected assigned infra.
+  type:
+    type: string
+    enum:
+    - infrastructure_group_infra_capabilities_changed
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+  changes:
+    description:
+      List of detected delta- changes / diff in capabilities;
+    type: array
+    items:
+      type: object
+      properties:
+        changed:
+          description:
+            String-value representing value that changed
+          type: string
+        old:
+          type: string
+        new:
+          type: string
+
+ap_client_join:
+  description:
+    Event, that CGW generates whenever it detects topology
+    change - a new WiFi client connection.
+  type:
+    type: string
+    enum:
+    - ap_client_join
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that connected the WiFi ssid of the infra.
+    type: string
+  client:
+    description:
+      MAC (serial) of the infra client that joined.
+    type: string
+  ssid:
+    description:
+      SSID that the underlying infra client joined.
+    type: string
+  band:
+    description:
+      Band on which the underlying infra client joined.
+    type: string
+
+ap_client_leave:
+  description:
+    Event, that CGW generates whenever it detects topology
+    change - a WiFi client disconnect.
+  type:
+    type: string
+    enum:
+    - ap_client_leave
+  infra_group_id:
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that disconnected the WiFi ssid of the infra.
+    type: string
+  client:
+    description:
+      MAC (serial) of the infra client that disconnected.
+    type: string
+  band:
+    description:
+      Band on which the underlying infra client disconnected.
+    type: string
+
+ap_client_migrate:
+  description:
+    Event, that CGW generates whenever it detects topology
+    change - existing WiFi client migrating from one infra to another
+    (wifi client connects to AP_1 while was connected to AP_0).
+  type:
+    type: string
+    enum:
+    - ap_client_migrate
+  infra_group_id:
+    type: integer
+  to_infra_group_infra_device:
+    description:
+      MAC (serial) of the destination infra to which the WiFi client is migrating to.
+    type: string
+  client:
+    description:
+      MAC (serial) of the infra client that joined.
+    type: string
+  to_ssid:
+    description:
+      Destination SSID that the underlying infra client is migrating to.
+    type: string
+  to_band:
+    description:
+      Destination band on which the underlying infra is migrating on.
+    type: string

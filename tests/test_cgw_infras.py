@@ -36,7 +36,7 @@ class TestCgwInfra:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -83,12 +83,15 @@ class TestCgwInfra:
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
+            print(ret_msg.value["failed_infras"])
             raise Exception('Infra assign failed!')
 
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -135,7 +138,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Validate infra removed from Redis Infra Cache
         infra_info_redis = test_context.redis_client.get_infra(default_shard_id, infra_mac)
@@ -234,7 +239,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        assert (ret_msg.value["failed_infras"][0] == infra_mac)
+        # We expect a single 'failed_infra' in response
+        assert (len(list(ret_msg.value["failed_infras"])) == 1)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
         # Get shard infro from Redis
@@ -286,7 +293,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
+        assert (ret_msg.value["failed_infras"][0] == infra_mac)
+        # We expect a single 'failed_infra' in response
+        assert (len(list(ret_msg.value["failed_infras"])) == 1)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
         # Get shard infro from Redis
@@ -326,7 +335,7 @@ class TestCgwInfra:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -378,8 +387,10 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"][0] == infra_mac)
-        
+        assert (ret_msg.value["failed_infras"][0] == infra_mac)
+        # We expect a single 'failed_infra' in response
+        assert (len(list(ret_msg.value["failed_infras"])) == 1)
+
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
         if not group_info_redis:
@@ -394,7 +405,7 @@ class TestCgwInfra:
 
         # Validate number of assigned infras
         assert group_info_psql[2] == int(group_info_redis.get('infras_assigned')) == cgw_metrics_get_group_infras_assigned_num(group_id) == 0
- 
+
         # Delete single group
         uuid_val = uuid.uuid4()
 
@@ -457,7 +468,7 @@ class TestCgwInfra:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -514,7 +525,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -562,7 +575,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
         # Get infras from Redis Infra Cache
@@ -655,7 +670,7 @@ class TestCgwInfra:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id, uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -712,7 +727,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -761,7 +778,9 @@ class TestCgwInfra:
         assert (str(ret_msg.value['error_message']) == f"Failed to create few MACs from infras list (partial create), gid {group_id}, uuid {str(uuid_val)}")
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.value["infra_group_infras"] == new_infras_mac)
+        # We expect the 'failed_infra' to match 1:1 the list we've provided,
+        # as they all should fail to be added due to overflow
+        assert (ret_msg.value["failed_infras"] == new_infras_mac)
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -809,7 +828,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get infras from Redis Infra Cache
         for infra_mac in infras_mac_list:
@@ -907,7 +928,7 @@ class TestCgwInfra:
         group_id = 100
 
         # Create single group
-        test_context.kafka_producer.handle_single_group_create_to_shard(str(group_id), default_shard_id,  uuid_val.int)
+        test_context.kafka_producer.handle_single_group_create(str(group_id), uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' + str(uuid_val.int) + ' uuid reply')
@@ -959,7 +980,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_mac_list)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -1007,7 +1030,7 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
+        assert (list(ret_msg.value["failed_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -1056,7 +1079,7 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
+        assert (list(ret_msg.value["failed_infras"]) == ["11-22-33-44-55-01", "11-22-33-44-55-02"])
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -1105,7 +1128,7 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == ["11-22-33-44-55-01"])
+        assert (list(ret_msg.value["failed_infras"]) == ["11-22-33-44-55-01"])
 
         # Get group info from Redis
         group_info_redis = test_context.redis_client.get_infrastructure_group(group_id)
@@ -1154,7 +1177,9 @@ class TestCgwInfra:
         assert (ret_msg.value['type'] == 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (list(ret_msg.value["infra_group_infras"]) == infras_expected_to_be_installed)
+        # We don't expect to have even a single 'failed_infra',
+        # because the overall command succeded
+        assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get infras from Redis Infra Cache
         for infra_mac in infras_mac_list:

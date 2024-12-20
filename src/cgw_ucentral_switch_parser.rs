@@ -1,19 +1,19 @@
 use eui48::MacAddress;
 use serde_json::Value;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::cgw_errors::{Error, Result};
 
 use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventState, CGWUCentralEventStateClients,
-    CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventType,
-    CGWUCentralJRPCMessage,
+    CGWUCentralEvent, CGWUCentralEventLog, CGWUCentralEventReply, CGWUCentralEventState,
+    CGWUCentralEventStateClients, CGWUCentralEventStateClientsData,
+    CGWUCentralEventStateClientsType, CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks,
+    CGWUCentralEventStatePort, CGWUCentralEventType, CGWUCentralJRPCMessage,
 };
 
 fn parse_lldp_data(
     data: &Value,
-    links: &mut Vec<CGWUCentralEventStateLinks>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateLinks>>,
     upstream_port: &Option<String>,
 ) -> Result<()> {
     if let Value::Object(map) = data {
@@ -52,18 +52,22 @@ fn parse_lldp_data(
                     }
                 };
 
-                links.push(CGWUCentralEventStateLinks {
-                    local_port,
+                let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
+                let clients_data = CGWUCentralEventStateLinks {
                     remote_serial,
                     remote_port,
                     is_downstream,
-                });
+                };
+
+                links.insert(local_port, vec![clients_data]);
             }
         }
     }
 
     Ok(())
 }
+
 /*
 Example of "mac-forwarding-table" in json format:
 ...
@@ -74,10 +78,9 @@ Example of "mac-forwarding-table" in json format:
     },
 ...
 */
-
 fn parse_fdb_data(
     data: &Value,
-    links: &mut Vec<CGWUCentralEventStateClients>,
+    links: &mut HashMap<CGWUCentralEventStatePort, Vec<CGWUCentralEventStateClients>>,
     upstream_port: &Option<String>,
 ) -> Result<()> {
     if let Value::Object(map) = data {
@@ -90,29 +93,46 @@ fn parse_fdb_data(
                     }
                 }
 
+                let local_port = CGWUCentralEventStatePort::PhysicalWiredPort(local_port);
+
+                // We iterate on a per-port basis, means this is our first
+                // iteration on this particular port, safe to create empty
+                // vec and populate it later on.
+                links.insert(local_port.clone(), Vec::new());
+
+                let mut existing_vec = links.get_mut(&local_port);
+
                 for (k, v) in port.iter() {
                     let vid = {
                         match u16::from_str(k.as_str()) {
                             Ok(v) => v,
-                            Err(_e) => {
-                                warn!("Failed to convert vid {k} to u16");
+                            Err(e) => {
+                                warn!("Failed to convert vid {k} to u16! Error: {e}");
                                 continue;
                             }
                         }
                     };
+
                     if let Value::Array(macs) = v {
                         for mac in macs.iter() {
                             let remote_serial =
                                 MacAddress::from_str(mac.as_str().ok_or_else(|| {
                                     Error::UCentralParser("Failed to parse mac address")
                                 })?)?;
-                            links.push(CGWUCentralEventStateClients {
+
+                            let clients_data = CGWUCentralEventStateClients {
                                 client_type: CGWUCentralEventStateClientsType::FDBClient(vid),
-                                local_port: local_port.clone(),
                                 remote_serial,
                                 remote_port: format!("<VLAN{}>", vid),
                                 is_downstream: true,
-                            });
+                            };
+
+                            if let Some(ref mut existing_vec) = existing_vec {
+                                existing_vec.push(clients_data);
+                            } else {
+                                warn!("Unexpected: tried to push clients_data [{}:{}], while hashmap entry (key) for it does not exist!",
+                                      local_port, clients_data.remote_port);
+                            }
                         }
                     }
                 }
@@ -124,25 +144,26 @@ fn parse_fdb_data(
 }
 
 pub fn cgw_ucentral_switch_parse_message(
+    feature_topomap_enabled: bool,
     message: &str,
     timestamp: i64,
 ) -> Result<CGWUCentralEvent> {
     let map: CGWUCentralJRPCMessage = match serde_json::from_str(message) {
         Ok(m) => m,
         Err(e) => {
-            error!("Failed to parse input json {e}");
+            error!("Failed to parse input json! Error: {e}");
             return Err(Error::UCentralParser("Failed to parse input json"));
         }
     };
 
     if !map.contains_key("jsonrpc") {
-        warn!("Received malformed JSONRPC msg");
+        warn!("Received malformed JSONRPC msg!");
         return Err(Error::UCentralParser("JSONRPC field is missing in message"));
     }
 
     if map.contains_key("method") {
         let method = map["method"].as_str().ok_or_else(|| {
-            warn!("Received JRPC <method> without params.");
+            warn!("Received JRPC <method> without params!");
             Error::UCentralParser("Received JRPC <method> without params")
         })?;
         if method == "log" {
@@ -162,6 +183,7 @@ pub fn cgw_ucentral_switch_parse_message(
                     log: params["log"].to_string(),
                     severity: serde_json::from_value(params["severity"].clone())?,
                 }),
+                decompressed: None,
             };
 
             return Ok(log_event);
@@ -176,34 +198,42 @@ pub fn cgw_ucentral_switch_parse_message(
                         Error::UCentralParser("Failed to parse serial from params")
                     })?)?;
                 let mut upstream_port: Option<String> = None;
-                let mut lldp_links: Vec<CGWUCentralEventStateLinks> = Vec::new();
+                let mut lldp_links: HashMap<
+                    CGWUCentralEventStatePort,
+                    Vec<CGWUCentralEventStateLinks>,
+                > = HashMap::new();
 
                 // We can reuse <clients> logic as used in AP, it's safe and OK
                 // since under the hood FDB macs are basically
                 // switch's <wired clients>, where underlying client type
                 // (FDBClient) will have all additional met info, like VID
-                let mut clients_links: Vec<CGWUCentralEventStateClients> = Vec::new();
+                let mut clients_links: HashMap<
+                    CGWUCentralEventStatePort,
+                    Vec<CGWUCentralEventStateClients>,
+                > = HashMap::new();
 
-                if state_map.contains_key("default-gateway") {
-                    if let Value::Array(default_gw) = &state_map["default-gateway"] {
-                        if let Some(gw) = default_gw.first() {
-                            if let Value::String(port) = &gw["out-port"] {
-                                upstream_port = Some(port.as_str().to_string());
+                if feature_topomap_enabled {
+                    if state_map.contains_key("default-gateway") {
+                        if let Value::Array(default_gw) = &state_map["default-gateway"] {
+                            if let Some(gw) = default_gw.first() {
+                                if let Value::String(port) = &gw["out-port"] {
+                                    upstream_port = Some(port.as_str().to_string());
+                                }
                             }
                         }
                     }
-                }
 
-                if state_map.contains_key("lldp-peers") {
-                    parse_lldp_data(&state_map["lldp-peers"], &mut lldp_links, &upstream_port)?;
-                }
+                    if state_map.contains_key("lldp-peers") {
+                        parse_lldp_data(&state_map["lldp-peers"], &mut lldp_links, &upstream_port)?;
+                    }
 
-                if state_map.contains_key("mac-forwarding-table") {
-                    parse_fdb_data(
-                        &state_map["mac-forwarding-table"],
-                        &mut clients_links,
-                        &upstream_port,
-                    )?;
+                    if state_map.contains_key("mac-forwarding-table") {
+                        parse_fdb_data(
+                            &state_map["mac-forwarding-table"],
+                            &mut clients_links,
+                            &upstream_port,
+                        )?;
+                    }
                 }
 
                 let state_event = CGWUCentralEvent {
@@ -216,17 +246,32 @@ pub fn cgw_ucentral_switch_parse_message(
                             links: clients_links,
                         },
                     }),
+                    decompressed: None,
                 };
 
                 return Ok(state_event);
             }
         }
     } else if map.contains_key("result") {
-        info!("Processing <result> JSONRPC msg");
-        info!("{:?}", map);
-        return Err(Error::UCentralParser(
-            "Result handling is not yet implemented",
-        ));
+        // For now, let's mimic AP's basic reply / result
+        // format.
+        if let Value::Object(result) = &map["result"] {
+            if !result.contains_key("id") {
+                warn!("Received JRPC <result> without id!");
+                return Err(Error::UCentralParser("Received JRPC <result> without id"));
+            }
+
+            let id = result["id"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+            let reply_event = CGWUCentralEvent {
+                serial: Default::default(),
+                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+                decompressed: None,
+            };
+
+            return Ok(reply_event);
+        }
     }
 
     Err(Error::UCentralParser("Failed to parse event/method"))

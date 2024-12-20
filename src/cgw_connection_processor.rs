@@ -2,6 +2,7 @@ use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
+    cgw_nb_api_listener::cgw_construct_infra_request_result_msg,
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
         MESSAGE_TIMEOUT_DURATION,
@@ -19,6 +20,8 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+use uuid::Uuid;
+
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -63,24 +66,34 @@ enum CGWUCentralMessageProcessorState {
     ResultPending,
 }
 
+impl std::fmt::Display for CGWUCentralMessageProcessorState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CGWUCentralMessageProcessorState::Idle => write!(f, "Idle"),
+            CGWUCentralMessageProcessorState::ResultPending => write!(f, "ResultPending"),
+        }
+    }
+}
+
 pub struct CGWConnectionProcessor {
     cgw_server: Arc<CGWConnectionServer>,
     pub serial: MacAddress,
     pub addr: SocketAddr,
-    pub idx: i64,
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
+    pub device_type: CGWDeviceType,
 }
 
 impl CGWConnectionProcessor {
-    pub fn new(server: Arc<CGWConnectionServer>, conn_idx: i64, addr: SocketAddr) -> Self {
+    pub fn new(server: Arc<CGWConnectionServer>, addr: SocketAddr) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server.clone(),
             serial: MacAddress::default(),
             addr,
-            idx: conn_idx,
             group_id: 0,
             feature_topomap_enabled: server.feature_topomap_enabled,
+            // Default to AP, it's safe, as later-on it will be changed
+            device_type: CGWDeviceType::CGWDeviceAP,
         };
 
         conn_processor
@@ -92,7 +105,24 @@ impl CGWConnectionProcessor {
         client_cn: MacAddress,
         allow_mismatch: bool,
     ) -> Result<()> {
-        let ws_stream = tokio_tungstenite::accept_async(tls_stream).await?;
+        let ws_stream = tokio::select! {
+            _val = tokio_tungstenite::accept_async(tls_stream) => {
+                match _val {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Failed to accept TLS stream from: {}! Reason: {}. Closing connection",
+                               self.addr, e);
+                        return Err(Error::ConnectionProcessor("Failed to accept TLS stream!"));
+                    }
+                }
+            }
+            // TODO: configurable duration (upon server creation)
+            _val = sleep(Duration::from_millis(15000)) => {
+                error!("Failed to accept TLS stream from: {}! Closing connection", self.addr);
+                return Err(Error::ConnectionProcessor("Failed to accept TLS stream for too long"));
+            }
+
+        };
 
         let (sink, mut stream) = ws_stream.split();
 
@@ -105,15 +135,15 @@ impl CGWConnectionProcessor {
                 match _val {
                     Some(m) => m,
                     None => {
-                        error!("no connect message received from {}, closing connection", self.addr);
+                        error!("No connect message received from: {}! Closing connection!", self.addr);
                         return Err(Error::ConnectionProcessor("No connect message received"));
                     }
                 }
             }
             // TODO: configurable duration (upon server creation)
             _val = sleep(Duration::from_millis(30000)) => {
-                error!("no message received from {}, closing connection", self.addr);
-                return Err(Error::ConnectionProcessor("No message receive for too long"));
+                error!("No message received from: {}! Closing connection", self.addr);
+                return Err(Error::ConnectionProcessor("No message received for too long"));
             }
         };
 
@@ -123,7 +153,7 @@ impl CGWConnectionProcessor {
             Ok(m) => m,
             Err(e) => {
                 error!(
-                    "established connection with device, but failed to receive any messages\n{e}"
+                    "Established connection with device, but failed to receive any messages! Error: {e}"
                 );
                 return Err(Error::ConnectionProcessor(
                     "Established connection with device, but failed to receive any messages",
@@ -139,7 +169,7 @@ impl CGWConnectionProcessor {
             }
             Err(_e) => {
                 error!(
-                    "failed to recv connect message from {}, closing connection",
+                    "Failed to receive connect message from: {}! Closing connection!",
                     self.addr
                 );
                 return Err(Error::ConnectionProcessor(
@@ -160,14 +190,17 @@ impl CGWConnectionProcessor {
                 ));
             } else {
                 debug!(
-                    "The client MAC address {} and clinet certificate CN {} chech passed!",
+                    "The client MAC address {} and clinet certificate CN {} chech passed",
                     evt.serial.to_hex_string(),
                     client_cn.to_hex_string()
                 );
             }
         }
 
-        debug!("Done Parse Connect Event {}", evt.serial.to_hex_string());
+        debug!(
+            "Parse Connect Event done! Device serial: {}",
+            evt.serial.to_hex_string()
+        );
 
         let mut caps: CGWDeviceCapabilities = Default::default();
         match evt.evt_type {
@@ -180,47 +213,54 @@ impl CGWConnectionProcessor {
                 caps.label_macaddr = c.capabilities.label_macaddr;
             }
             _ => warn!(
-                "Device {} is not abiding the protocol: first message - CONNECT - expected",
+                "Device {} is not abiding the protocol! First message expected to receive: CONNECT!",
                 evt.serial
             ),
         }
 
         self.serial = evt.serial;
-        let device_type = CGWDeviceType::from_str(caps.platform.as_str())?;
+
+        self.device_type = match CGWDeviceType::from_str(caps.platform.as_str()) {
+            Ok(dev_type) => dev_type,
+            Err(_) => {
+                warn!("Failed to parse device {} type!", self.serial);
+                return Err(Error::ConnectionProcessor("Failed to parse device type"));
+            }
+        };
 
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
         // we can proceed on with this underlying connection.
         // cgw_connection_server has an authorative decision whether
         // we can proceed.
-        debug!("Sending ACK req for {}", self.serial);
+        debug!("Sending ACK request for device serial: {}", self.serial);
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
-        let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial, caps, mbox_tx);
+        let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial, self.addr, caps, mbox_tx);
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;
 
         let ack = mbox_rx.recv().await;
-        debug!("GOT ACK resp for {}", self.serial);
+        debug!("Got ACK response for device serial: {}", self.serial);
         if let Some(m) = ack {
             match m {
                 CGWConnectionProcessorReqMsg::AddNewConnectionAck(gid) => {
                     debug!(
-                        "websocket connection established: {} {} gid {gid}",
+                        "WebSocket connection established! Address: {}, serial: {} gid {gid}",
                         self.addr, evt.serial
                     );
                     self.group_id = gid;
                 }
                 _ => {
                     return Err(Error::ConnectionProcessor(
-                        "Unexpected response from server, expected ACK/NOT ACK)",
+                        "Unexpected response from server! Expected: ACK/NOT ACK",
                     ));
                 }
             }
         } else {
-            info!("connection server declined connection, websocket connection {} {} cannot be established",
+            info!("Connection server declined connection! WebSocket connection for address: {}, serial: {} cannot be established!",
                   self.addr, evt.serial);
-            return Err(Error::ConnectionProcessor("Websocker connection declined"));
+            return Err(Error::ConnectionProcessor("WebSocket connection declined"));
         }
 
         // Remove device from disconnected device list
@@ -247,13 +287,10 @@ impl CGWConnectionProcessor {
                 queue_lock
                     .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
                     .await;
-            } else {
-                queue_lock.create_device_messages_queue(&evt.serial).await;
             }
         }
 
-        self.process_connection(stream, sink, mbox_rx, device_type)
-            .await;
+        self.process_connection(stream, sink, mbox_rx).await;
 
         Ok(())
     }
@@ -261,13 +298,14 @@ impl CGWConnectionProcessor {
     async fn process_wss_rx_msg(
         &self,
         msg: std::result::Result<Message, tungstenite::error::Error>,
-        device_type: CGWDeviceType,
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
+        pending_req_uuid: Uuid,
     ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
         let timestamp = Local::now();
+        let mut kafaka_msg: String = String::new();
 
         match msg {
             Ok(msg) => match msg {
@@ -275,19 +313,37 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
-                    if let Ok(evt) =
-                        cgw_ucentral_event_parse(&device_type, &payload, timestamp.timestamp())
-                    {
+                    if let Ok(evt) = cgw_ucentral_event_parse(
+                        &self.device_type,
+                        self.feature_topomap_enabled,
+                        &payload,
+                        timestamp.timestamp(),
+                    ) {
+                        kafaka_msg.clone_from(&payload);
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
+                            if let Some(decompressed) = evt.decompressed.clone() {
+                                kafaka_msg = decompressed;
+                            }
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map.process_state_message(&device_type, evt).await;
-                                topo_map.debug_dump_map().await;
+
+                                // TODO: remove this Arc clone:
+                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Future rework and refactoring would require to separate
+                                // NB api from being an internal obj of conn_server to be a
+                                // standalone (singleton?) object.
+                                topo_map.enqueue_event(
+                                    evt,
+                                    self.device_type,
+                                    self.serial,
+                                    self.group_id,
+                                    self.cgw_server.clone(),
+                                );
                             }
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
                             if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
                                 error!(
-                                    "Unexpected FSM {:?} state! Expected: ResultPending",
+                                    "Unexpected FSM state: {}! Expected: ResultPending",
                                     *fsm_state
                                 );
                             }
@@ -300,20 +356,40 @@ impl CGWConnectionProcessor {
                             }
 
                             *fsm_state = CGWUCentralMessageProcessorState::Idle;
-                            debug!("Got reply event for pending request id: {}", pending_req_id);
+                            debug!("Got reply event for pending request id: {pending_req_id}");
+                            if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                                self.cgw_server.get_local_id(),
+                                pending_req_uuid,
+                                pending_req_id,
+                                true,
+                                None,
+                            ) {
+                                self.cgw_server
+                                    .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                            } else {
+                                error!("Failed to construct rebalance_group message!");
+                            }
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
                             if self.feature_topomap_enabled {
                                 let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map
-                                    .process_device_topology_event(&device_type, evt)
-                                    .await;
-                                topo_map.debug_dump_map().await;
+                                // TODO: remove this Arc clone:
+                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Future rework and refactoring would require to separate
+                                // NB api from being an internal obj of conn_server to be a
+                                // standalone (singleton?) object.
+                                topo_map.enqueue_event(
+                                    evt,
+                                    self.device_type,
+                                    self.serial,
+                                    self.group_id,
+                                    self.cgw_server.clone(),
+                                );
                             }
                         }
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, payload)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafaka_msg)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -342,11 +418,11 @@ impl CGWConnectionProcessor {
             let processor_mac = self.serial;
             match msg {
                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose => {
-                    debug!("MBOX_IN: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
+                    debug!("process_sink_mbox_rx_msg: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
                     return Ok(CGWConnectionState::IsForcedToClose);
                 }
                 CGWConnectionProcessorReqMsg::SinkRequestToDevice(pload) => {
-                    debug!("MBOX_IN: SinkRequestToDevice, processor (mac:{processor_mac}) req for (mac:{}) payload:{}",
+                    debug!("process_sink_mbox_rx_msg: SinkRequestToDevice, processor (mac: {processor_mac}) request for (mac: {}) payload: {}",
                         pload.command.serial,
                         pload.message.clone(),
                     );
@@ -354,15 +430,15 @@ impl CGWConnectionProcessor {
                 }
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_group_id) => {
                     debug!(
-                        "Mac {} received gid {} -> {} change request",
+                        "Received GroupID change message: mac {} - old gid {} : new gid {}",
                         self.serial, self.group_id, new_group_id
                     );
                     self.group_id = new_group_id;
                 }
                 _ => {
-                    warn!("Received unknown mbox message {:?}", msg);
+                    warn!("Received unknown mbox message: {:?}!", msg);
                     return Err(Error::ConnectionProcessor(
-                        "Sink MBOX: received unexpected message",
+                        "Connection processor (Sink MBOX): received unexpected message",
                     ));
                 }
             }
@@ -394,7 +470,6 @@ impl CGWConnectionProcessor {
         mut stream: SStream,
         mut sink: SSink,
         mut mbox_rx: UnboundedReceiver<CGWConnectionProcessorReqMsg>,
-        device_type: CGWDeviceType,
     ) {
         #[derive(Debug)]
         enum WakeupReason {
@@ -406,6 +481,7 @@ impl CGWConnectionProcessor {
         }
 
         let device_mac = self.serial;
+        let mut pending_req_uuid = Uuid::default();
         let mut pending_req_id: u64 = 0;
         let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
@@ -438,19 +514,23 @@ impl CGWConnectionProcessor {
                     if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
                         // Get message from queue, start measure requet processing time
                         start_time = Instant::now();
+
                         pending_req_id = queue_msg.command.id;
                         pending_req_type = queue_msg.command.cmd_type.clone();
+                        pending_req_uuid = queue_msg.uuid;
+
+                        let timeout = match queue_msg.timeout {
+                            Some(secs) => Duration::from_secs(secs),
+                            None => MESSAGE_TIMEOUT_DURATION,
+                        };
+
                         wakeup_reason = WakeupReason::MboxRx(Some(
                             CGWConnectionProcessorReqMsg::SinkRequestToDevice(queue_msg),
                         ));
 
                         // Set new pending request timeout value
                         queue_lock
-                            .set_device_last_req_info(
-                                &device_mac,
-                                pending_req_id,
-                                MESSAGE_TIMEOUT_DURATION,
-                            )
+                            .set_device_last_req_info(&device_mac, pending_req_id, timeout)
                             .await;
 
                         debug!("Got pending request with id: {}", pending_req_id);
@@ -515,7 +595,7 @@ impl CGWConnectionProcessor {
             }
 
             // Doesn't matter if connection was closed or terminated
-            // Do message queue timeout tick and cleanup queue dut to timeout\
+            // Do message queue timeout tick and cleanup queue due to timeout
             // Or decrease timer value - on connection termination - background task
             // is responsible to cleanup queue
             if fsm_state == CGWUCentralMessageProcessorState::ResultPending {
@@ -527,7 +607,25 @@ impl CGWConnectionProcessor {
                     .await
                 {
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    queue_lock.clear_device_message_queue(&device_mac).await;
+                    let flushed_reqs = queue_lock.clear_device_message_queue(&device_mac).await;
+
+                    for req in flushed_reqs {
+                        if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                            self.cgw_server.get_local_id(),
+                            req.uuid,
+                            req.command.id,
+                            false,
+                            Some(format!(
+                                "Reques flushed from infra queue {device_mac} due to previous request timeout!"
+                            )),
+                        ) {
+                            // Currently Device Queue Manager does not store infars GID
+                            self.cgw_server
+                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                        } else {
+                            error!("Failed to construct  message!");
+                        }
+                    }
 
                     // reset request duration, request id and queue state
                     pending_req_id = 0;
@@ -538,6 +636,18 @@ impl CGWConnectionProcessor {
                         .set_device_last_req_info(&device_mac, 0, Duration::ZERO)
                         .await;
                     fsm_state = CGWUCentralMessageProcessorState::Idle;
+                    if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                        self.cgw_server.get_local_id(),
+                        pending_req_uuid,
+                        pending_req_id,
+                        false,
+                        Some(format!("Request timed out")),
+                    ) {
+                        self.cgw_server
+                            .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                    } else {
+                        error!("Failed to construct rebalance_group message!");
+                    }
                 }
             }
 
@@ -545,7 +655,7 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, device_type, &mut fsm_state, pending_req_id)
+                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id, pending_req_uuid)
                         .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {
@@ -572,26 +682,26 @@ impl CGWConnectionProcessor {
                         return;
                     } else if let CGWConnectionState::ClosedGracefully = state {
                         warn!(
-                            "Remote client {} closed connection gracefully",
+                            "Remote client {} closed connection gracefully!",
                             self.serial.to_hex_string()
                         );
                         return self.send_connection_close_event().await;
                     } else if let CGWConnectionState::IsStale = state {
                         warn!(
-                            "Remote client {} closed due to inactivity",
+                            "Remote client {} closed due to inactivity!",
                             self.serial.to_hex_string()
                         );
                         return self.send_connection_close_event().await;
                     } else if let CGWConnectionState::IsDead = state {
                         warn!(
-                            "Remote client {} connection is dead",
+                            "Remote client {} connection is dead!",
                             self.serial.to_hex_string()
                         );
                         return self.send_connection_close_event().await;
                     }
                 }
                 Err(e) => {
-                    warn!("{:?}", e);
+                    warn!("Connection processor closed! Error: {e}");
                     return self.send_connection_close_event().await;
                 }
             }
@@ -604,7 +714,7 @@ impl CGWConnectionProcessor {
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;
         debug!(
-            "MBOX_OUT: ConnectionClosed, processor (mac:{})",
+            "MBOX_OUT: ConnectionClosed, processor (mac: {})",
             self.serial.to_hex_string()
         );
     }

@@ -1,4 +1,5 @@
 #![warn(rust_2018_idioms)]
+mod cgw_app_args;
 mod cgw_connection_processor;
 mod cgw_connection_server;
 mod cgw_db_accessor;
@@ -10,6 +11,7 @@ mod cgw_nb_api_listener;
 mod cgw_remote_client;
 mod cgw_remote_discovery;
 mod cgw_remote_server;
+mod cgw_runtime;
 mod cgw_tls;
 mod cgw_ucentral_ap_parser;
 mod cgw_ucentral_messages_queue_manager;
@@ -23,6 +25,10 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
+use cgw_app_args::AppArgs;
+use cgw_runtime::cgw_initialize_runtimes;
+
+use nix::sys::socket::{setsockopt, sockopt};
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Handle, Runtime},
@@ -31,12 +37,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use std::{
-    env,
-    net::{Ipv4Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 
 use rlimit::{setrlimit, Resource};
 
@@ -49,6 +50,14 @@ use cgw_metrics::CGWMetrics;
 use cgw_tls::cgw_tls_create_acceptor;
 
 use crate::cgw_errors::{Error, Result};
+
+use tokio::net::TcpStream;
+
+use std::os::unix::io::AsFd;
+
+const CGW_TCP_KEEPALIVE_TIMEOUT: u32 = 30;
+const CGW_TCP_KEEPALIVE_COUNT: u32 = 3;
+const CGW_TCP_KEEPALIVE_INTERVAL: u32 = 10;
 
 #[derive(Copy, Clone)]
 enum AppCoreLogLevel {
@@ -67,369 +76,6 @@ impl FromStr for AppCoreLogLevel {
             "info" => Ok(AppCoreLogLevel::Info),
             _ => Err(()),
         }
-    }
-}
-
-const CGW_DEFAULT_ID: i32 = 0;
-const CGW_DEFAULT_WSS_T_NUM: usize = 4;
-const CGW_DEFAULT_LOG_LEVEL: AppCoreLogLevel = AppCoreLogLevel::Debug;
-const CGW_DEFAULT_WSS_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
-const CGW_DEFAULT_WSS_PORT: u16 = 15002;
-const CGW_DEFAULT_WSS_CAS: &str = "cas.pem";
-const CGW_DEFAULT_WSS_CERT: &str = "cert.pem";
-const CGW_DEFAULT_WSS_KEY: &str = "key.pem";
-const CGW_DEFAULT_GRPC_LISTENING_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
-const CGW_DEFAULT_GRPC_LISTENING_PORT: u16 = 50051;
-const CGW_DEFAULT_GRPC_PUBLIC_HOST: &str = "localhost";
-const CGW_DEFAULT_GRPC_PUBLIC_PORT: u16 = 50051;
-const CGW_DEFAULT_KAFKA_HOST: &str = "localhost";
-const CGW_DEFAULT_KAFKA_PORT: u16 = 9092;
-const CGW_DEFAULT_KAFKA_CONSUME_TOPIC: &str = "CnC";
-const CGW_DEFAULT_KAFKA_PRODUCE_TOPIC: &str = "CnC_Res";
-const CGW_DEFAULT_DB_HOST: &str = "localhost";
-const CGW_DEFAULT_DB_PORT: u16 = 6379;
-const CGW_DEFAULT_DB_NAME: &str = "cgw";
-const CGW_DEFAULT_DB_USERNAME: &str = "cgw";
-const CGW_DEFAULT_DB_PASSWORD: &str = "123";
-const CGW_DEFAULT_REDIS_HOST: &str = "localhost";
-const CGW_DEFAULT_REDIS_PORT: u16 = 6379;
-const CGW_DEFAULT_ALLOW_CERT_MISMATCH: &str = "no";
-const CGW_DEFAULT_METRICS_PORT: u16 = 8080;
-const CGW_DEFAULT_TOPOMAP_STATE: bool = false;
-
-/// CGW server
-pub struct AppArgs {
-    /// Loglevel of application
-    log_level: AppCoreLogLevel,
-
-    /// CGW unique identifier (u64)
-    cgw_id: i32,
-
-    /// Number of thread in a threadpool dedicated for handling secure websocket connections
-    wss_t_num: usize,
-    /// IP to listen for incoming WSS connection
-    wss_ip: Ipv4Addr,
-    /// PORT to listen for incoming WSS connection
-    wss_port: u16,
-    /// WSS CAS certificate (contains root and issuer certificates)
-    wss_cas: String,
-    /// WSS certificate
-    wss_cert: String,
-    /// WSS private key
-    wss_key: String,
-
-    /// IP to listen for incoming GRPC connection
-    grpc_listening_ip: Ipv4Addr,
-    /// PORT to listen for incoming GRPC connection
-    grpc_listening_port: u16,
-    /// IP or hostname for Redis Record
-    grpc_public_host: String,
-    /// PORT for Redis record
-    grpc_public_port: u16,
-
-    /// IP or hostname to connect to KAFKA broker
-    kafka_host: String,
-    /// PORT to connect to KAFKA broker
-    kafka_port: u16,
-    /// KAFKA topic from where to consume messages
-    #[allow(unused)]
-    kafka_consume_topic: String,
-    /// KAFKA topic where to produce messages
-    #[allow(unused)]
-    kafka_produce_topic: String,
-
-    /// IP or hostname to connect to DB (PSQL)
-    db_host: String,
-    /// PORT to connect to DB (PSQL)
-    db_port: u16,
-    /// DB name to connect to in DB (PSQL)
-    db_name: String,
-    /// DB user name use with connection to in DB (PSQL)
-    db_username: String,
-    /// DB user password use with connection to in DB (PSQL)
-    db_password: String,
-
-    /// IP or hostname to connect to REDIS
-    redis_host: String,
-    /// PORT to connect to REDIS
-    redis_port: u16,
-
-    /// Allow Missmatch
-    allow_mismatch: bool,
-
-    /// PORT to connect to Metrics
-    metrics_port: u16,
-
-    /// Topomap featue status (enabled/disabled)
-    feature_topomap_enabled: bool,
-}
-
-impl AppArgs {
-    fn parse() -> Result<Self> {
-        let log_level: AppCoreLogLevel = match env::var("CGW_LOG_LEVEL") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_LOG_LEVEL! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_LOG_LEVEL,
-        };
-
-        let cgw_id: i32 = match env::var("CGW_ID") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_ID! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_ID,
-        };
-
-        let wss_t_num: usize = match env::var("DEFAULT_WSS_THREAD_NUM") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse DEFAULT_WSS_THREAD_NUM! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_WSS_T_NUM,
-        };
-
-        let wss_ip: Ipv4Addr = match env::var("CGW_WSS_IP") {
-            Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_WSS_IP! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_WSS_IP,
-        };
-
-        let wss_port: u16 = match env::var("CGW_WSS_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_WSS_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_WSS_PORT,
-        };
-
-        let wss_cas: String = env::var("CGW_WSS_CAS").unwrap_or(CGW_DEFAULT_WSS_CAS.to_string());
-        let wss_cert: String = env::var("CGW_WSS_CERT").unwrap_or(CGW_DEFAULT_WSS_CERT.to_string());
-        let wss_key: String = env::var("CGW_WSS_KEY").unwrap_or(CGW_DEFAULT_WSS_KEY.to_string());
-
-        let grpc_listening_ip: Ipv4Addr = match env::var("CGW_GRPC_LISTENING_IP") {
-            Ok(val) => match Ipv4Addr::from_str(val.as_str()) {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_LISTENING_IP! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_GRPC_LISTENING_IP,
-        };
-
-        let grpc_listening_port: u16 = match env::var("CGW_GRPC_LISTENING_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_LISTENING_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_GRPC_LISTENING_PORT,
-        };
-
-        let grpc_public_host: String = match env::var("CGW_GRPC_PUBLIC_HOST") {
-            Ok(val) => {
-                // 1. Try to parse variable into IpAddress
-                match Ipv4Addr::from_str(val.as_str()) {
-                    // 2. If parsed - return IpAddress as String value
-                    Ok(ip) => ip.to_string(),
-                    // 3. If parse failed - probably hostname specified
-                    Err(_e) => val,
-                }
-            }
-            // Env. variable is not setup - use default value
-            Err(_) => CGW_DEFAULT_GRPC_PUBLIC_HOST.to_string(),
-        };
-
-        let grpc_public_port: u16 = match env::var("CGW_GRPC_PUBLIC_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_GRPC_PUBLIC_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_GRPC_PUBLIC_PORT,
-        };
-
-        let kafka_host: String = match env::var("CGW_KAFKA_HOST") {
-            Ok(val) => {
-                // 1. Try to parse variable into IpAddress
-                match Ipv4Addr::from_str(val.as_str()) {
-                    // 2. If parsed - return IpAddress as String value
-                    Ok(ip) => ip.to_string(),
-                    // 3. If parse failed - probably hostname specified
-                    Err(_e) => val,
-                }
-            }
-            // Env. variable is not setup - use default value
-            Err(_) => CGW_DEFAULT_KAFKA_HOST.to_string(),
-        };
-
-        let kafka_port: u16 = match env::var("CGW_KAFKA_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_KAFKA_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_KAFKA_PORT,
-        };
-
-        let kafka_consume_topic: String = env::var("CGW_KAFKA_CONSUMER_TOPIC")
-            .unwrap_or(CGW_DEFAULT_KAFKA_CONSUME_TOPIC.to_string());
-        let kafka_produce_topic: String = env::var("CGW_KAFKA_PRODUCER_TOPIC")
-            .unwrap_or(CGW_DEFAULT_KAFKA_PRODUCE_TOPIC.to_string());
-
-        let db_host: String = match env::var("CGW_DB_HOST") {
-            Ok(val) => {
-                // 1. Try to parse variable into IpAddress
-                match Ipv4Addr::from_str(val.as_str()) {
-                    // 2. If parsed - return IpAddress as String value
-                    Ok(ip) => ip.to_string(),
-                    // 3. If parse failed - probably hostname specified
-                    Err(_e) => val,
-                }
-            }
-            // Env. variable is not setup - use default value
-            Err(_) => CGW_DEFAULT_DB_HOST.to_string(),
-        };
-
-        let db_port: u16 = match env::var("CGW_DB_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_DB_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_DB_PORT,
-        };
-
-        let db_name: String = env::var("CGW_DB_NAME").unwrap_or(CGW_DEFAULT_DB_NAME.to_string());
-        let db_username: String =
-            env::var("CGW_DB_USERNAME").unwrap_or(CGW_DEFAULT_DB_USERNAME.to_string());
-        let db_password: String =
-            env::var("CGW_DB_PASSWORD").unwrap_or(CGW_DEFAULT_DB_PASSWORD.to_string());
-
-        let redis_host: String = match env::var("CGW_REDIS_HOST") {
-            Ok(val) => {
-                // 1. Try to parse variable into IpAddress
-                match Ipv4Addr::from_str(val.as_str()) {
-                    // 2. If parsed - return IpAddress as String value
-                    Ok(ip) => ip.to_string(),
-                    // 3. If parse failed - probably hostname specified
-                    Err(_e) => val,
-                }
-            }
-            // Env. variable is not setup - use default value
-            Err(_) => CGW_DEFAULT_REDIS_HOST.to_string(),
-        };
-
-        let redis_port: u16 = match env::var("CGW_REDIS_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_REDIS_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_REDIS_PORT,
-        };
-
-        let mismatch: String = env::var("CGW_ALLOW_CERT_MISMATCH")
-            .unwrap_or(CGW_DEFAULT_ALLOW_CERT_MISMATCH.to_string());
-        let allow_mismatch = mismatch == "yes";
-
-        let metrics_port: u16 = match env::var("CGW_METRICS_PORT") {
-            Ok(val) => match val.parse() {
-                Ok(v) => v,
-                Err(_e) => {
-                    return Err(Error::AppArgsParser(format!(
-                        "Failed to parse CGW_METRICS_PORT! Invalid value: {}",
-                        val
-                    )));
-                }
-            },
-            Err(_) => CGW_DEFAULT_METRICS_PORT,
-        };
-
-        let feature_topomap_enabled: bool = match env::var("CGW_FEATURE_TOPOMAP_ENABLE") {
-            Ok(_) => true,
-            Err(_) => CGW_DEFAULT_TOPOMAP_STATE,
-        };
-
-        Ok(AppArgs {
-            log_level,
-            cgw_id,
-            wss_t_num,
-            wss_ip,
-            wss_port,
-            wss_cas,
-            wss_cert,
-            wss_key,
-            grpc_listening_ip,
-            grpc_listening_port,
-            grpc_public_host,
-            grpc_public_port,
-            kafka_host,
-            kafka_port,
-            kafka_consume_topic,
-            kafka_produce_topic,
-            db_host,
-            db_port,
-            db_name,
-            db_username,
-            db_password,
-            redis_host,
-            redis_port,
-            allow_mismatch,
-            metrics_port,
-            feature_topomap_enabled,
-        })
     }
 }
 
@@ -467,7 +113,7 @@ impl AppCore {
         let cgw_server = match CGWConnectionServer::new(&app_args).await {
             Ok(s) => s,
             Err(e) => {
-                error!("Failed to create CGW server: {:?}", e);
+                error!("Failed to create CGW server! Error: {e}");
                 return Err(e);
             }
         };
@@ -496,7 +142,7 @@ impl AppCore {
         let main_runtime_handle: Arc<Handle> = self.main_runtime_handle.clone();
         let core_clone = self.clone();
 
-        let cgw_remote_server = CGWRemoteServer::new(&self.args);
+        let cgw_remote_server = CGWRemoteServer::new(self.args.cgw_id, &self.args.grpc_args);
         let cgw_srv_clone = self.cgw_server.clone();
         let cgw_con_serv = self.cgw_server.clone();
         self.grpc_server_runtime_handle.spawn(async move {
@@ -522,36 +168,91 @@ impl AppCore {
     }
 }
 
+async fn cgw_set_tcp_keepalive_options(stream: TcpStream) -> Result<TcpStream> {
+    // Convert Tokio's TcpStream to std::net::TcpStream
+    let std_stream = match stream.into_std() {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Tokio TcpStream into Std TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Tokio TcpStream into Std TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    // Get the raw file descriptor (socket)
+    let raw_fd = std_stream.as_fd();
+
+    // Set the socket option to enable TCP keepalive
+    if let Err(e) = setsockopt(&raw_fd, sockopt::KeepAlive, &true) {
+        error!("Failed to enable TCP keepalive: {}", e);
+        return Err(Error::Tcp("Failed to enable TCP keepalive".to_string()));
+    }
+
+    // Set the TCP_KEEPIDLE option (keepalive time)
+    if let Err(e) = setsockopt(&raw_fd, sockopt::TcpKeepIdle, &CGW_TCP_KEEPALIVE_TIMEOUT) {
+        error!("Failed to set TCP_KEEPIDLE: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPIDLE".to_string()));
+    }
+
+    // Set the TCP_KEEPINTVL option (keepalive interval)
+    if let Err(e) = setsockopt(&raw_fd, sockopt::TcpKeepCount, &CGW_TCP_KEEPALIVE_COUNT) {
+        error!("Failed to set TCP_KEEPINTVL: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPINTVL".to_string()));
+    }
+
+    // Set the TCP_KEEPCNT option (keepalive probes count)
+    if let Err(e) = setsockopt(
+        &raw_fd,
+        sockopt::TcpKeepInterval,
+        &CGW_TCP_KEEPALIVE_INTERVAL,
+    ) {
+        error!("Failed to set TCP_KEEPCNT: {}", e);
+        return Err(Error::Tcp("Failed to set TCP_KEEPCNT".to_string()));
+    }
+
+    // Convert the std::net::TcpStream back to Tokio's TcpStream
+    let stream = match TcpStream::from_std(std_stream) {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to convert Std TcpStream into Tokio TcpStream");
+            return Err(Error::Tcp(format!(
+                "Failed to convert Std TcpStream into Tokio TcpStream: {}",
+                e
+            )));
+        }
+    };
+
+    Ok(stream)
+}
+
 async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     debug!("server_loop entry");
 
     debug!(
         "Starting WSS server, listening at {}:{}",
-        app_core.args.wss_ip, app_core.args.wss_port
+        app_core.args.wss_args.wss_ip, app_core.args.wss_args.wss_port
     );
     // Bind the server's socket
     let sockaddress = SocketAddr::new(
-        std::net::IpAddr::V4(app_core.args.wss_ip),
-        app_core.args.wss_port,
+        std::net::IpAddr::V4(app_core.args.wss_args.wss_ip),
+        app_core.args.wss_args.wss_port,
     );
     let listener: Arc<TcpListener> = match TcpListener::bind(sockaddress).await {
         Ok(listener) => Arc::new(listener),
         Err(e) => {
-            error!(
-                "Failed to bind socket address: {}. Error: {}",
-                sockaddress, e
-            );
+            error!("Failed to bind socket address {sockaddress}! Error: {e}");
             return Err(Error::ConnectionServer(format!(
-                "Failed to bind socket address: {}. Error: {}",
-                sockaddress, e
+                "Failed to bind socket address {sockaddress}! Error: {e}"
             )));
         }
     };
 
-    let tls_acceptor = match cgw_tls_create_acceptor(&app_core.args).await {
+    let tls_acceptor = match cgw_tls_create_acceptor(&app_core.args.wss_args).await {
         Ok(acceptor) => acceptor,
         Err(e) => {
-            error!("Failed to create TLS acceptor. Error: {}", e.to_string());
+            error!("Failed to create TLS acceptor! Error: {e}");
             return Err(e);
         }
     };
@@ -559,7 +260,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
     // Spawn explicitly in main thread: created task accepts connection,
     // but handling is spawned inside another threadpool runtime
     let app_core_clone = app_core.clone();
-    let _ = app_core
+    let result = app_core
         .main_runtime_handle
         .spawn(async move {
             let mut conn_idx: i64 = 0;
@@ -572,16 +273,27 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                 let (socket, remote_addr) = match listener.accept().await {
                     Ok((sock, addr)) => (sock, addr),
                     Err(e) => {
-                        error!("Failed to Accept conn {e}\n");
+                        error!("Failed to accept connection! Error: {e}");
                         continue;
                     }
                 };
 
-                info!("ACK conn: {}", conn_idx);
+                let socket = match cgw_set_tcp_keepalive_options(socket).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!(
+                            "Failed to set TCP keepalive options. Error: {}",
+                            e.to_string()
+                        );
+                        break;
+                    }
+                };
+
+                info!("Accept (ACK) connection: {conn_idx}, remote address: {remote_addr}");
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     cgw_server_clone
-                        .ack_connection(socket, tls_acceptor_clone, remote_addr, conn_idx)
+                        .ack_connection(socket, tls_acceptor_clone, remote_addr)
                         .await;
                 });
 
@@ -589,6 +301,13 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
             }
         })
         .await;
+
+    match result {
+        Ok(_) => info!("Apllication finished succesfully!"),
+        Err(e) => {
+            error!("Application failed! Error: {e}");
+        }
+    }
 
     Ok(())
 }
@@ -629,13 +348,19 @@ async fn main() -> Result<()> {
         Ok(app_args) => app_args,
         Err(e) => {
             setup_logger(AppCoreLogLevel::Info);
-            error!("Failed to parse app args: {}", e.to_string());
+            error!("Failed to parse application args! Error: {e}");
             return Err(e);
         }
     };
 
     // Configure logger
     setup_logger(args.log_level);
+
+    // Initialize runtimes
+    if let Err(e) = cgw_initialize_runtimes(args.wss_args.wss_t_num) {
+        error!("Failed to initialize CGW runtimes! Error: {e}");
+        return Err(e);
+    }
 
     if args.feature_topomap_enabled {
         warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPO MAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");
@@ -653,13 +378,15 @@ async fn main() -> Result<()> {
     // Spawn a task to listen for SIGHUP, SIGINT, and SIGTERM signals
     tokio::spawn(async move {
         if let Err(e) = signal_handler(shutdown_notify_clone).await {
-            error!("Failed to handle signal: {:?}", e);
+            error!("Failed to handle signal (SIGHUP, SIGINT, or SIGTERM)! Error: {e}");
         }
     });
 
     // Make sure metrics are available <before> any of the components
     // starts up;
-    CGWMetrics::get_ref().start(args.metrics_port).await?;
+    CGWMetrics::get_ref()
+        .start(args.metrics_args.metrics_port)
+        .await?;
     let app = Arc::new(AppCore::new(args).await?);
 
     app.run(shutdown_notify).await;

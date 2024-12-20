@@ -1,4 +1,5 @@
 use derive_more::From;
+use eui48::MacAddressFormat;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -15,13 +16,21 @@ pub enum Error {
 
     RemoteDiscoveryFailedInfras(Vec<eui48::MacAddress>),
 
+    Tcp(String),
+
     Tls(String),
+
+    Redis(String),
 
     UCentralParser(&'static str),
 
-    UCentralMessagesQueue(&'static str),
+    UCentralValidator(String),
+
+    UCentralMessagesQueue(String),
 
     AppArgsParser(String),
+
+    Runtime(String),
 
     // -- Externals
     #[from]
@@ -64,9 +73,6 @@ pub enum Error {
     InvalidUri(warp::http::uri::InvalidUri),
 
     #[from]
-    RedisAsync(redis_async::error::Error),
-
-    #[from]
     StaticStr(&'static str),
 
     #[from]
@@ -74,17 +80,48 @@ pub enum Error {
 
     #[from]
     Tungstenite(tungstenite::Error),
-
-    #[from]
-    Empty(()),
 }
 
-impl ToString for Error {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::AppArgsParser(message) => message.clone(),
-            Error::Tls(message) => message.clone(),
-            _ => format!("{:?}", self),
+            Error::AppArgsParser(message)
+            | Error::Tls(message)
+            | Error::ConnectionServer(message)
+            | Error::Runtime(message)
+            | Error::Redis(message)
+            | Error::Tcp(message)
+            | Error::UCentralMessagesQueue(message)
+            | Error::UCentralValidator(message) => write!(f, "{}", message),
+            Error::ConnectionProcessor(message)
+            | Error::DbAccessor(message)
+            | Error::RemoteDiscovery(message)
+            | Error::UCentralParser(message)
+            | Error::StaticStr(message) => write!(f, "{}", message),
+            Error::Io(io_error) => write!(f, "{}", io_error),
+            Error::ClientVerifierBuilder(verifier_error) => write!(f, "{}", verifier_error),
+            Error::TokioPostgres(psql_error) => write!(f, "{}", psql_error),
+            Error::TokioRustls(rustls_error) => write!(f, "{}", rustls_error),
+            Error::TokioSync(sync_error) => write!(f, "{}", sync_error),
+            Error::IpAddressParse(ip_parse_error) => write!(f, "{}", ip_parse_error),
+            Error::MacAddressParse(mac_parse_error) => write!(f, "{}", mac_parse_error),
+            Error::ParseInt(int_error) => write!(f, "{}", int_error),
+            Error::TryFromInt(try_from_int_error) => write!(f, "{}", try_from_int_error),
+            Error::Prometheus(prometheus_error) => write!(f, "{}", prometheus_error),
+            Error::SerdeJson(serde_error) => write!(f, "{}", serde_error),
+            Error::Kafka(kafka_error) => write!(f, "{}", kafka_error),
+            Error::InvalidUri(uri_error) => write!(f, "{}", uri_error),
+            Error::Tonic(tonic_error) => write!(f, "{}", tonic_error),
+            Error::Tungstenite(tungstenite_error) => write!(f, "{}", tungstenite_error),
+            Error::RemoteDiscoveryFailedInfras(vec) => {
+                let result = vec
+                    .iter()
+                    .map(|obj| obj.to_string(MacAddressFormat::HexString))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                write!(f, "{}", result)
+            }
         }
     }
 }

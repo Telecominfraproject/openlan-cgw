@@ -30,8 +30,8 @@ def time(input: str) -> float:
 def parse_args():
     parser = argparse.ArgumentParser(description="Creates entries in kafka.")
 
-    parser.add_argument("-g", "--new-group", metavar=("GROUP-ID", "SHARD-ID", "NAME"),
-                        nargs=3, action="append",
+    parser.add_argument("-g", "--new-group", metavar=("GROUP-ID"),
+                        nargs=1, action="append",
                         help="create a new group")
     parser.add_argument("-G", "--rm-group", metavar=("GROUP-ID"),
                         nargs=1, action="append",
@@ -92,11 +92,11 @@ def parse_args():
         send_to_macs=parsed_args.send_to_mac,
     )
     if parsed_args.new_group is not None:
-        for group, shard, name in parsed_args.new_group:
+        for (group,) in parsed_args.new_group:
             try:
-                args.add_groups.append((group, int(shard), name))
+                args.add_groups.append(group)
             except ValueError:
-                parser.error(f"--new-group: failed to parse shard id \"{shard}\"")
+                parser.error(f"--new-group: failed to parse {group}")
     if parsed_args.rm_group is not None:
         for (group,) in parsed_args.rm_group:
             args.del_groups.append(group)

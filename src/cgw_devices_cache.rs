@@ -32,10 +32,7 @@ impl CGWDevicesCache {
 
     pub fn add_device(&mut self, key: &MacAddress, value: &CGWDevice) -> bool {
         let status: bool = if self.check_device_exists(key) {
-            debug!(
-                "Failed to add device {}. Requested item already exist.",
-                key
-            );
+            debug!("Failed to add device {}. Requested item already exist", key);
             false
         } else {
             self.cache.insert(*key, value.clone());
@@ -51,7 +48,7 @@ impl CGWDevicesCache {
             true
         } else {
             debug!(
-                "Failed to del device {}. Requested item does not exist.",
+                "Failed to del device {}. Requested item does not exist",
                 key
             );
             false
@@ -61,11 +58,19 @@ impl CGWDevicesCache {
     }
 
     pub fn check_device_exists(&self, key: &MacAddress) -> bool {
-        self.cache.get(key).is_some()
+        self.cache.contains_key(key)
     }
 
-    pub fn get_device(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
+    pub fn get_device_mut(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
         if let Some(value) = self.cache.get_mut(key) {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_device(&self, key: &MacAddress) -> Option<&CGWDevice> {
+        if let Some(value) = self.cache.get(key) {
             Some(value)
         } else {
             None
@@ -83,13 +88,19 @@ impl CGWDevicesCache {
         }
     }
 
+    pub fn flush_all(&mut self) {
+        self.cache.clear();
+    }
+
     pub fn dump_devices_cache(&self) {
         // Debug print - simply ignore errors if any!
         if let Ok(json_output) = serde_json::to_string_pretty(&self) {
             debug!("Cache: {}", json_output);
 
             if let Ok(mut fd) = File::create("/var/devices_cache.json") {
-                let _ = fd.write_all(json_output.as_bytes());
+                if let Err(e) = fd.write_all(json_output.as_bytes()) {
+                    error!("Failed to dump CGW device chache data! Error: {e}");
+                }
             }
         };
     }

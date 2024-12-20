@@ -1,4 +1,4 @@
-use crate::AppArgs;
+use crate::cgw_app_args::CGWGRPCArgs;
 
 pub mod cgw_remote {
     tonic::include_proto!("cgw.remote");
@@ -52,11 +52,11 @@ pub struct CGWRemoteServer {
 }
 
 impl CGWRemoteServer {
-    pub fn new(app_args: &AppArgs) -> Self {
+    pub fn new(cgw_id: i32, grpc_args: &CGWGRPCArgs) -> Self {
         let remote_cfg = CGWRemoteConfig::new(
-            app_args.cgw_id,
-            app_args.grpc_listening_ip,
-            app_args.grpc_listening_port,
+            cgw_id,
+            grpc_args.grpc_listening_ip,
+            grpc_args.grpc_listening_port,
         );
         CGWRemoteServer { cfg: remote_cfg }
     }
@@ -76,8 +76,10 @@ impl CGWRemoteServer {
             self.cfg.remote_id, self.cfg.server_ip, self.cfg.server_port
         );
 
-        let res = grpc_srv.serve(self.cfg.to_socket_addr()).await;
-        error!("grpc server returned {:?}", res);
-        // end of GRPC server build / start declaration
+        if let Err(e) = grpc_srv.serve(self.cfg.to_socket_addr()).await {
+            error!("gRPC server failed! Error: {e}");
+        };
+
+        // end of gRPC server build / start declaration
     }
 }

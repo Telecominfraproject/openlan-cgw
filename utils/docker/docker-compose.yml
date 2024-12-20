@@ -12,9 +12,9 @@ services:
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,EXTERNAL://kafka_b:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://docker-broker-1:9092,EXTERNAL://kafka_b:9094
       - KAFKA_BROKER_ID=1
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@docker-broker-1:9093
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
@@ -26,23 +26,27 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
-      
+    networks:
+      - cgw_network
 
   postgresql:
     image: "postgres:latest"
     ports:
       - "5432:5432"
+    user: postgres
     command:
       - "postgres"
       - "-c"
       - "max_connections=400"
       - "-c"
-      - "shared_buffers=20MB"    
+      - "shared_buffers=20MB"
     env_file:
       - postgresql.env
     restart: always
     volumes:
       - ./postgresql/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - cgw_network
 
   redis:
     image: 'bitnami/redis:latest'
@@ -50,3 +54,25 @@ services:
       - "6379:6379"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
+    networks:
+      - cgw_network
+  init-broker-container:
+    image: docker.io/bitnami/kafka:latest
+    depends_on:
+      - broker
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # rather than giving sleep 15 use this
+      # to block init container to wait for Kafka broker to be ready
+      kafka-topics --bootstrap-server broker:9092 --list
+
+      # create CnC and CnC_Res topics
+      kafka-topics.sh --create --partitions 2 --bootstrap-server broker:9092 --topic CnC
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic CnC_Res
+      "
+    networks:
+      - cgw_network
+
+networks:
+  cgw_network:

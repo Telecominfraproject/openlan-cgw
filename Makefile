@@ -16,9 +16,9 @@ CGW_BUILD_ENV_IMG_TAG := $(shell cat Dockerfile | sha1sum | awk '{print substr($
 
 CGW_BUILD_ENV_IMG_CONTAINER_NAME := "cgw_build_env"
 
-.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run
+.PHONY: all cgw-app cgw-build-env-img cgw-img stop clean run run_docker_services start-multi-cgw stop-multi-cgw run-tests
 
-all: cgw-build-env-img cgw-img
+all: start-multi-cgw
 	@echo "uCentral CGW build app (container) done"
 
 # Executed inside build-env
@@ -48,7 +48,7 @@ cgw-img: stop cgw-build-env-img
 		.
 	@echo Docker build done;
 
-stop:
+stop: stop-multi-cgw
 	@echo "Stopping / removing container ${CGW_IMG_CONTAINER_NAME}"
 	@docker stop ${CGW_IMG_CONTAINER_NAME} > /dev/null 2>&1 || true;
 	@docker container rm ${CGW_IMG_CONTAINER_NAME} > /dev/null 2>&1 || true;
@@ -62,5 +62,21 @@ clean: stop
 	@docker rmi ${CGW_BUILD_ENV_IMG_ID}:${CGW_BUILD_ENV_IMG_TAG} >/dev/null 2>&1 || true
 	@echo Done!
 
-run: stop cgw-img
+run: stop cgw-img run_docker_services
 	@./run_cgw.sh "${CGW_IMG_ID}:${CGW_IMG_TAG}" ${CGW_IMG_CONTAINER_NAME}
+
+start-multi-cgw: cgw-img
+	@pushd ./utils/docker
+	@python3 StartMultiCGW.py --start
+	@popd
+
+stop-multi-cgw:
+	@pushd ./utils/docker
+	@python3 StartMultiCGW.py --stop
+	@popd
+
+run_docker_services:
+	@cd ./utils/docker/ && docker compose up -d
+
+run-tests:
+	@cd ./tests && ./run.sh

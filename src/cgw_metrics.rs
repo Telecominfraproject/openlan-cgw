@@ -27,6 +27,13 @@ lazy_static! {
         "Max threshold (extra capacity) of groups this shard can handle"
     )
     .expect("metric can be created");
+    pub static ref GROUP_INFRAS_CAPACITY: IntGauge = IntGauge::new(
+        "cgw_group_ifras_capacity",
+        "Max limit (capacity) of infras the group can handle"
+    )
+    .expect("metric can be created");
+    pub static ref GROUP_INFRAS_ASSIGNED_NUM: Arc<RwLock<HashMap<i32, IntGauge>>> =
+        Arc::new(RwLock::new(HashMap::new()));
     pub static ref CONNECTIONS_NUM: IntGauge = IntGauge::new(
         "cgw_connections_num",
         "Number of successfully established WSS connections (underlying Infra connections)"
@@ -88,19 +95,17 @@ impl fmt::Display for CGWMetricsHealthComponentStatus {
 pub enum CGWMetricsCounterType {
     ActiveCGWNum,
     GroupsAssignedNum,
-    #[allow(dead_code)]
     GroupsCapacity,
-    #[allow(dead_code)]
     GroupsThreshold,
+    GroupInfrasCapacity,
+    GroupInfrasAssignedNum,
     ConnectionsNum,
 }
 
 pub enum CGWMetricsCounterOpType {
     Inc,
-    #[allow(dead_code)]
     IncBy(i64),
     Dec,
-    #[allow(dead_code)]
     DecBy(i64),
     Set(i64),
 }
@@ -146,14 +151,9 @@ impl CGWMetrics {
             CGWMetricsHealthComponentStatus::NotReady("Application is starting".to_string()),
         );
 
-        // TODO: remove: W/A for now, as currently capacity / threshold
-        // is non-configurable
-        GROUPS_CAPACITY.set(1000i64);
-        GROUPS_THRESHOLD.set(50i64);
-
         tokio::spawn(async move {
-            if let Err(err) = register_custom_metrics() {
-                warn!("Failed to register CGW Metrics: {:?}", err);
+            if let Err(e) = register_custom_metrics() {
+                warn!("Failed to register CGW Metrics! Error: {e}");
                 return;
             };
 
@@ -199,12 +199,17 @@ impl CGWMetrics {
             },
             CGWMetricsCounterType::GroupsCapacity => {
                 if let CGWMetricsCounterOpType::Set(v) = op {
-                    ACTIVE_CGW_NUM.set(v);
+                    GROUPS_CAPACITY.set(v);
                 }
             }
             CGWMetricsCounterType::GroupsThreshold => {
                 if let CGWMetricsCounterOpType::Set(v) = op {
-                    ACTIVE_CGW_NUM.set(v);
+                    GROUPS_THRESHOLD.set(v);
+                }
+            }
+            CGWMetricsCounterType::GroupInfrasCapacity => {
+                if let CGWMetricsCounterOpType::Set(v) = op {
+                    GROUP_INFRAS_CAPACITY.set(v);
                 }
             }
             CGWMetricsCounterType::ConnectionsNum => match op {
@@ -216,6 +221,62 @@ impl CGWMetrics {
                 }
                 _ => {}
             },
+            _ => {}
+        }
+    }
+
+    pub async fn change_group_counter(
+        &self,
+        group_id: i32,
+        counter: CGWMetricsCounterType,
+        op: CGWMetricsCounterOpType,
+    ) {
+        if let CGWMetricsCounterType::GroupInfrasAssignedNum = counter {
+            let mut lock = GROUP_INFRAS_ASSIGNED_NUM.write().await;
+
+            if let Some(counter) = lock.get(&group_id) {
+                match op {
+                    CGWMetricsCounterOpType::Inc => {
+                        counter.inc();
+                    }
+                    CGWMetricsCounterOpType::Dec => {
+                        counter.dec();
+                    }
+                    CGWMetricsCounterOpType::IncBy(inc_val) => {
+                        counter.add(inc_val);
+                    }
+                    CGWMetricsCounterOpType::DecBy(dec_val) => {
+                        counter.sub(dec_val);
+                    }
+                    _ => {}
+                }
+            } else if let Ok(counter) = IntGauge::new(
+                format!("cgw_group_{group_id}_infras_assigned_num"),
+                "Number of infras assigned to this particular group",
+            ) {
+                if REGISTRY.register(Box::new(counter.clone())).is_ok() {
+                    match op {
+                        CGWMetricsCounterOpType::Inc => counter.set(1),
+                        CGWMetricsCounterOpType::IncBy(set_val)
+                        | CGWMetricsCounterOpType::Set(set_val) => counter.set(set_val),
+                        _ => counter.set(0),
+                    }
+                    lock.insert(group_id, counter);
+                } else {
+                    error!("Failed to register GroupInfrasAssignedNum metric for GID {group_id}!");
+                }
+            } else {
+                error!("Failed to create GroupInfrasAssignedNum metric for GID {group_id}");
+            }
+        }
+    }
+
+    pub async fn delete_group_counter(&self, group_id: i32) {
+        let mut lock = GROUP_INFRAS_ASSIGNED_NUM.write().await;
+        if let Some(counter) = lock.remove(&group_id) {
+            if let Err(e) = REGISTRY.unregister(Box::new(counter)) {
+                error!("Failed to deregister GroupInfrasAssignedNum metric for GID {group_id}! Error: {e}");
+            }
         }
     }
 }
@@ -228,6 +289,8 @@ fn register_custom_metrics() -> Result<()> {
     REGISTRY.register(Box::new(GROUPS_CAPACITY.clone()))?;
 
     REGISTRY.register(Box::new(GROUPS_THRESHOLD.clone()))?;
+
+    REGISTRY.register(Box::new(GROUP_INFRAS_CAPACITY.clone()))?;
 
     REGISTRY.register(Box::new(CONNECTIONS_NUM.clone()))?;
 
@@ -268,12 +331,12 @@ async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {
 
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&REGISTRY.gather(), &mut buffer) {
-        error!("could not encode custom metrics: {}", e);
+        error!("Could not encode custom metrics! Error: {e}");
     };
     let mut res = match String::from_utf8(buffer.clone()) {
         Ok(v) => v,
         Err(e) => {
-            error!("custom metrics could not be from_utf8'd: {}", e);
+            error!("Custom metrics could not be from_utf8'd! Error: {e}");
             String::default()
         }
     };
@@ -281,12 +344,12 @@ async fn metrics_handler() -> std::result::Result<impl Reply, Rejection> {
 
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&prometheus::gather(), &mut buffer) {
-        error!("could not encode prometheus metrics: {}", e);
+        error!("Could not encode prometheus metrics! Error: {e}");
     };
     let res_custom = match String::from_utf8(buffer.clone()) {
         Ok(v) => v,
         Err(e) => {
-            error!("prometheus metrics could not be from_utf8'd: {}", e);
+            error!("Prometheus metrics could not be from_utf8'd! Error: {e}");
             String::default()
         }
     };

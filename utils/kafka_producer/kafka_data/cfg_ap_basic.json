@@ -1,0 +1,48 @@
+{
+  "jsonrpc": "2.0",
+  "method": "configure",
+  "params": {
+    "serial": "MAC_PLACEHOLDER",
+    "uuid": UUID_PLACEHOLDER,
+    "when": 0,
+    "config": {
+      "ethernet": [
+        {
+          "enabled": true,
+          "select-ports": [
+            "LAN1"
+          ]
+        },
+        {
+          "enabled": true,
+          "select-ports": [
+            "LAN2"
+          ]
+        }
+      ],
+      "interfaces": [
+        {
+          "ethernet": [
+            {
+              "select-ports": [
+                "WAN*",
+                "LAN1",
+                "LAN2"
+              ]
+            }
+          ],
+          "ipv4": {
+            "addressing": "dynamic"
+          },
+          "name": "WAN",
+          "role": "upstream",
+          "services": [
+            "lldp",
+            "mdns"
+          ]
+        }
+      ],
+      "uuid": UUID_PLACEHOLDER
+    }
+  }
+}

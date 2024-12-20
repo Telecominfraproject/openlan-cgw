@@ -1,10 +1,17 @@
+use crate::cgw_app_args::CGWWSSArgs;
 use crate::cgw_errors::{collect_results, Error, Result};
-use crate::AppArgs;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use eui48::MacAddress;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+use std::fs;
+use std::io::{BufRead, Read};
+use std::path::Path;
 use std::{fs::File, io::BufReader, str::FromStr, sync::Arc};
 use tokio::net::TcpStream;
+use tokio_postgres_rustls::MakeRustlsConnect;
+use tokio_rustls::rustls;
 use tokio_rustls::{
     rustls::{server::WebPkiClientVerifier, RootCertStore, ServerConfig},
     server::TlsStream,
@@ -13,35 +20,60 @@ use tokio_rustls::{
 use x509_parser::parse_x509_certificate;
 
 const CGW_TLS_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
+const CGW_TLS_NB_INFRA_CERTS_PATH: &str = "/etc/cgw/nb_infra/certs";
 
-pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'static>>> {
-    let file = match File::open(cert_file) {
+async fn cgw_tls_read_file(file_path: &str) -> Result<Vec<u8>> {
+    let mut file = match File::open(file_path) {
         Ok(f) => f,
         Err(e) => {
             return Err(Error::Tls(format!(
-                "Failed to open TLS certificate file: {}. Error: {}",
-                cert_file, e
+                "Failed to open TLS certificate/key file: {file_path}! Error: {e}"
             )));
         }
     };
 
-    let mut reader = BufReader::new(file);
+    let metadata = match fs::metadata(file_path) {
+        Ok(meta) => meta,
+        Err(e) => {
+            return Err(Error::Tls(format!(
+                "Failed to read file {file_path} metadata! Error: {e}"
+            )));
+        }
+    };
+
+    let mut buffer = vec![0; metadata.len() as usize];
+    if let Err(e) = file.read_exact(&mut buffer) {
+        return Err(Error::Tls(format!(
+            "Failed to read {} file. Error: {}",
+            file_path, e
+        )));
+    }
+
+    let decoded_buffer = {
+        if let Ok(d) = BASE64_STANDARD.decode(buffer.clone()) {
+            info!(
+                "Cert file {} is base64 encoded, trying to use decoded.",
+                file_path
+            );
+            d
+        } else {
+            buffer
+        }
+    };
+
+    Ok(decoded_buffer)
+}
+
+pub async fn cgw_tls_read_certs(cert_file: &str) -> Result<Vec<CertificateDer<'static>>> {
+    let buffer = cgw_tls_read_file(cert_file).await?;
+    let mut reader = BufReader::new(buffer.as_slice());
 
     collect_results(rustls_pemfile::certs(&mut reader))
 }
 
 pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateKeyDer<'static>> {
-    let file = match File::open(private_key_file) {
-        Ok(f) => f,
-        Err(e) => {
-            return Err(Error::Tls(format!(
-                "Failed to open TLS private key file: {}. Error: {}",
-                private_key_file, e
-            )));
-        }
-    };
-
-    let mut reader = BufReader::new(file);
+    let buffer = cgw_tls_read_file(private_key_file).await?;
+    let mut reader = BufReader::new(buffer.as_slice());
 
     match rustls_pemfile::private_key(&mut reader) {
         Ok(ret_pk) => match ret_pk {
@@ -52,8 +84,7 @@ pub async fn cgw_tls_read_private_key(private_key_file: &str) -> Result<PrivateK
             ))),
         },
         Err(e) => Err(Error::Tls(format!(
-            "Failed to read private key from file: {}. Error: {}",
-            private_key_file, e
+            "Failed to read private key from file: {private_key_file}! Error: {e}"
         ))),
     }
 }
@@ -85,8 +116,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
                         Ok(mac) => return Ok(mac),
                         Err(e) => {
                             return Err(Error::Tls(format!(
-                                "Failed to parse clien CN/MAC. Error: {}",
-                                e
+                                "Failed to parse clien CN/MAC! Error: {e}"
                             )))
                         }
                     };
@@ -95,42 +125,42 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
         }
         Err(e) => {
             return Err(Error::Tls(format!(
-                "Failed to read peer comman name. Error: {}",
-                e
+                "Failed to read peer common name (CN)! Error: {e}"
             )));
         }
     }
 
-    Err(Error::Tls("Failed to read peer comman name!".to_string()))
+    Err(Error::Tls("Failed to read peer common name!".to_string()))
 }
-pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
+
+pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAcceptor> {
     // Read root/issuer certs.
-    let cas_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_cas);
+    let cas_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_cas);
     let cas = match cgw_tls_read_certs(cas_path.as_str()).await {
         Ok(cas_pem) => cas_pem,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
 
     // Read cert.
-    let cert_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_cert);
+    let cert_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_cert);
     let mut cert = match cgw_tls_read_certs(cert_path.as_str()).await {
         Ok(cert_pem) => cert_pem,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
     cert.extend(cas.clone());
 
     // Read private key.
-    let key_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, args.wss_key);
+    let key_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_key);
     let key = match cgw_tls_read_private_key(key_path.as_str()).await {
         Ok(pkey) => pkey,
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{e}");
             return Err(e);
         }
     };
@@ -142,7 +172,7 @@ pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
     let client_verifier = match WebPkiClientVerifier::builder(Arc::new(roots)).build() {
         Ok(verifier) => verifier,
         Err(e) => {
-            error!("Failed to build client verifier: {}", e.to_string());
+            error!("Failed to build client verifier! Error: {e}");
             return Err(Error::Tls("Failed to build client verifier!".to_string()));
         }
     };
@@ -154,11 +184,63 @@ pub async fn cgw_tls_create_acceptor(args: &AppArgs) -> Result<TlsAcceptor> {
     {
         Ok(server_config) => server_config,
         Err(e) => {
-            error!("Failed to build server config: {}", e.to_string());
+            error!("Failed to build server config! Error: {e}");
             return Err(Error::Tls("Failed to build server config!".to_string()));
         }
     };
 
     // Create the TLS acceptor.
     Ok(TlsAcceptor::from(Arc::new(config)))
+}
+
+pub async fn cgw_read_root_certs_dir() -> Result<Vec<u8>> {
+    let mut certs_vec = Vec::new();
+
+    // Read the directory entries
+    for entry in fs::read_dir(Path::new(CGW_TLS_NB_INFRA_CERTS_PATH))? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Check if the entry is a file and has a .crt extension (or other extensions if needed)
+        if path.is_file() {
+            let extension = path.extension().and_then(|ext| ext.to_str());
+            if extension == Some("crt") || extension == Some("pem") {
+                let cert_contents = fs::read(path)?;
+                certs_vec.extend(cert_contents);
+            }
+        }
+    }
+
+    Ok(certs_vec)
+}
+
+pub async fn cgw_get_root_certs_store() -> Result<RootCertStore> {
+    let certs = cgw_read_root_certs_dir().await?;
+
+    let buf = &mut certs.as_slice() as &mut dyn BufRead;
+    let certs = rustls_pemfile::certs(buf);
+    let mut root_cert_store = rustls::RootCertStore::empty();
+    for cert in certs.flatten() {
+        if let Err(e) = root_cert_store.add(cert.clone()) {
+            error!("Failed do add cert {:?} to root store! Error: {e}", cert);
+        }
+    }
+
+    Ok(root_cert_store)
+}
+
+pub async fn cgw_tls_create_db_connect() -> Result<MakeRustlsConnect> {
+    let root_store = match cgw_get_root_certs_store().await {
+        Ok(certs) => certs,
+        Err(e) => {
+            error!("{}", e.to_string());
+            return Err(e);
+        }
+    };
+
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    Ok(tokio_postgres_rustls::MakeRustlsConnect::new(config))
 }

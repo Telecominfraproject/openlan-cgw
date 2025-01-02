@@ -10,7 +10,7 @@ def cgw_metric_get(host: str = "localhost", port: int = 8080) -> str:
         r = requests.get(f"http://{host}:{port}/metrics", timeout=5)
         print("CGW metrics ret code: " + str(r.status_code))
         assert r is not None and r.status_code == 200, \
-                f"CGW metrics is not available"
+            f"CGW metrics is not available"
         metrics = r.text
     except Exception as e:
         print("CGW metrics: raised exception when tried to fetch metrics:" + e)
@@ -65,10 +65,12 @@ def cgw_metrics_get_group_infras_assigned_num(group_id: int) -> int:
     group_infras_assigned_num = 0
     metrics = cgw_metric_get()
 
-    match = re.search(rf"cgw_group_{group_id}_infras_assigned_num (\d+)", metrics)
+    match = re.search(
+        rf"cgw_group_{group_id}_infras_assigned_num (\d+)", metrics)
     if match:
         group_infras_assigned_num = int(match.group(1))
-        print(f"Group {group_id} infras assigned num: {group_infras_assigned_num}")
+        print(
+            f"Group {group_id} infras assigned num: {group_infras_assigned_num}")
     else:
         print(f"Group {group_id} infras assigned num not found.")
 

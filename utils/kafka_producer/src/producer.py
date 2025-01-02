@@ -84,7 +84,7 @@ class Producer:
         if id is None:
             id = 1
 
-        msg = self.ucentral_configs.get_ap_basic_cfg(mac, id);
+        msg = self.ucentral_configs.get_ap_basic_cfg(mac, id)
         return json.loads(msg)
 
     def device_message_config_ap_basic_invalid(self, mac: str, id: int = None) -> str:
@@ -94,7 +94,7 @@ class Producer:
         if id is None:
             id = 1
 
-        msg = self.ucentral_configs.get_ap_basic_invalid_cfg(mac, id);
+        msg = self.ucentral_configs.get_ap_basic_invalid_cfg(mac, id)
         return json.loads(msg)
 
     def device_message_config_switch_basic(self, mac: str, id: int = None) -> str:
@@ -104,7 +104,7 @@ class Producer:
         if id is None:
             id = 1
 
-        msg = self.ucentral_configs.get_switch_basic_cfg(mac, id);
+        msg = self.ucentral_configs.get_switch_basic_cfg(mac, id)
         return json.loads(msg)
 
     def device_message_config_switch_basic_invalid(self, mac: str, id: int = None) -> str:
@@ -114,7 +114,7 @@ class Producer:
         if id is None:
             id = 1
 
-        msg = self.ucentral_configs.get_switch_basic_invalid_cfg(mac, id);
+        msg = self.ucentral_configs.get_switch_basic_invalid_cfg(mac, id)
         return json.loads(msg)
 
     def __init__(self, db: str, topic: str) -> None:
@@ -133,10 +133,10 @@ class Producer:
     def connect(self) -> kafka.KafkaProducer:
         if self.is_connected() is False:
             self.conn = kafka.KafkaProducer(
-                    bootstrap_servers=self.db,
-                    client_id="producer",
-                    max_block_ms=12000,
-                    request_timeout_ms=12000)
+                bootstrap_servers=self.db,
+                client_id="producer",
+                max_block_ms=12000,
+                request_timeout_ms=12000)
             logger.info("producer: connected to kafka")
         else:
             logger.info("producer: already connected to kafka")
@@ -155,22 +155,24 @@ class Producer:
 
     def handle_single_group_delete(self, group: str, uuid_val: int = None):
         if group is None:
-            raise Exception('producer: Cannot destroy group without group_id specified!')
+            raise Exception(
+                'producer: Cannot destroy group without group_id specified!')
 
         self.conn.send(self.topic, self.message.group_delete(group, uuid_val),
-            bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_single_group_create(self, group: str, uuid_val: int = None, shard_id: int = None):
         if group is None:
-            raise Exception('producer: Cannot create new group without group id specified!')
+            raise Exception(
+                'producer: Cannot create new group without group id specified!')
 
         if shard_id is None:
             self.conn.send(self.topic, self.message.group_create(group, uuid_val),
-                    bytes(group, encoding="utf-8"))
+                           bytes(group, encoding="utf-8"))
         else:
             self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, uuid_val),
-                    bytes(group, encoding="utf-8"))
+                           bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_group_creation(self, create: List[str], delete: List[str]) -> None:
@@ -185,50 +187,58 @@ class Producer:
 
     def handle_single_device_assign(self, group: str, mac: str, uuid_val: int):
         if group is None:
-            raise Exception('producer: Cannot assign infra to group without group id specified!')
+            raise Exception(
+                'producer: Cannot assign infra to group without group id specified!')
 
         if mac is None:
-            raise Exception('producer: Cannot assign infra to group without infra MAC specified!')
+            raise Exception(
+                'producer: Cannot assign infra to group without infra MAC specified!')
 
         mac_range = MacRange(mac)
 
         self.conn.send(self.topic, self.message.add_dev_to_group(group, mac_range, uuid_val),
-                bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_single_device_deassign(self, group: str, mac: str, uuid_val: int):
         if group is None:
-            raise Exception('Cannot deassign infra from group without group id specified!')
+            raise Exception(
+                'Cannot deassign infra from group without group id specified!')
 
         if mac is None:
-            raise Exception('Cannot deassign infra from group without infra MAC specified!')
+            raise Exception(
+                'Cannot deassign infra from group without infra MAC specified!')
 
         mac_range = MacRange(mac)
 
         self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range, uuid_val),
-                bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_multiple_devices_assign(self, group: str, mac_list: list, uuid_val: int):
         if group is None:
-            raise Exception('producer: Cannot assign infra to group without group id specified!')
+            raise Exception(
+                'producer: Cannot assign infra to group without group id specified!')
 
         if mac_list is None:
-            raise Exception('producer: Cannot assign infra to group without infra MAC list specified!')
+            raise Exception(
+                'producer: Cannot assign infra to group without infra MAC list specified!')
 
         self.conn.send(self.topic, self.message.add_devices_to_group(group, mac_list, uuid_val),
-                bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_multiple_devices_deassign(self, group: str, mac_list: list, uuid_val: int):
         if group is None:
-            raise Exception('Cannot deassign infra from group without group id specified!')
+            raise Exception(
+                'Cannot deassign infra from group without group id specified!')
 
         if mac_list is None:
-            raise Exception('Cannot deassign infra from group without infra MAC list specified!')
+            raise Exception(
+                'Cannot deassign infra from group without infra MAC list specified!')
 
         self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_list, uuid_val),
-                bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_device_assignment(self, add: List[Tuple[str, MacRange]], remove: List[Tuple[str, MacRange]]) -> None:
@@ -244,7 +254,7 @@ class Producer:
 
     def handle_single_device_message(self, message: dict, group: str, mac: str, uuid_val: int) -> None:
         self.conn.send(self.topic, self.message.to_device(group, mac, message, 0, uuid_val),
-                bytes(group, encoding="utf-8"))
+                       bytes(group, encoding="utf-8"))
         self.conn.flush()
 
     def handle_device_messages(self, message: dict, group: str, mac_range: MacRange,
@@ -262,6 +272,6 @@ class Producer:
                     conn.send(self.topic, self.message.to_device(group, mac, message, seq),
                               bytes(group, encoding="utf-8"))
                 conn.flush()
-                #time.sleep(interval_s)
-                #if time.time() > end:
+                # time.sleep(interval_s)
+                # if time.time() > end:
                 #    break

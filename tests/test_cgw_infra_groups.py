@@ -22,7 +22,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -139,7 +139,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -270,7 +270,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -417,7 +417,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -449,7 +449,7 @@ class TestCgwInfraGroup:
             raise Exception(
                 'Infra group delete completed, while expected to be failed!')
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -474,7 +474,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -591,7 +591,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -723,7 +723,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -793,7 +793,7 @@ class TestCgwInfraGroup:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')

@@ -35,7 +35,7 @@ class TestCgwBasic:
         pass
 
     # Base test:
-    # - test infra can be addded successfully to the default infra group
+    # - test infra can be added successfully to the default infra group
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
                              "kafka_probe",

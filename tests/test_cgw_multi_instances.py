@@ -39,15 +39,15 @@ class TestCgwMultiInstances:
 
         active_shards_num = cgw_metrics_get_active_shards_num()
 
-        # This test-case reqiure at least 2 CGW instances
+        # This test-case require at least 2 CGW instances
         # To avoid test failure in single CGW env. - make force test passed
         if active_shards_num <= 1:
             pytest.skip(
-                f"Number of CGW isnatnces not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
+                f"Number of CGW instances not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -134,7 +134,7 @@ class TestCgwMultiInstances:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert (ret_msg.value["reporter_shard_id"] == default_shard_id)
 
@@ -194,7 +194,7 @@ class TestCgwMultiInstances:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert (ret_msg.value["reporter_shard_id"] == default_shard_id)
 
@@ -272,7 +272,7 @@ class TestCgwMultiInstances:
                              "kafka_admin_probe",
                              "redis_probe",
                              "psql_probe")
-    def test_signle_group_to_shard_0_send_to_shard_1(self, test_context):
+    def test_single_group_to_shard_0_send_to_shard_1(self, test_context):
         """
         This test case verify CGW interconnection and group create/delete mechanism
         1) Calculate Shard ID to Kafka partition map
@@ -293,16 +293,16 @@ class TestCgwMultiInstances:
 
         active_shards_num = cgw_metrics_get_active_shards_num()
 
-        # This test-case reqiure at least 2 CGW instances
+        # This test-case require at least 2 CGW instances
         # To avoid test failure in single CGW env. - make force test passed
         if active_shards_num <= 1:
             pytest.skip(
-                f"Number of CGW isnatnces not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
+                f"Number of CGW instances not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
 
         default_shard_id = test_context.default_shard_id()
         expected_reporter_shard_id: int = 1
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -420,7 +420,7 @@ class TestCgwMultiInstances:
                              "kafka_admin_probe",
                              "redis_probe",
                              "psql_probe")
-    def test_signle_group_to_shard_1_send_to_shard_1(self, test_context):
+    def test_single_group_to_shard_1_send_to_shard_1(self, test_context):
         """
         This test case verify CGW interconnection and group create/delete mechanism
         1) Calculate Shard ID to Kafka partition map
@@ -441,16 +441,16 @@ class TestCgwMultiInstances:
 
         active_shards_num = cgw_metrics_get_active_shards_num()
 
-        # This test-case reqiure at least 2 CGW instances
+        # This test-case require at least 2 CGW instances
         # To avoid test failure in single CGW env. - make force test passed
         if active_shards_num <= 1:
             pytest.skip(
-                f"Number of CGW isnatnces not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
+                f"Number of CGW instances not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
 
         shard_id = 1
         expected_reporter_shard_id: int = 1
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(shard_id)
         if not shard_info:
             print(f'Failed to get shard {shard_id} info from Redis!')
@@ -566,7 +566,7 @@ class TestCgwMultiInstances:
                              "kafka_admin_probe",
                              "redis_probe",
                              "psql_probe")
-    def test_signle_group_to_shard_any_send_to_shard_1(self, test_context):
+    def test_single_group_to_shard_any_send_to_shard_1(self, test_context):
         """
         This test case verify CGW interconnection and group create/delete mechanism
         1) Calculate Shard ID to Kafka partition map
@@ -587,11 +587,11 @@ class TestCgwMultiInstances:
 
         active_shards_num = cgw_metrics_get_active_shards_num()
 
-        # This test-case reqiure at least 2 CGW instances
+        # This test-case require at least 2 CGW instances
         # To avoid test failure in single CGW env. - make force test passed
         if active_shards_num <= 1:
             pytest.skip(
-                f"Number of CGW isnatnces not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
+                f"Number of CGW instances not enough to proceed with test! Expected > 2, actually running - {active_shards_num}. Skip test.")
 
         expected_reporter_shard_id: int = 1
 

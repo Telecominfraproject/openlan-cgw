@@ -135,9 +135,10 @@ class TestCgwMalformedPackets:
                                               message.add_dev_to_group([infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"))
         ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
         if not ret_msg:
-            print('Failed to receive infas add result, was expecting ' +
+            print('Failed to receive infras add result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
-            raise Exception('Failed to receive infas add result when expected')
+            raise Exception(
+                'Failed to receive infras add result when expected')
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infra_message_enqueue_response')
@@ -170,9 +171,10 @@ class TestCgwMalformedPackets:
                                               message.remove_dev_from_group([infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"))
         ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
         if not ret_msg:
-            print('Failed to receive infas del result, was expecting ' +
+            print('Failed to receive infras del result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
-            raise Exception('Failed to receive infas del result when expected')
+            raise Exception(
+                'Failed to receive infras del result when expected')
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infra_message_enqueue_response')
@@ -205,10 +207,10 @@ class TestCgwMalformedPackets:
                                               message.to_device(infra_mac, uuid_val.int), bytes(str(group_id), encoding="utf-8"))
         ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
         if not ret_msg:
-            print('Failed to receive infa message result, was expecting ' +
+            print('Failed to receive infra message result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
             raise Exception(
-                'Failed to receive infa message result when expected')
+                'Failed to receive infra message result when expected')
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infra_message_enqueue_response')

@@ -87,11 +87,11 @@ def test_context():
         # 1. Destroy default group
         ctx.kafka_producer.handle_single_group_delete(
             ctx.default_kafka_group())
-        # 2. Get all groups from Redis or PostgeSQL
+        # 2. Get all groups from Redis or PostgreSQL
         groups_list = ctx.psql_client.get_all_infrastructure_groups()
 
         if groups_list != None:
-            # 3. Interate over groups
+            # 3. Iterate over groups
             for group in groups_list:
                 # 4. Send group_del request
                 ctx.kafka_producer.handle_single_group_delete(str(group[0]))
@@ -147,7 +147,7 @@ def kafka_admin_probe(test_context):
 @pytest.fixture(scope='function')
 def device_sim_connect(test_context):
     # Make sure we initiate connect;
-    # If this thing throws - any tests that depend on this ficture would fail.
+    # If this thing throws - any tests that depend on this fixture would fail.
     test_context.device_sim.connect()
 
 

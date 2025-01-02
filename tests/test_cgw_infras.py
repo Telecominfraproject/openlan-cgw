@@ -5,7 +5,7 @@ from randmac import RandMac
 
 from metrics import cgw_metrics_get_groups_assigned_num, \
     cgw_metrics_get_group_infras_assigned_num, \
-    cgw_metrics_get_group_ifras_capacity
+    cgw_metrics_get_group_infras_capacity
 
 
 class TestCgwInfra:
@@ -23,7 +23,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -105,7 +105,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
@@ -163,7 +163,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Validate infra removed from Redis Infra Cache
@@ -248,7 +248,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -286,7 +286,7 @@ class TestCgwInfra:
         assert (len(list(ret_msg.value["failed_infras"])) == 1)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -310,7 +310,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -348,7 +348,7 @@ class TestCgwInfra:
         assert (len(list(ret_msg.value["failed_infras"])) == 1)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -373,7 +373,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -532,7 +532,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -618,7 +618,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
@@ -678,7 +678,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
         assert cgw_metrics_get_group_infras_assigned_num(group_id) == 0
 
@@ -772,7 +772,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -834,7 +834,7 @@ class TestCgwInfra:
                    ) == cgw_metrics_get_groups_assigned_num() == 1
 
         # Infra add
-        infras_num = cgw_metrics_get_group_ifras_capacity()
+        infras_num = cgw_metrics_get_group_infras_capacity()
         infras_mac = set()
         while infras_mac.__len__() != infras_num:
             infras_mac.add(str(RandMac(mac="00-00-00-00-00-00")))
@@ -858,7 +858,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
@@ -912,7 +912,7 @@ class TestCgwInfra:
 
         if ret_msg.value['success'] is True:
             raise Exception(
-                'Infra assign completed, while expected to be failed due to ifras capacity overflow!')
+                'Infra assign completed, while expected to be failed due to infras capacity overflow!')
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infras_add_response')
@@ -981,7 +981,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get infras from Redis Infra Cache
@@ -1061,11 +1061,11 @@ class TestCgwInfra:
                    ) == cgw_metrics_get_groups_assigned_num() == 0
 
     # Test scenario: add infras with MACs (A, B, C, D, E, F, G)
-    # First : add MACs (A, B, C) - expected all should be added succesfully
-    # Second: add MACs (D, A, B) - expected partial create (dup MACs at the end)    - only MAC (D) should be added succesfully
-    # Third : add MACs (A, B, E) - expected partial create (dup MACs at the begin)  - only MAC (E) should be added succesfully
-    # Forth : add MACs (F, A, G) - expected partial create (dup MACs at the middle) - only MAC (F, D) should be added succesfully
-    # We want to make sure that - does not matter where in infra MACs list duplicate infra MACs exists - it wount affect infra add
+    # First : add MACs (A, B, C) - expected all should be added successfully
+    # Second: add MACs (D, A, B) - expected partial create (dup MACs at the end)    - only MAC (D) should be added successfully
+    # Third : add MACs (A, B, E) - expected partial create (dup MACs at the begin)  - only MAC (E) should be added successfully
+    # Forth : add MACs (F, A, G) - expected partial create (dup MACs at the middle) - only MAC (F, D) should be added successfully
+    # We want to make sure that - does not matter where in infra MACs list duplicate infra MACs exists - it would not affect infra add
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -1081,7 +1081,7 @@ class TestCgwInfra:
 
         default_shard_id = test_context.default_shard_id()
 
-        # Get shard infro from Redis
+        # Get shard info from Redis
         shard_info = test_context.redis_client.get_shard(default_shard_id)
         if not shard_info:
             print(f'Failed to get shard {default_shard_id} info from Redis!')
@@ -1163,7 +1163,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get group info from Redis
@@ -1411,7 +1411,7 @@ class TestCgwInfra:
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         # We don't expect to have even a single 'failed_infra',
-        # because the overall command succeded
+        # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
 
         # Get infras from Redis Infra Cache

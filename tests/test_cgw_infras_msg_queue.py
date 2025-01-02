@@ -7,7 +7,7 @@ import time
 from metrics import cgw_metrics_get_active_shards_num, \
     cgw_metrics_get_groups_assigned_num, \
     cgw_metrics_get_group_infras_assigned_num, \
-    cgw_metrics_get_group_ifras_capacity, \
+    cgw_metrics_get_group_infras_capacity, \
     cgw_metrics_get_connections_num
 
 

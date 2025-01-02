@@ -40,9 +40,9 @@ def cgw_metrics_get_connections_num() -> int:
     match = re.search(r"cgw_connections_num (\d+)", metrics)
     if match:
         wss_connections_num = int(match.group(1))
-        print(f"WSS conections num: {wss_connections_num}")
+        print(f"WSS connections num: {wss_connections_num}")
     else:
-        print("WSS conections num not found.")
+        print("WSS connections num not found.")
 
     return wss_connections_num
 
@@ -105,7 +105,7 @@ def cgw_metrics_get_groups_threshold() -> int:
     return groups_threshold
 
 
-def cgw_metrics_get_group_ifras_capacity() -> int:
+def cgw_metrics_get_group_infras_capacity() -> int:
     group_infras_capacity = 0
     metrics = cgw_metric_get()
 

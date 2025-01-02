@@ -109,7 +109,7 @@ def cgw_metrics_get_group_ifras_capacity() -> int:
     group_infras_capacity = 0
     metrics = cgw_metric_get()
 
-    match = re.search(r"cgw_group_ifras_capacity (\d+)", metrics)
+    match = re.search(r"cgw_group_infras_capacity (\d+)", metrics)
     if match:
         group_infras_capacity = int(match.group(1))
         print(f"Groups capacity: {group_infras_capacity}")

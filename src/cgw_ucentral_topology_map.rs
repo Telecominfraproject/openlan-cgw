@@ -50,11 +50,11 @@ struct CGWTopologyMapQueueMessage {
 type CGWTopologyMapQueueRxHandle = UnboundedReceiver<CGWTopologyMapQueueMessage>;
 type CGWTopologyMapQueueTxHandle = UnboundedSender<CGWTopologyMapQueueMessage>;
 
-// We have to track the 'origin' of any node we add to topo map,
+// We have to track the 'origin' of any node we add to topomap,
 // because deletion decision should be made on the following basis:
-// - direct WSS connection should be always kept in the topo map,
+// - direct WSS connection should be always kept in the topomap,
 //   and only erased when disconnect happens;
-// - any nodes, that are added to topo map as lldp peers
+// - any nodes, that are added to topomap as lldp peers
 //   should be deleted when the node that reported them gets deleted;
 #[derive(Debug, Clone)]
 enum CGWUCentralTopologyMapNodeOrigin {
@@ -88,7 +88,7 @@ struct CGWUCentralTopologyMapConnectionsData {
     // we have to make sure we remove _connection_ between UCentral
     // node A (parent) with node B (child)
     // In case if parent get's removed though, there's no need to notify parent,
-    // however. This is because whenever _child_ node sends a new state meessage,
+    // however. This is because whenever _child_ node sends a new state message,
     // connection to _parent_ node will be deduced from that data (basically,
     // update upon receiving new state message from AP for example).
     //
@@ -97,12 +97,12 @@ struct CGWUCentralTopologyMapConnectionsData {
     // SW1 < - > AP1
     // In case if AP1 sends state data before SW1 doest, the internal data about
     // wifi clients and so on will be populated, but the connection with SW1
-    // and AP1 will only 'appear' in the topo map once the switch sends a
+    // and AP1 will only 'appear' in the topomap once the switch sends a
     // state message with explicitly stating, that it _sees_ the AP1 directly.
     //
     // The only exception is when AP reports uplink lldp peer and it's not
     // a UCentral device / still not connected:
-    // then AP is responsible to firsly create lldp-peer-node, and report
+    // then AP is responsible to firstly create lldp-peer-node, and report
     // it as AP's parent (and also clear / remove it upon AP disconnect event,
     // as the _knowledge_ about this lldp-peer-node comes _only_ from the AP
     // itself)
@@ -211,14 +211,14 @@ impl CGWUCentralTopologyMap {
 
     async fn process_queue() {
         info!("TopoMap: queue processor started.");
-        let topo_map = CGWUCentralTopologyMap::get_ref();
+        let topomap = CGWUCentralTopologyMap::get_ref();
 
         let buf_capacity = 2000;
         let mut buf: Vec<CGWTopologyMapQueueMessage> = Vec::with_capacity(buf_capacity);
         let mut num_of_msg_read = 0;
 
         loop {
-            let mut rx_mbox = topo_map.queue.1.lock().await;
+            let mut rx_mbox = topomap.queue.1.lock().await;
 
             if num_of_msg_read < buf_capacity {
                 // Try to recv_many, but don't sleep too much
@@ -233,9 +233,9 @@ impl CGWUCentralTopologyMap {
                 // in case when every new message is received <=9 ms for example:
                 // Single message received, waiting for new up to 10 ms.
                 // New received on 9th ms. Repeat.
-                // And this could repeat up untill buffer is full, or no new messages
+                // And this could repeat up until buffer is full, or no new messages
                 // appear on the 10ms scale.
-                // Highly unlikly scenario, but still possible.
+                // Highly unlikely scenario, but still possible.
                 let rd_num = tokio::select! {
                     v = rx_mbox.recv_many(&mut buf, buf_capacity - num_of_msg_read) => {
                         v
@@ -261,7 +261,7 @@ impl CGWUCentralTopologyMap {
                 let m = buf.remove(0);
                 match m.evt.evt_type {
                     CGWUCentralEventType::State(_) => {
-                        topo_map
+                        topomap
                             .process_state_message(
                                 &m.dev_type,
                                 &m.node_mac,
@@ -272,7 +272,7 @@ impl CGWUCentralTopologyMap {
                             .await;
                     }
                     CGWUCentralEventType::RealtimeEvent(_) => {
-                        topo_map
+                        topomap
                             .process_device_topology_event(
                                 &m.dev_type,
                                 &m.node_mac,
@@ -316,11 +316,11 @@ impl CGWUCentralTopologyMap {
     }
 
     pub async fn insert_device(&self, topology_node_mac: &MacAddress, platform: &str, gid: i32) {
-        // TODO: rework to use device / accept deivce, rather then trying to
+        // TODO: rework to use device / accept device, rather then trying to
         // parse string once again.
         if CGWDeviceType::from_str(platform).is_err() {
             warn!(
-                "Tried to insert {topology_node_mac} into tomo map, but failed to parse it's platform string"
+                "Tried to insert {topology_node_mac} into topomap, but failed to parse it's platform string"
             );
             return;
         }
@@ -331,7 +331,7 @@ impl CGWUCentralTopologyMap {
 
         let mut lock = self.data.write().await;
 
-        // Clear occurance of this mac from ANY of the groups.
+        // Clear occurrence of this mac from ANY of the groups.
         // This can only happen whenever device get's GID assigned from
         // 0 (unassigned) to some specific GID, for example:
         // was gid 0 - we created node initially - then NB's assigned device
@@ -340,8 +340,8 @@ impl CGWUCentralTopologyMap {
             let _ = v.topology_nodes.remove(topology_node_mac);
         }
 
-        // Try to insert new topo-map node, however it's possible that it's the
-        // first isert:
+        // Try to insert new topomap node, however it's possible that it's the
+        // first insert:
         //   - if first time GID is being manipulated - we also have to create
         //     a hashmap that controls this GID;
         //   - if exists - simply insert new topomap node into existing GID map.
@@ -375,7 +375,7 @@ impl CGWUCentralTopologyMap {
         topology_node_mac: &MacAddress,
         gid: i32,
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -425,7 +425,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
 
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -455,7 +455,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
 
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -484,7 +484,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
 
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -511,15 +511,15 @@ impl CGWUCentralTopologyMap {
         }
     }
 
-    // Process state message in an ublocking-manner as long as possible:
-    //   * Function does alot of unnecessary (on the first glance) cloning
+    // Process state message in an unblocking-manner as long as possible:
+    //   * Function does a lot of unnecessary (on the first glance) cloning
     //     and allocations, but it's needed to make sure we block the topomap
     //     for as short period of time as possible, to not clog/starve any
-    //     other topo map users (other connections/devices).
+    //     other topomap users (other connections/devices).
     //   * All the allocations and copying is done to make sure at the end
     //     of the function we only do alterations to the topomap itself,
-    //     and other calculations and tree-traverals should be kept at minimum.
-    // Overall design is part of software optimizations / approach to ublock
+    //     and other calculations and tree-traversals should be kept at minimum.
+    // Overall design is part of software optimizations / approach to unblock
     // other threads accessing the topomap.
     pub async fn process_state_message(
         &self,
@@ -529,7 +529,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
 
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -572,7 +572,7 @@ impl CGWUCentralTopologyMap {
             };
 
             // Start with LLDP processing, as it's the backbone core
-            // of deducing whether we have some umanaged (non-ucentral)
+            // of deducing whether we have some unmanaged (non-ucentral)
             // devices / nodes.
             for (local_port, links) in s.lldp_data.links {
                 for link in links {
@@ -674,7 +674,7 @@ impl CGWUCentralTopologyMap {
                             link_seen_on_port.client_type
                         {
                             // We need to track on a port-agnostic level macs
-                            // of wireles clients to easily track down the
+                            // of wireless clients to easily track down the
                             // migrated/disconnected/connected clients fast.
                             if let CGWDeviceType::CGWDeviceAP = device_type {
                                 if let CGWUCentralEventStatePort::WirelessPort(ref ssid, ref band) =
@@ -921,7 +921,7 @@ impl CGWUCentralTopologyMap {
                         // topomap entries.
                         // We only add nodes that we explicitly created.
                         // On the next iteration of state data our lldp-peer-partners
-                        // will update topo map on their own, if we didn't here.
+                        // will update topomap on their own, if we didn't here.
                         if let Some((CGWUCentralTopologyMapNodeOrigin::UCentralDevice, _, _)) =
                             topology_map_data.topology_nodes.get(&node_mac)
                         {
@@ -953,7 +953,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
 
         // TODO: remove this Arc:
-        // Dirty hack for now: pass Arc ref of srv to topo map;
+        // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
@@ -962,7 +962,7 @@ impl CGWUCentralTopologyMap {
         // With realtime events, we want to make them absolutely synchronous:
         // Since we could possibly handle <Join> event for a MAC that was
         // previously present, but never received <Leave> for it,
-        // we want to traverse through the whole topo map (including
+        // we want to traverse through the whole topomap (including
         // infra node list) and find _which_ exactly node we should
         // remove from which device's links list.
         //
@@ -1157,9 +1157,9 @@ impl CGWUCentralTopologyMap {
         // -- 3.We do this, by making sure we <preserve> the data about
         //    UC_DEVICE_1 <parent> connection in the <unknown lldp switch>
         //
-        // -- 4.Same appliest for <preserving> child links;
+        // -- 4.Same applied for <preserving> child links;
         //    Consider some UC_DEVICE_3 connects, and it's also connected
-        //    to the <unknown lldp switch>, the perfect topo map state
+        //    to the <unknown lldp switch>, the perfect topomap state
         //    should be:
         //
         //      (parent)   lldp      (child, parent)     lldp   (child)
@@ -1216,7 +1216,7 @@ impl CGWUCentralTopologyMap {
         // Grandparent hashmap: Key = parent, value = vec of child macs.
         let mut grandparent_node_macs: HashMap<MacAddress, Vec<MacAddress>> = HashMap::new();
 
-        // We found this node in our topo map:
+        // We found this node in our topomap:
         //   - clear child nodes (if this node <owns> them directly)
         //   - clear parent node (if this node <owns> it directly)
         //
@@ -1326,7 +1326,7 @@ impl CGWUCentralTopologyMap {
                     //   (parent)   lldp      (child, parent)     lldp   (child)
                     // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
                     //                                                   ^^^^^^^^^^^
-                    // <childs_parent_node_origin> is pointing to UC_DEVICE_2 origin
+                    // <chields_parent_node_origin> is pointing to UC_DEVICE_2 origin
                     // and since it's a UCentral device, we can't delete
                     // the UC_DEVICE_1 child (<unknown lldp switch>),
                     // because the information about <unknown lldp switch>

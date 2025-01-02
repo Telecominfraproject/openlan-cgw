@@ -323,7 +323,7 @@ impl CGWRemoteDiscovery {
         };
 
         debug!(
-            "Found {assigned_groups_num} asssigned to CGW ID {}",
+            "Found {assigned_groups_num} assigned to CGW ID {}",
             app_args.cgw_id
         );
 
@@ -392,7 +392,7 @@ impl CGWRemoteDiscovery {
         }
         if let Err(e) = rc.sync_remote_cgw_map().await {
             error!(
-                "Can't create CGW Remote Discovery client! Failed to sync remope CGW map! Error: {e}"
+                "Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}"
             );
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
@@ -488,7 +488,7 @@ impl CGWRemoteDiscovery {
             match lock.insert(gid, shard_id) {
                 None => continue,
                 Some(_v) => warn!(
-                    "Populated gid_to_cgw_map with previous value being alerady set, unexpected!"
+                    "Populated gid_to_cgw_map with previous value being already set, unexpected!"
                 ),
             }
         }
@@ -538,18 +538,18 @@ impl CGWRemoteDiscovery {
 
             match res {
                 Ok(res) => {
-                    let shrd: CGWREDISDBShard = CGWREDISDBShard::from(res);
-                    if shrd == CGWREDISDBShard::default() {
+                    let shard: CGWREDISDBShard = CGWREDISDBShard::from(res);
+                    if shard == CGWREDISDBShard::default() {
                         warn!("Failed to parse CGWREDISDBShard, key: {key}!");
                         continue;
                     }
 
                     let endpoint_str = String::from("http://")
-                        + &shrd.server_host
+                        + &shard.server_host
                         + ":"
-                        + &shrd.server_port.to_string();
+                        + &shard.server_port.to_string();
                     let cgw_iface = CGWRemoteIface {
-                        shard: shrd,
+                        shard: shard,
                         client: CGWRemoteClient::new(endpoint_str)?,
                     };
                     lock.insert(cgw_iface.shard.id, cgw_iface);
@@ -652,17 +652,17 @@ impl CGWRemoteDiscovery {
     async fn increment_group_assigned_infras_num(
         &self,
         gid: i32,
-        incremet_value: i32,
+        increment_value: i32,
     ) -> Result<()> {
         debug!(
-            "Incrementing assigned infras num group_id_{gid}: increment value: {incremet_value}"
+            "Incrementing assigned infras num group_id_{gid}: increment value: {increment_value}"
         );
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(&incremet_value.to_string())
+            .arg(&increment_value.to_string())
             .query_async(&mut con)
             .await;
         if let Err(e) = res {
@@ -675,12 +675,12 @@ impl CGWRemoteDiscovery {
             ));
         }
 
-        debug!("Incrementing assigned infras num group_id_{gid}: increment value: {incremet_value} - metrics");
+        debug!("Incrementing assigned infras num group_id_{gid}: increment value: {increment_value} - metrics");
         CGWMetrics::get_ref()
             .change_group_counter(
                 gid,
                 CGWMetricsCounterType::GroupInfrasAssignedNum,
-                CGWMetricsCounterOpType::IncBy(incremet_value as i64),
+                CGWMetricsCounterOpType::IncBy(increment_value as i64),
             )
             .await;
 
@@ -690,17 +690,17 @@ impl CGWRemoteDiscovery {
     async fn decrement_group_assigned_infras_num(
         &self,
         gid: i32,
-        decremet_value: i32,
+        decrement_value: i32,
     ) -> Result<()> {
         debug!(
-            "Decrementing assigned infras num group_id_{gid}: decrement_value: {decremet_value}"
+            "Decrementing assigned infras num group_id_{gid}: decrement_value: {decrement_value}"
         );
 
         let mut con = self.redis_client.clone();
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(&(-decremet_value).to_string())
+            .arg(&(-decrement_value).to_string())
             .query_async(&mut con)
             .await;
         if let Err(e) = res {
@@ -717,7 +717,7 @@ impl CGWRemoteDiscovery {
             .change_group_counter(
                 gid,
                 CGWMetricsCounterType::GroupInfrasAssignedNum,
-                CGWMetricsCounterOpType::DecBy(decremet_value as i64),
+                CGWMetricsCounterOpType::DecBy(decrement_value as i64),
             )
             .await;
 
@@ -780,7 +780,7 @@ impl CGWRemoteDiscovery {
             error!("assign_infra_group_to_cgw: failed to deassign infra group to CGW! Error: {e}");
         }
 
-        // Sync CGWs to get lates data
+        // Sync CGWs to get latest data
         if let Err(e) = self.sync_remote_cgw_map().await {
             error!("Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}");
             return Err(Error::RemoteDiscovery(
@@ -844,7 +844,7 @@ impl CGWRemoteDiscovery {
             ));
         }
 
-        debug!("REDIS: deassigned gid {gid} from controlled CGW");
+        debug!("REDIS: deassign gid {gid} from controlled CGW");
 
         self.gid_to_cgw_cache.write().await.remove(&gid);
 
@@ -948,7 +948,7 @@ impl CGWRemoteDiscovery {
         Ok(())
     }
 
-    pub async fn create_ifras_list(
+    pub async fn create_infras_list(
         &self,
         gid: i32,
         infras: Vec<MacAddress>,
@@ -1063,7 +1063,7 @@ impl CGWRemoteDiscovery {
             .increment_group_assigned_infras_num(gid, assigned_infras_num)
             .await
         {
-            error!("create_ifras_list: failed to increment assigned infras num! Error: {e}");
+            error!("create_infras_list: failed to increment assigned infras num! Error: {e}");
         }
 
         if !failed_infras.is_empty() {
@@ -1073,7 +1073,7 @@ impl CGWRemoteDiscovery {
         Ok(success_infras)
     }
 
-    pub async fn destroy_ifras_list(
+    pub async fn destroy_infras_list(
         &self,
         gid: i32,
         infras: Vec<MacAddress>,
@@ -1146,7 +1146,7 @@ impl CGWRemoteDiscovery {
             .decrement_group_assigned_infras_num(gid, removed_infras)
             .await
         {
-            error!("destroy_ifras_list: failed to decrement assigned infras num! Error: {e}");
+            error!("destroy_infras_list: failed to decrement assigned infras num! Error: {e}");
         }
 
         if !failed_infras.is_empty() {
@@ -1316,7 +1316,7 @@ impl CGWRemoteDiscovery {
                 if e.is_io_error() {
                     Self::set_redis_health_state_not_ready(e.to_string()).await;
                 }
-                warn!("Failed to get infras capacity for GID {gid}! Ereor: {e}");
+                warn!("Failed to get infras capacity for GID {gid}! Error: {e}");
                 return Err(Error::RemoteDiscovery("Failed to get infras capacity"));
             }
         };

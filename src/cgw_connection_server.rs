@@ -1,5 +1,5 @@
 use crate::cgw_device::{
-    cgw_detect_device_chages, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
+    cgw_detect_device_changes, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
 };
 use crate::cgw_nb_api_listener::{
     cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_capabilities_changed_msg,
@@ -114,7 +114,7 @@ pub struct CGWConnectionServer {
 
     local_cgw_id: i32,
     // CGWConnectionServer write into this mailbox,
-    // and other correspondig Server task Reads RX counterpart
+    // and other corresponding Server task Reads RX counterpart
     mbox_internal_tx: CGWConnectionServerMboxTx,
 
     // Object that owns underlying mac:connection map
@@ -145,7 +145,7 @@ pub struct CGWConnectionServer {
     queue_timeout_handle: Arc<Runtime>,
 
     // CGWConnectionServer write into this mailbox,
-    // and other correspondig NB API client is responsible for doing an RX over
+    // and other corresponding NB API client is responsible for doing an RX over
     // receive handle counterpart
     nb_api_client: Arc<CGWNBApiClient>,
 
@@ -342,7 +342,7 @@ impl CGWConnectionServer {
         // uses sync call, which panics (due to it being called in async
         // context).
         // The proper fix would to be refactor all constructors to be sync,
-        // but use spawn_blocking where needed in contextes that rely on the
+        // but use spawn_blocking where needed in contexts that rely on the
         // underlying async calls.
         let app_args_clone = app_args.validation_schema.clone();
         let get_config_validator_fut = tokio::task::spawn_blocking(move || {
@@ -384,14 +384,14 @@ impl CGWConnectionServer {
         });
 
         let server_clone = server.clone();
-        let ifras_capacity = app_args.cgw_group_infras_capacity;
+        let infras_capacity = app_args.cgw_group_infras_capacity;
         CGWMetrics::get_ref().change_counter(
             CGWMetricsCounterType::GroupInfrasCapacity,
-            CGWMetricsCounterOpType::Set(ifras_capacity.into()),
+            CGWMetricsCounterOpType::Set(infras_capacity.into()),
         );
         server.mbox_nb_api_runtime_handle.spawn(async move {
             server_clone
-                .process_internal_nb_api_mbox(nb_api_rx, ifras_capacity)
+                .process_internal_nb_api_mbox(nb_api_rx, infras_capacity)
                 .await;
         });
 
@@ -424,8 +424,8 @@ impl CGWConnectionServer {
 
         if server.feature_topomap_enabled {
             info!("Topomap enabled, starting queue processor...");
-            let topo_map = CGWUCentralTopologyMap::get_ref();
-            topo_map.start(&server.wss_rx_tx_runtime).await;
+            let topomap = CGWUCentralTopologyMap::get_ref();
+            topomap.start(&server.wss_rx_tx_runtime).await;
         }
 
         Ok(server)
@@ -474,7 +474,7 @@ impl CGWConnectionServer {
         }
     }
 
-    fn parse_nbapi_msg(&self, pload: &str) -> Option<CGWNBApiParsedMsg> {
+    fn parse_nbapi_msg(&self, payload: &str) -> Option<CGWNBApiParsedMsg> {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreate {
             r#type: String,
@@ -528,7 +528,7 @@ impl CGWConnectionServer {
             uuid: Uuid,
         }
 
-        let map: Map<String, Value> = serde_json::from_str(pload).ok()?;
+        let map: Map<String, Value> = serde_json::from_str(payload).ok()?;
 
         let rc = map.get(&String::from("type"))?;
         let msg_type = rc.as_str()?;
@@ -538,7 +538,7 @@ impl CGWConnectionServer {
 
         match msg_type {
             "infrastructure_group_create" => {
-                let json_msg: InfraGroupCreate = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupCreate = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -546,17 +546,15 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_create_to_shard" => {
-                let json_msg: InfraGroupCreateToShard = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupCreateToShard = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
-                        json_msg.shard_id,
-                    ),
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(json_msg.shard_id),
                 ));
             }
             "infrastructure_group_delete" => {
-                let json_msg: InfraGroupDelete = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupDelete = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -564,7 +562,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infras_add" => {
-                let json_msg: InfraGroupInfrasAdd = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupInfrasAdd = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -574,7 +572,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infras_del" => {
-                let json_msg: InfraGroupInfrasDel = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupInfrasDel = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -584,7 +582,7 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infra_message_enqueue" => {
-                let json_msg: InfraGroupMsgJSON = serde_json::from_str(pload).ok()?;
+                let json_msg: InfraGroupMsgJSON = serde_json::from_str(payload).ok()?;
                 debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
@@ -597,7 +595,7 @@ impl CGWConnectionServer {
                 ));
             }
             "rebalance_groups" => {
-                let json_msg: RebalanceGroups = serde_json::from_str(pload).ok()?;
+                let json_msg: RebalanceGroups = serde_json::from_str(payload).ok()?;
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -683,9 +681,9 @@ impl CGWConnectionServer {
                 // in case when every new message is received <=9 ms for example:
                 // Single message received, waiting for new up to 10 ms.
                 // New received on 9th ms. Repeat.
-                // And this could repeat up untill buffer is full, or no new messages
+                // And this could repeat up until buffer is full, or no new messages
                 // appear on the 10ms scale.
-                // Highly unlikly scenario, but still possible.
+                // Highly unlikely scenario, but still possible.
                 let rd_num = tokio::select! {
                     v = rx_mbox.recv_many(&mut buf, buf_capacity - num_of_msg_read) => {
                         v
@@ -954,18 +952,18 @@ impl CGWConnectionServer {
 
                             // We try to help free topomap memory usage
                             // by notifying it whenever GID get's destroyed.
-                            // Howover, for allocation we let topo map
+                            // However, for allocation we let topomap
                             // handle it's mem alloc whenever necessary
                             // on it's own, when data from specific gid
-                            // arrives - we rely on topo map to
+                            // arrives - we rely on topomap to
                             // allocate necessary structures on it's own.
                             //
                             // In this way, we make sure that we handle
-                            // properly the GID resoration scenario:
+                            // properly the GID restoration scenario:
                             // if CGW restarts and loads GID info from
                             // DB, there would be no notification about
                             // create/del, and there's no need to
-                            // oflload this responsibility to
+                            // offload this responsibility to
                             // remote_discovery module for example,
                             // due to the fact that CGW is not designed
                             // for management of redis without CGW knowledge:
@@ -974,8 +972,8 @@ impl CGWConnectionServer {
                             // it's not a responsibility of CGW to be aware
                             // of such changes and handle it correspondingly.
                             if self.feature_topomap_enabled {
-                                let topo_map = CGWUCentralTopologyMap::get_ref();
-                                topo_map.remove_gid(gid).await;
+                                let topomap = CGWUCentralTopologyMap::get_ref();
+                                topomap.remove_gid(gid).await;
                             }
 
                             if let Ok(resp) = cgw_construct_infra_group_delete_response(
@@ -1062,7 +1060,7 @@ impl CGWConnectionServer {
                         // Failed to find destination GID shard ID owner
                         // It is more likely GID does not exist
                         // Add request to local message buffer - let CGW process request
-                        // We relayig on uderlaying logic to handle specific request and manage corner cases
+                        // We relaying on underlying logic to handle specific request and manage corner cases
                         local_cgw_msg_buf.push(
                             CGWConnectionNBAPIReqMsg::EnqueueNewMessageFromNBAPIListener(
                                 key, payload, origin,
@@ -1186,14 +1184,14 @@ impl CGWConnectionServer {
                             let devices_cache_lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_ifras_list(gid, infras_list.clone(), devices_cache_lock)
+                                .create_infras_list(gid, infras_list.clone(), devices_cache_lock)
                                 .await
                             {
-                                Ok(success_ifras) => {
+                                Ok(success_infras) => {
                                     // Not all mac's GIDs might been successfully changed;
                                     // Notify all of them about the change.
                                     self.clone()
-                                        .notify_devices_on_gid_change(success_ifras.clone(), gid);
+                                        .notify_devices_on_gid_change(success_infras.clone(), gid);
 
                                     if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
                                         gid,
@@ -1213,7 +1211,7 @@ impl CGWConnectionServer {
                                     }
 
                                     let devices_cache_read = self.devices_cache.read().await;
-                                    for mac in success_ifras {
+                                    for mac in success_infras {
                                         let queue_lock = CGW_MESSAGES_QUEUE.read().await;
                                         if queue_lock.check_messages_queue_exists(&mac).await {
                                             queue_lock
@@ -1229,7 +1227,7 @@ impl CGWConnectionServer {
                                                 == CGWDeviceState::CGWDeviceConnected
                                             {
                                                 let dev_gid = dev.get_device_group_id();
-                                                let changes = cgw_detect_device_chages(
+                                                let changes = cgw_detect_device_changes(
                                                     &CGWDeviceCapabilities::default(),
                                                     &dev.get_device_capabilities(),
                                                 );
@@ -1275,7 +1273,7 @@ impl CGWConnectionServer {
                                     if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs
                                     {
                                         // We have a full list of macs we've tried to <add> to GID;
-                                        // Remove elements from cloned list based on whethere
+                                        // Remove elements from cloned list based on where there
                                         // they're present in <failed list>
                                         // Whenever done - notify corresponding conn.processors,
                                         // that they should updated their state to have GID
@@ -1283,7 +1281,7 @@ impl CGWConnectionServer {
                                         let mut macs_to_notify = infras_list.clone();
                                         macs_to_notify.retain(|&m| !failed_infras.contains(&m));
 
-                                        // Do so, only if there are at least any <successfull>
+                                        // Do so, only if there are at least any <successful>
                                         // GID changes;
                                         if !macs_to_notify.is_empty() {
                                             self.clone()
@@ -1347,7 +1345,7 @@ impl CGWConnectionServer {
                             let lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .destroy_ifras_list(gid, infras_list.clone(), lock)
+                                .destroy_infras_list(gid, infras_list.clone(), lock)
                                 .await
                             {
                                 Ok(()) => {
@@ -1379,7 +1377,7 @@ impl CGWConnectionServer {
                                     if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs
                                     {
                                         // We have a full list of macs we've tried to <del> from GID;
-                                        // Remove elements from cloned list based on whethere
+                                        // Remove elements from cloned list based on where there
                                         // they're present in <failed list>
                                         // Whenever done - notify corresponding conn.processors,
                                         // that they should updated their state to have GID
@@ -1387,7 +1385,7 @@ impl CGWConnectionServer {
                                         let mut macs_to_notify = infras_list.clone();
                                         macs_to_notify.retain(|&m| !failed_infras.contains(&m));
 
-                                        // Do so, only if there are at least any <successfull>
+                                        // Do so, only if there are at least any <successful>
                                         // GID changes;
                                         if !macs_to_notify.is_empty() {
                                             self.clone()
@@ -1462,7 +1460,7 @@ impl CGWConnectionServer {
                                             ) {
                                                 Ok(()) => {
                                                     // 3. Add message to queue
-                                                    self.enqueue_ifrastructure_request(
+                                                    self.enqueue_infrastructure_request(
                                                         device_mac,
                                                         infra.get_device_state(),
                                                         infra.get_device_group_id(),
@@ -1491,7 +1489,7 @@ impl CGWConnectionServer {
                                                 }
                                             }
                                         } else {
-                                            self.enqueue_ifrastructure_request(
+                                            self.enqueue_infrastructure_request(
                                                 device_mac,
                                                 infra.get_device_state(),
                                                 infra.get_device_group_id(),
@@ -1591,7 +1589,7 @@ impl CGWConnectionServer {
                 }
             }
 
-            // Do not proceed parsing local / remote msgs untill previous relaying has been
+            // Do not proceed parsing local / remote msgs until previous relaying has been
             // finished
             match tokio::join!(relay_task_hdl) {
                 (Ok(_),) => debug!("Successfully completed relay tasks!"),
@@ -1727,7 +1725,7 @@ impl CGWConnectionServer {
                             }
 
                             let changes =
-                                cgw_detect_device_chages(&device.get_device_capabilities(), &caps);
+                                cgw_detect_device_changes(&device.get_device_capabilities(), &caps);
                             match changes {
                                 Some(diff) => {
                                     if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
@@ -1825,8 +1823,8 @@ impl CGWConnectionServer {
                     }
 
                     if self.feature_topomap_enabled {
-                        let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map
+                        let topomap = CGWUCentralTopologyMap::get_ref();
+                        topomap
                             .insert_device(&device_mac, device_platform.as_str(), device_group_id)
                             .await;
                     }
@@ -1901,8 +1899,8 @@ impl CGWConnectionServer {
                     }
 
                     if self.feature_topomap_enabled {
-                        let topo_map = CGWUCentralTopologyMap::get_ref();
-                        topo_map
+                        let topomap = CGWUCentralTopologyMap::get_ref();
+                        topomap
                             .remove_device(&device_mac, device_group_id, self.clone())
                             .await;
                     }
@@ -1970,7 +1968,7 @@ impl CGWConnectionServer {
         self.cgw_remote_discovery.cleanup_redis().await;
     }
 
-    async fn enqueue_ifrastructure_request(
+    async fn enqueue_infrastructure_request(
         &self,
         mac: MacAddress,
         infra_state: CGWDeviceState,

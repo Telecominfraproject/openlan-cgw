@@ -12,7 +12,7 @@ use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
 use url::Url;
 
-use crate::cgw_app_args::{CGWValidationSchemaArgs, CGWValionSchemaRef};
+use crate::cgw_app_args::{CGWValidationSchemaArgs, CGWValidationSchemaRef};
 use crate::cgw_errors::{Error, Result};
 
 use crate::{
@@ -50,9 +50,9 @@ impl CGWUCentralConfigValidators {
         let config = match msg.get("params") {
             Some(cfg) => cfg,
             None => {
-                error!("Failed to get configs, invalid config message recevied");
+                error!("Failed to get configs, invalid config message received");
                 return Err(Error::UCentralParser(
-                    "Failed to get configs, invalid config message recevied",
+                    "Failed to get configs, invalid config message received",
                 ));
             }
         };
@@ -60,9 +60,9 @@ impl CGWUCentralConfigValidators {
         let config = match config.get("config") {
             Some(cfg) => cfg,
             None => {
-                error!("Failed to get config params, invalid config message recevied");
+                error!("Failed to get config params, invalid config message received");
                 return Err(Error::UCentralParser(
-                    "Failed to get config params, invalid config message recevied",
+                    "Failed to get config params, invalid config message received",
                 ));
             }
         };
@@ -165,7 +165,7 @@ pub enum CGWUCentralEventStatePort {
     // Physical port description (port name)
     #[serde(skip)]
     PhysicalWiredPort(String),
-    // Wirelss port description (ssid, band)
+    // Wireless port description (ssid, band)
     #[serde(skip)]
     WirelessPort(String, String),
 }
@@ -450,10 +450,12 @@ pub fn cgw_ucentral_event_parse(
     }
 }
 
-fn cgw_get_json_validation_schema(schema_ref: CGWValionSchemaRef) -> Result<serde_json::Value> {
+fn cgw_get_json_validation_schema(schema_ref: CGWValidationSchemaRef) -> Result<serde_json::Value> {
     match schema_ref {
-        CGWValionSchemaRef::SchemaUri(url) => cgw_download_json_validation_schemas(url),
-        CGWValionSchemaRef::SchemaPath(path) => cgw_load_json_validation_schemas(path.as_path()),
+        CGWValidationSchemaRef::SchemaUri(url) => cgw_download_json_validation_schemas(url),
+        CGWValidationSchemaRef::SchemaPath(path) => {
+            cgw_load_json_validation_schemas(path.as_path())
+        }
     }
 }
 
@@ -464,7 +466,7 @@ fn cgw_download_json_validation_schemas(url: Url) -> Result<serde_json::Value> {
             Ok(t) => t,
             Err(e) => {
                 return Err(Error::UCentralValidator(format!(
-                    "Failed to convert response from target URI {url} to text fromat: {e}"
+                    "Failed to convert response from target URI {url} to text format: {e}"
                 )));
             }
         },
@@ -505,7 +507,7 @@ fn cgw_load_json_validation_schemas(path: &Path) -> Result<serde_json::Value> {
     }
 }
 
-pub fn cgw_initialize_json_validator(schema_ref: CGWValionSchemaRef) -> Result<JSONSchema> {
+pub fn cgw_initialize_json_validator(schema_ref: CGWValidationSchemaRef) -> Result<JSONSchema> {
     let schema = match cgw_get_json_validation_schema(schema_ref) {
         Ok(sch) => sch,
         Err(e) => {

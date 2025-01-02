@@ -126,7 +126,7 @@ impl CGWDevice {
     }
 }
 
-pub fn cgw_detect_device_chages(
+pub fn cgw_detect_device_changes(
     cur_capabilities: &CGWDeviceCapabilities,
     new_capabilities: &CGWDeviceCapabilities,
 ) -> Option<HashMap<String, OldNew>> {

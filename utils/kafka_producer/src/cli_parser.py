@@ -65,7 +65,8 @@ def parse_args():
         parsed_args.send_to_group is None or
         parsed_args.send_to_mac is None
     ):
-        parser.error("--send-message requires --send-to-group and --send-to-mac")
+        parser.error(
+            "--send-message requires --send-to-group and --send-to-mac")
 
     message = None
     if parsed_args.send_message is not None:
@@ -105,12 +106,14 @@ def parse_args():
             for group, mac in parsed_args.assign_to_group:
                 args.assign_to_group.append((group, MacRange(mac)))
         except ValueError:
-            parser.error(f"--assign-to-group: failed to parse MAC range \"{mac}\"")
+            parser.error(
+                f"--assign-to-group: failed to parse MAC range \"{mac}\"")
     if parsed_args.remove_from_group is not None:
         try:
             for group, mac in parsed_args.remove_from_group:
                 args.remove_from_group.append((group, MacRange(mac)))
         except ValueError:
-            parser.error(f"--remove-from-group: failed to parse MAC range \"{mac}\"")
+            parser.error(
+                f"--remove-from-group: failed to parse MAC range \"{mac}\"")
 
     return args

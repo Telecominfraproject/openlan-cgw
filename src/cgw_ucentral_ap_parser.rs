@@ -180,7 +180,7 @@ fn parse_wireless_clients_data(
                         let clients_data = CGWUCentralEventStateClients {
                             client_type: CGWUCentralEventStateClientsType::Wireless(
                                 // Track timestamp of initial connection:
-                                // if we receive state evt <now>, substract
+                                // if we receive state evt <now>, subtract
                                 // connected since from it, to get
                                 // original connection timestamp.
                                 timestamp - ts,
@@ -237,12 +237,12 @@ fn parse_wired_clients_data(
         }
 
         // TODO: W/A for now: ignore any upstream-reported clients,
-        // because it includes ARP neighbours and clients.
+        // because it includes ARP neighbors and clients.
         // The logic to process uplink neighbors properly should be
         // much more complicated and should be treated as a
         // separate case.
         // This logic also overlaps the uplink switch's neighbor
-        // detection logic (LLDP, ARP, FDB etc), and building topo map
+        // detection logic (LLDP, ARP, FDB etc), and building topomap
         // based purely on AP's input could result in invalid
         // map formation.
         if upstream_ifaces.iter().any(|i| *i == local_port) {
@@ -788,7 +788,7 @@ fn parse_realtime_event_data(
             Ok(CGWUCentralEvent {
                 serial,
                 evt_type: CGWUCentralEventType::RealtimeEvent(CGWUCentralEventRealtimeEvent {
-                    // For client.leave the timestamp is: <now> substracted with
+                    // For client.leave the timestamp is: <now> subtracted with
                     // the time device's been connected to the AP,
                     // which translates into:
                     // timestamp is equal to whenever connection's been
@@ -840,7 +840,7 @@ pub fn cgw_ucentral_ap_parse_message(
             let serial = MacAddress::from_str(
                 params["serial"]
                     .as_str()
-                    .ok_or_else(|| Error::UCentralParser("Failed to parse seial from params"))?,
+                    .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
             )?;
 
             let log_event = CGWUCentralEvent {
@@ -861,7 +861,7 @@ pub fn cgw_ucentral_ap_parse_message(
             let serial = MacAddress::from_str(
                 params["serial"]
                     .as_str()
-                    .ok_or_else(|| Error::UCentralParser("Failed to parse seial from params"))?,
+                    .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
             )?;
             let firmware = params["firmware"]
                 .as_str()
@@ -889,7 +889,7 @@ pub fn cgw_ucentral_ap_parse_message(
                 return parse_realtime_event_data(map, timestamp);
             } else {
                 return Err(Error::UCentralParser(
-                    "Received unexpected event while topo map feature is disabled",
+                    "Received unexpected event while topomap feature is disabled",
                 ));
             }
         }

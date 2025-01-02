@@ -160,13 +160,13 @@ impl CGWUCentralMessagesQueueManager {
         infra_mac: &MacAddress,
     ) -> Vec<CGWUCentralMessagesQueueItem> {
         debug!("Flush infra {infra_mac} queue due to timeout");
-        let mut reqs: Vec<CGWUCentralMessagesQueueItem> = Vec::new();
+        let mut requests: Vec<CGWUCentralMessagesQueueItem> = Vec::new();
 
         while let Some(msg) = self.dequeue_device_message(infra_mac).await {
-            reqs.push(msg);
+            requests.push(msg);
         }
 
-        reqs
+        requests
     }
 
     pub async fn push_device_message(
@@ -303,10 +303,10 @@ impl CGWUCentralMessagesQueueManager {
         Some(device_msg_queue.get_last_req_id())
     }
 
-    // Dequeue messages accoring to priority:
+    // Dequeue messages according to priority:
     // 1. Check if reboot message exist in queue and return it if true
     // 2. Check if configure message exist in queue and return it if true
-    // 3. Remove other message from qeueu and return it
+    // 3. Remove other message from queue and return it
     pub async fn dequeue_device_message(
         &self,
         device_mac: &MacAddress,
@@ -430,11 +430,11 @@ impl CGWUCentralMessagesQueueManager {
         // 2. Remove disconnected device and it queue
         let mut container_write_lock = self.disconnected_devices.write().await;
         for (infra_mac, infra_gid) in devices_to_flush.iter() {
-            let mut reqs: Vec<(i32, CGWUCentralMessagesQueueItem)> = Vec::new();
+            let mut requests: Vec<(i32, CGWUCentralMessagesQueueItem)> = Vec::new();
             while let Some(msg) = self.dequeue_device_message(infra_mac).await {
-                reqs.push((*infra_gid, msg));
+                requests.push((*infra_gid, msg));
             }
-            failed_requests.insert(*infra_mac, reqs);
+            failed_requests.insert(*infra_mac, requests);
             self.delete_device_messages_queue(infra_mac).await;
             container_write_lock.remove(infra_mac);
         }

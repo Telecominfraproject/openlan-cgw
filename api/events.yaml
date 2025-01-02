@@ -26,7 +26,7 @@ infra_join:
 
 infra_leave:
   description:
-    Event, that CGW generates whenever assigned infra diconnects from the CGW.
+    Event, that CGW generates whenever assigned infra disconnects from the CGW.
   type:
     type: string
     enum:

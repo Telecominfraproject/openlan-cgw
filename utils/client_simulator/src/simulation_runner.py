@@ -26,11 +26,14 @@ class Message:
         tmp_mac = copy.deepcopy(mac)
         tmp_mac = tmp_mac.replace(":", "")
         self.templates = get_msg_templates()
-        self.connect = json.dumps(self.templates["connect"]).replace("MAC", tmp_mac)
+        self.connect = json.dumps(
+            self.templates["connect"]).replace("MAC", tmp_mac)
         self.state = json.dumps(self.templates["state"]).replace("MAC", mac)
-        self.reboot_response = json.dumps(self.templates["reboot_response"]).replace("MAC", mac)
+        self.reboot_response = json.dumps(
+            self.templates["reboot_response"]).replace("MAC", mac)
         self.log = copy.deepcopy(self.templates["log"])
-        self.log["params"]["data"] = {"msg": ''.join(random.choices(string.ascii_uppercase + string.digits, k=size))}
+        self.log["params"]["data"] = {"msg": ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=size))}
         self.log = json.dumps(self.log).replace("MAC", mac)
         self.join = json.dumps(self.templates["join"]).replace("MAC", mac)
         self.leave = json.dumps(self.templates["leave"]).replace("MAC", mac)
@@ -128,7 +131,8 @@ class Device:
         if self._socket is None:
             # 20 seconds is more then enough to establish conne and exchange
             # them handshakes.
-            self._socket = client.connect(self.server_addr, ssl=self.ssl_context, open_timeout=20, close_timeout=20)
+            self._socket = client.connect(
+                self.server_addr, ssl=self.ssl_context, open_timeout=20, close_timeout=20)
         return self._socket
 
     def disconnect(self):
@@ -144,7 +148,8 @@ class Device:
             self.send_hello(self._socket)
             while True:
                 if self._socket is None:
-                    logger.error("Connection to GW is lost. Trying to reconnect...")
+                    logger.error(
+                        "Connection to GW is lost. Trying to reconnect...")
                     self.connect()
                 if time.time() - start > self.interval:
                     logger.info(f"Device sim heartbeat")
@@ -168,7 +173,8 @@ class Device:
             self.send_hello(self._socket)
             while not self.stop_event.is_set():
                 if self._socket is None:
-                    logger.error("Connection to GW is lost. Trying to reconnect...")
+                    logger.error(
+                        "Connection to GW is lost. Trying to reconnect...")
                     self.connect()
                 if time.time() - start > self.interval:
                     logger.info(f"Device sim heartbeat")
@@ -193,6 +199,7 @@ def get_avail_mac_addrs(path, mask="XX:XX:XX:XX:XX:XX"):
 
     return new_macs
 
+
 def update_fd_limit():
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     try:
@@ -205,7 +212,8 @@ def update_fd_limit():
 
 
 def process(args: Args, mask: str, start_event: multiprocessing.Event, stop_event: multiprocessing.Event):
-    signal.signal(signal.SIGINT, signal.SIG_IGN)  # ignore Ctrl+C in child processes
+    # ignore Ctrl+C in child processes
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     threading.current_thread().name = mask
     logger.info(f"process started")
     macs = get_avail_mac_addrs(args.cert_path, mask)
@@ -240,7 +248,8 @@ def trigger_start(evt):
 
 
 def main(args: Args):
-    verify_cert_availability(args.cert_path, args.masks, args.number_of_connections)
+    verify_cert_availability(args.cert_path, args.masks,
+                             args.number_of_connections)
     stop_event = multiprocessing.Event()
     start_event = multiprocessing.Event()
     if not args.wait_for_sig:

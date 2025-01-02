@@ -2,6 +2,7 @@ import psycopg2
 from psycopg2 import OperationalError, sql
 from typing import List, Tuple
 
+
 class PostgreSQLClient:
     def __init__(self, host: str, port: int, database: str, user: str, password: str):
         """Initialize the PostgreSQL client with the connection parameters."""
@@ -33,7 +34,7 @@ class PostgreSQLClient:
         if not self.cursor:
             print("Error: No database connection established.")
             return None
-        
+
         try:
             # Use sql.SQL for parameterized queries to avoid SQL injection
             if params:
@@ -52,13 +53,13 @@ class PostgreSQLClient:
         result = None
 
         if self.cursor:
-            try: 
+            try:
                 result = self.cursor.fetchone()
             except Exception as e:
                 print(f"Error executing fetchone: {e}")
         else:
             print("Error: No database connection or query executed.")
-        
+
         return result
 
     def fetchall(self):
@@ -72,14 +73,15 @@ class PostgreSQLClient:
                 print(f"Error executing fetchone: {e}")
         else:
             print("Error: No database connection or query executed.")
-        
+
         return result
 
     def get_infrastructure_group(self, group_id: int) -> Tuple[int, int, int]:
         """Fetch group record by group id."""
         group_info = tuple()
 
-        self.execute_query(f"select * from infrastructure_groups WHERE id = {group_id};")
+        self.execute_query(
+            f"select * from infrastructure_groups WHERE id = {group_id};")
         group_info = self.fetchone()
 
         return group_info
@@ -112,7 +114,8 @@ class PostgreSQLClient:
         """Fetch group record by infra mac."""
         infras_info = None
 
-        self.execute_query(f"select * from infras WHERE infra_group_id = \'{group_id}\';")
+        self.execute_query(
+            f"select * from infras WHERE infra_group_id = \'{group_id}\';")
         infras_info = self.fetchall()
 
         return infras_info

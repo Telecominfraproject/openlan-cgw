@@ -98,7 +98,8 @@ def parse_args():
     # TODO: fixme the host portion can contain a lot more than just these characters!
     match = re.match(r"(?:(wss?)://)?([\d\w\.-]+):?(\d+)?", parsed_args.server)
     if match is None:
-        raise ValueError(f"Unable to parse server address {parsed_args.server}")
+        raise ValueError(
+            f"Unable to parse server address {parsed_args.server}")
     proto, addr, port = match.groups()
     if proto is not None:
         args.server_proto = proto

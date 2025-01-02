@@ -99,7 +99,7 @@ impl CGWDevicesCache {
 
             if let Ok(mut fd) = File::create("/var/devices_cache.json") {
                 if let Err(e) = fd.write_all(json_output.as_bytes()) {
-                    error!("Failed to dump CGW device chache data! Error: {e}");
+                    error!("Failed to dump CGW device cache data! Error: {e}");
                 }
             }
         };

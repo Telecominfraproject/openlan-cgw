@@ -16,29 +16,29 @@ lazy_static! {
         "cgw_groups_assigned_num",
         "Number of groups assigned to this particular shard"
     )
-    .expect("metric canot be created");
+    .expect("metric cannot be created");
     pub static ref GROUPS_CAPACITY: IntGauge = IntGauge::new(
         "cgw_groups_capacity",
         "Max limit (capacity) of groups this shard can handle"
     )
-    .expect("metric can be created");
+    .expect("metric cannot be created");
     pub static ref GROUPS_THRESHOLD: IntGauge = IntGauge::new(
         "cgw_groups_threshold",
         "Max threshold (extra capacity) of groups this shard can handle"
     )
-    .expect("metric can be created");
+    .expect("metric cannot be created");
     pub static ref GROUP_INFRAS_CAPACITY: IntGauge = IntGauge::new(
-        "cgw_group_ifras_capacity",
+        "cgw_group_infras_capacity",
         "Max limit (capacity) of infras the group can handle"
     )
-    .expect("metric can be created");
+    .expect("metric cannot be created");
     pub static ref GROUP_INFRAS_ASSIGNED_NUM: Arc<RwLock<HashMap<i32, IntGauge>>> =
         Arc::new(RwLock::new(HashMap::new()));
     pub static ref CONNECTIONS_NUM: IntGauge = IntGauge::new(
         "cgw_connections_num",
         "Number of successfully established WSS connections (underlying Infra connections)"
     )
-    .expect("metric can be created");
+    .expect("metric cannot be created");
     pub static ref REGISTRY: Registry = Registry::new();
     pub static ref CGW_METRICS: CGWMetrics = CGWMetrics {
         started: Mutex::new(false),
@@ -312,11 +312,11 @@ async fn health_handler() -> std::result::Result<impl Reply, Rejection> {
     }
 
     if healthy {
-        Ok("CGW: up and running (all components are healhy)".into_response())
+        Ok("CGW: up and running (all components are healthy)".into_response())
     } else {
         Ok(reply::with_status(
             format!(
-                "CGW: one or more of the components are not healhy:\n{}",
+                "CGW: one or more of the components are not healthy:\n{}",
                 text_status
             ),
             StatusCode::INTERNAL_SERVER_ERROR,

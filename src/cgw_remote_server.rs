@@ -63,13 +63,13 @@ impl CGWRemoteServer {
     pub async fn start(&self, srv: Arc<CGWConnectionServer>) {
         // GRPC server
         // TODO: use CGWRemoteServerConfig wrap
-        let icgw_serv = CGWRemote { cgw_srv: srv };
+        let cgw_server = CGWRemote { cgw_srv: srv };
         let grpc_srv = Server::builder()
             .tcp_keepalive(Some(Duration::from_secs(7200)))
             .http2_keepalive_timeout(Some(Duration::from_secs(7200)))
             .http2_keepalive_interval(Some(Duration::from_secs(7200)))
             .http2_max_pending_accept_reset_streams(Some(1000))
-            .add_service(RemoteServer::new(icgw_serv));
+            .add_service(RemoteServer::new(cgw_server));
 
         info!(
             "Starting GRPC server id {} - listening at {}:{}",

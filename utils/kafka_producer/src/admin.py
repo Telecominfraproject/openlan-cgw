@@ -3,6 +3,7 @@ from .utils import Message
 
 __all__ = ['Message']
 
+
 class Admin:
     def __init__(self, host: str, port: int):
         self.host = host
@@ -12,7 +13,8 @@ class Admin:
     def connect(self):
         """Connect to the Kafka."""
         try:
-            self.connection = KafkaAdminClient(bootstrap_servers=f'{self.host}:{self.port}')
+            self.connection = KafkaAdminClient(
+                bootstrap_servers=f'{self.host}:{self.port}')
             print("Connection successful")
         except:
             print("Error: Unable to connect to the kafka.")
@@ -29,7 +31,7 @@ class Admin:
     def is_connected(self) -> bool:
         """Check if the Kafka connection established."""
         return self.connection is not None
-    
+
     def get_topic_partitions_for_cgw_id(self, topic: str, group: list, cgw_id: int) -> list:
         """Returns list of partitions assigned to specific CGW shard ID for specific topic."""
         partitions_list = []

@@ -144,7 +144,7 @@ impl AppCore {
 
         let cgw_remote_server = CGWRemoteServer::new(self.args.cgw_id, &self.args.grpc_args);
         let cgw_srv_clone = self.cgw_server.clone();
-        let cgw_con_serv = self.cgw_server.clone();
+        let cgw_con_server = self.cgw_server.clone();
         self.grpc_server_runtime_handle.spawn(async move {
             debug!("cgw_remote_server.start entry");
             cgw_remote_server.start(cgw_srv_clone).await;
@@ -157,7 +157,7 @@ impl AppCore {
             tokio::select! {
                 // Cleanup if notified of received SIGHUP, SIGINT or SIGTERM
                 _ = notifier.notified() => {
-                    cgw_con_serv.cleanup_redis().await;
+                    cgw_con_server.cleanup_redis().await;
                     break;
                 },
                 _ = async {
@@ -303,7 +303,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
         .await;
 
     match result {
-        Ok(_) => info!("Apllication finished succesfully!"),
+        Ok(_) => info!("Application finished successfully!"),
         Err(e) => {
             error!("Application failed! Error: {e}");
         }
@@ -363,7 +363,7 @@ async fn main() -> Result<()> {
     }
 
     if args.feature_topomap_enabled {
-        warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPO MAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");
+        warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPOMAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");
     }
 
     info!(

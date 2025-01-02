@@ -6,7 +6,7 @@
 # 'cnc_res_api.yaml' file.
 infrastructure_group_create:
   description:
-    Create a single infrastracture group and assign it to any available shard.
+    Create a single infrastructure group and assign it to any available shard.
     The decision of assignment will be made by whatever shard that is processing request.
     Request generates corresponding 'infrastructure_group_create_response' response.
   type:
@@ -28,7 +28,7 @@ infrastructure_group_create:
 
 infrastructure_group_create_to_shard:
   description:
-    Create a single infrastracture group and assign it to specific shard.
+    Create a single infrastructure group and assign it to specific shard.
     While group's being assigned to specific shard, the handling of this request
     will be made by whatever shard that's received the request.
     Request generates corresponding 'infrastructure_group_create_response' response.
@@ -58,7 +58,7 @@ infrastructure_group_create_to_shard:
 infrastructure_group_delete:
   description:
     Destroy previously created infrastructure group.
-    NOTE - also deassigns (if any) underlying assigned infras.
+    NOTE - also deassign (if any) underlying assigned infras.
     Also works if any assigned infra is already connected to CGW.
     Request generates corresponding 'infrastructure_group_delete_response' response.
   type:
@@ -162,7 +162,7 @@ infrastructure_group_infra_message_enqueue:
   msg:
     description:
       Complete uCentral-formatted JSON document request to the uCentral device.
-      Shuld include method, ID.
+      Should include method, ID.
     type: object
   timeout:
     description:

@@ -118,7 +118,16 @@ pub struct InfraGroupInfraCapabilitiesChanged {
 }
 
 #[derive(Debug, Serialize)]
-pub struct UnassignedInfraConnection {
+pub struct UnassignedInfraJoinMessage {
+    pub r#type: &'static str,
+    pub infra_group_infra: MacAddress,
+    pub infra_public_ip: SocketAddr,
+    pub reporter_shard_id: i32,
+    pub connect_message_payload: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UnassignedInfraLeaveMessage {
     pub r#type: &'static str,
     pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
@@ -129,6 +138,7 @@ pub struct ForeignInfraConnection {
     pub r#type: &'static str,
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
+    pub infra_public_ip: SocketAddr,
     pub reporter_shard_id: i32,
     pub group_owner_shard_id: i32,
 }
@@ -169,6 +179,7 @@ pub struct InfraJoinMessage {
     pub infra_group_infra: MacAddress,
     pub infra_public_ip: SocketAddr,
     pub reporter_shard_id: i32,
+    pub connect_message_payload: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -328,12 +339,29 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
     Ok(serde_json::to_string(&dev_cap_msg)?)
 }
 
-pub fn cgw_construct_unassigned_infra_connection_msg(
+pub fn cgw_construct_unassigned_infra_join_msg(
+    infra_group_infra: MacAddress,
+    infra_public_ip: SocketAddr,
+    reporter_shard_id: i32,
+    connect_message_payload: String,
+) -> Result<String> {
+    let unassigned_infra_msg = UnassignedInfraJoinMessage {
+        r#type: "unassigned_infra_join",
+        infra_group_infra,
+        infra_public_ip,
+        reporter_shard_id,
+        connect_message_payload,
+    };
+
+    Ok(serde_json::to_string(&unassigned_infra_msg)?)
+}
+
+pub fn cgw_construct_unassigned_infra_leave_msg(
     infra_group_infra: MacAddress,
     reporter_shard_id: i32,
 ) -> Result<String> {
-    let unassigned_infra_msg = UnassignedInfraConnection {
-        r#type: "unassigned_infra_connection",
+    let unassigned_infra_msg = UnassignedInfraLeaveMessage {
+        r#type: "unassigned_infra_leave",
         infra_group_infra,
         reporter_shard_id,
     };
@@ -344,6 +372,7 @@ pub fn cgw_construct_unassigned_infra_connection_msg(
 pub fn cgw_construct_foreign_infra_connection_msg(
     infra_group_id: i32,
     infra_group_infra: MacAddress,
+    infra_public_ip: SocketAddr,
     reporter_shard_id: i32,
     group_owner_shard_id: i32,
 ) -> Result<String> {
@@ -351,6 +380,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
         r#type: "foreign_infra_connection",
         infra_group_id,
         infra_group_infra,
+        infra_public_ip,
         reporter_shard_id,
         group_owner_shard_id,
     };
@@ -418,6 +448,7 @@ pub fn cgw_construct_infra_join_msg(
     infra_group_infra: MacAddress,
     infra_public_ip: SocketAddr,
     reporter_shard_id: i32,
+    connect_message_payload: String,
 ) -> Result<String> {
     let infra_join_msg = InfraJoinMessage {
         r#type: "infra_join",
@@ -425,6 +456,7 @@ pub fn cgw_construct_infra_join_msg(
         infra_group_infra,
         infra_public_ip,
         reporter_shard_id,
+        connect_message_payload,
     };
 
     Ok(serde_json::to_string(&infra_join_msg)?)

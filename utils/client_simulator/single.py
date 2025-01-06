@@ -81,7 +81,8 @@ def parse_args():
     # TODO: fixme the host portion can contain a lot more than just these characters!
     match = re.match(r"(?:(wss?)://)?([\d\w\.-]+):?(\d+)?", parsed_args.server)
     if match is None:
-        raise ValueError(f"Unable to parse server address {parsed_args.server}")
+        raise ValueError(
+            f"Unable to parse server address {parsed_args.server}")
     proto, addr, port = match.groups()
     if proto is not None:
         args.server_proto = proto
@@ -95,10 +96,10 @@ def parse_args():
 def main(args):
     mac = args.mac
     device = Device(mac, args.server, args.ca_path, args.msg_interval, args.msg_size,
-                      os.path.join(args.cert_path, f"{mac}.crt"),
-                      os.path.join(args.cert_path, f"{mac}.key"),
-                      args.cert_check,
-                      None, None)
+                    os.path.join(args.cert_path, f"{mac}.crt"),
+                    os.path.join(args.cert_path, f"{mac}.key"),
+                    args.cert_check,
+                    None, None)
     print(f"Server: {device.server_addr}")
     print(f"MAC:    {mac}")
     device.single_run()

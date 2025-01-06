@@ -25,7 +25,6 @@ class Consumer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disconnect()
 
-
     def connect(self) -> kafka.KafkaConsumer:
         if self.is_connected() is False:
             self.conn = kafka.KafkaConsumer(self.topic,
@@ -53,7 +52,7 @@ class Consumer:
 
     def flush(self, timeout_ms: int = 1000):
         assert self.is_connected(), \
-                f"consumer: Cannot flush kafka topic while not connected!"
+            f"consumer: Cannot flush kafka topic while not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>
@@ -64,13 +63,13 @@ class Consumer:
                 break
 
             logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
-                    (message.topic, message.key, message.value, message.timestamp))
+                         (message.topic, message.key, message.value, message.timestamp))
 
     def get_msgs(self, timeout_ms: int = 12000):
         res_list = []
 
-        assert self.is_connected(),\
-                f"consumer: Cannot get Kafka result msg, Not connected!"
+        assert self.is_connected(), \
+            f"consumer: Cannot get Kafka result msg, Not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>
@@ -82,15 +81,15 @@ class Consumer:
 
             res_list.append(message)
             logger.debug("consumer: Recv kafka msg: %s key=%s value=%s ts=%s" %
-                    (message.topic, message.key, message.value, message.timestamp))
+                         (message.topic, message.key, message.value, message.timestamp))
 
         return res_list
 
     def get_infra_request_result_msg(self, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = str(uuid.UUID(int=uuid_val))
 
-        assert self.is_connected(),\
-                f"consumer: Cannot get Kafka result msg, Not connected!"
+        assert self.is_connected(), \
+            f"consumer: Cannot get Kafka result msg, Not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>
@@ -101,7 +100,7 @@ class Consumer:
                 break
 
             logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
-                    (message.topic, message.key, message.value, message.timestamp))
+                         (message.topic, message.key, message.value, message.timestamp))
             if 'uuid' in message.value.keys():
                 if res_uuid == message.value['uuid'] and message.value['type'] == 'infra_request_result':
                     return message
@@ -110,8 +109,8 @@ class Consumer:
     def get_result_msg(self, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = str(uuid.UUID(int=uuid_val))
 
-        assert self.is_connected(),\
-                f"consumer: Cannot get Kafka result msg, Not connected!"
+        assert self.is_connected(), \
+            f"consumer: Cannot get Kafka result msg, Not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>
@@ -122,15 +121,15 @@ class Consumer:
                 break
 
             logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
-                    (message.topic, message.key, message.value, message.timestamp))
+                         (message.topic, message.key, message.value, message.timestamp))
             if 'uuid' in message.value.keys():
                 if res_uuid == message.value['uuid']:
                     return message
         return None
 
     def get_single_msg(self, timeout_ms: int = 12000):
-        assert self.is_connected(),\
-                f"consumer: Cannot get Kafka result msg, Not connected!"
+        assert self.is_connected(), \
+            f"consumer: Cannot get Kafka result msg, Not connected!"
 
         msg = self.conn.poll(timeout_ms=timeout_ms, max_records=1)
         for partition, msgs in msg.items():
@@ -142,8 +141,8 @@ class Consumer:
     def get_msg_by_substring(self, substring: int, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = uuid.UUID(int=uuid_val)
 
-        assert self.is_connected(),\
-                f"Cannot get Kafka result msg, Not connected!"
+        assert self.is_connected(), \
+            f"Cannot get Kafka result msg, Not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>
@@ -155,7 +154,7 @@ class Consumer:
 
             if re.search(substring, message.value):
                 logger.debug("Found '%s' in kafka msg: %s key=%s value=%s ts=%s" %
-                        (substring, message.topic, message.key, message.value, message.timestamp))
+                             (substring, message.topic, message.key, message.value, message.timestamp))
                 return message
 
         return None

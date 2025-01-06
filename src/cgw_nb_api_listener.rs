@@ -289,7 +289,7 @@ pub fn cgw_construct_rebalance_group_response(
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
-    let rebalanse_resp = RebalanceGroupsResponse {
+    let rebalance_resp = RebalanceGroupsResponse {
         r#type: "rebalance_groups_response",
         infra_group_id,
         reporter_shard_id,
@@ -298,7 +298,7 @@ pub fn cgw_construct_rebalance_group_response(
         error_message,
     };
 
-    Ok(serde_json::to_string(&rebalanse_resp)?)
+    Ok(serde_json::to_string(&rebalance_resp)?)
 }
 
 pub fn cgw_construct_infra_capabilities_changed_msg(
@@ -465,7 +465,7 @@ pub fn cgw_construct_infra_request_result_msg(
 }
 
 struct CGWConsumerContextData {
-    // Tuple consistion of physical partition id (0,1,2.. etc)
+    // Tuple consisting of physical partition id (0,1,2.. etc)
     // and the corresponding _kafka routing key_, or just kafka key,
     // that can be used with this topic to access specified topic.
     // It can be used to optimize CGW to GID to Kafka topic mapping,
@@ -490,7 +490,7 @@ struct CGWConsumerContextData {
     partition_num: usize,
 
     // A bit ugly, but we need a way to get
-    // consumer (to retrieve patition num) whenever
+    // consumer (to retrieve partition num) whenever
     // client->context rebalance callback is being called.
     consumer_client: Option<Arc<CGWCNCConsumerType>>,
 }
@@ -524,7 +524,7 @@ impl CGWConsumerContextData {
                 break;
             }
 
-            // Default partitioner users the following formula:
+            // Default partitioning uses the following formula:
             // toPositive(murmur2(keyBytes)) % numPartitions
             let hash_res = murmur2(key_bytes, DEFAULT_HASH_SEED) & 0x7fffffff;
             let part_idx = hash_res.rem_euclid(partition_num as u32);
@@ -673,7 +673,7 @@ impl ConsumerContext for CustomContext {
             part_list += &(x.partition().to_string() + " ");
         }
         debug!("commit_callback callback, partition(s): {part_list}");
-        debug!("Consumer callback: commiting offsets: {:?}", result);
+        debug!("Consumer callback: committing offsets: {:?}", result);
     }
 }
 
@@ -691,8 +691,8 @@ struct CGWCNCConsumer {
 
 impl CGWCNCConsumer {
     pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Self> {
-        let consum = Self::create_consumer(cgw_id, kafka_args)?;
-        Ok(CGWCNCConsumer { c: consum })
+        let consumer = Self::create_consumer(cgw_id, kafka_args)?;
+        Ok(CGWCNCConsumer { c: consumer })
     }
 
     fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Arc<CGWCNCConsumerType>> {
@@ -790,7 +790,7 @@ pub struct CGWNBApiClient {
     cgw_server_tx_mbox: CGWConnectionServerMboxTx,
     prod: CGWCNCProducer,
     consumer: Arc<CGWCNCConsumer>,
-    // TBD: stplit different implementators through a defined trait,
+    // TBD: split different implementations through a defined trait,
     // that implements async R W operations?
 }
 

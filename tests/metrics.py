@@ -10,7 +10,7 @@ def cgw_metric_get(host: str = "localhost", port: int = 8080) -> str:
         r = requests.get(f"http://{host}:{port}/metrics", timeout=5)
         print("CGW metrics ret code: " + str(r.status_code))
         assert r is not None and r.status_code == 200, \
-                f"CGW metrics is not available"
+            f"CGW metrics is not available"
         metrics = r.text
     except Exception as e:
         print("CGW metrics: raised exception when tried to fetch metrics:" + e)
@@ -40,9 +40,9 @@ def cgw_metrics_get_connections_num() -> int:
     match = re.search(r"cgw_connections_num (\d+)", metrics)
     if match:
         wss_connections_num = int(match.group(1))
-        print(f"WSS conections num: {wss_connections_num}")
+        print(f"WSS connections num: {wss_connections_num}")
     else:
-        print("WSS conections num not found.")
+        print("WSS connections num not found.")
 
     return wss_connections_num
 
@@ -65,10 +65,12 @@ def cgw_metrics_get_group_infras_assigned_num(group_id: int) -> int:
     group_infras_assigned_num = 0
     metrics = cgw_metric_get()
 
-    match = re.search(rf"cgw_group_{group_id}_infras_assigned_num (\d+)", metrics)
+    match = re.search(
+        rf"cgw_group_{group_id}_infras_assigned_num (\d+)", metrics)
     if match:
         group_infras_assigned_num = int(match.group(1))
-        print(f"Group {group_id} infras assigned num: {group_infras_assigned_num}")
+        print(
+            f"Group {group_id} infras assigned num: {group_infras_assigned_num}")
     else:
         print(f"Group {group_id} infras assigned num not found.")
 
@@ -103,11 +105,11 @@ def cgw_metrics_get_groups_threshold() -> int:
     return groups_threshold
 
 
-def cgw_metrics_get_group_ifras_capacity() -> int:
+def cgw_metrics_get_group_infras_capacity() -> int:
     group_infras_capacity = 0
     metrics = cgw_metric_get()
 
-    match = re.search(r"cgw_group_ifras_capacity (\d+)", metrics)
+    match = re.search(r"cgw_group_infras_capacity (\d+)", metrics)
     if match:
         group_infras_capacity = int(match.group(1))
         print(f"Groups capacity: {group_infras_capacity}")

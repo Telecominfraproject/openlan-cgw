@@ -94,7 +94,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
         Some(c) => c,
         None => {
             return Err(Error::Tls(
-                "Certificates not found in clinet connection!".to_string(),
+                "Certificates not found in client connection!".to_string(),
             ));
         }
     };
@@ -103,7 +103,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
         Some(cert) => cert,
         None => {
             return Err(Error::Tls(
-                "First certificate not found in clinet connection!".to_string(),
+                "First certificate not found in client connection!".to_string(),
             ));
         }
     };
@@ -116,7 +116,7 @@ pub async fn cgw_tls_get_cn_from_stream(stream: &TlsStream<TcpStream>) -> Result
                         Ok(mac) => return Ok(mac),
                         Err(e) => {
                             return Err(Error::Tls(format!(
-                                "Failed to parse clien CN/MAC! Error: {e}"
+                                "Failed to parse client CN/MAC! Error: {e}"
                             )))
                         }
                     };
@@ -158,7 +158,7 @@ pub async fn cgw_tls_create_acceptor(wss_args: &CGWWSSArgs) -> Result<TlsAccepto
     // Read private key.
     let key_path = format!("{}/{}", CGW_TLS_CERTIFICATES_PATH, wss_args.wss_key);
     let key = match cgw_tls_read_private_key(key_path.as_str()).await {
-        Ok(pkey) => pkey,
+        Ok(private_key) => private_key,
         Err(e) => {
             error!("{e}");
             return Err(e);

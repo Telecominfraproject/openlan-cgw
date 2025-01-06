@@ -4,31 +4,31 @@ CGW, like OWGW, manages device (Access Points and OpenLan switches) that impleme
 The main reasoning behind a new implementation of the GW is the horizontal scalability.
 # Dependencies (runtime)
 CGW requires a set of tools and services to operate and function. Some of them are embedded into the application itself and require no external utilities,
-while others are required to be running for the CGW to operate. 
+while others are required to be running for the CGW to operate.
 
-**NOTE**: while runtime CGW depends on services like kafka, redis and PGSQL, the *make* / *make all* targets
-would build a complete out-of-the-box setup with default configs and container params: 
-- Kafka, Redis, PGSQL containers would be created and attached to default - automatically created - *docker_cgw_multi_instances_network* network; 
-  All three (and one additional - *init-broker-container* - needed for kafka topics initialization) are all part of single docker compose file. 
-- CGW, while also part of the same docker compose file, yet is being partially generated. 
+**NOTE**: while runtime CGW depends on services like kafka, redis and PSQL, the *make* / *make all* targets
+would build a complete out-of-the-box setup with default configs and container params:
+- Kafka, Redis, PSQL containers would be created and attached to default - automatically created - *docker_cgw_multi_instances_network* network;
+  All three (and one additional - *init-broker-container* - needed for kafka topics initialization) are all part of single docker compose file.
+- CGW, while also part of the same docker compose file, yet is being partially generated.
   The reason, is that multiple CGW instances can be created within single compose-file,
-and thus container details are being generated. 
+and thus container details are being generated.
 
 More information about the compose generation can be found in the
 'Automated multi-CGW instances start/stop with Docker Compose' topic.
 
 ## gRPC
-CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards). This functionality does not depend on some external thirdparty services.
+CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards). This functionality does not depend on some external third party services.
 ## Kafka
 CGW uses Kafka as a main North-Bound API layer for communication with NB services. CnC topic is used for commands and requests handling, CnC_Res is used to send replies/results back (CGW reads CnC and writes into CnC_Res).
 ### Requirements
-It's required for the Kafka to have the following topics premade upon CGW launch:
+It's required for the Kafka to have the following topics pre-made upon CGW launch:
 1. "CnC"     - Kafka consumer topic
 2. "CnC_Res" - Kafka producer topic
 ## PSQL
 Application utilizes relational DB (PSQL) to store registered Infrastructure Groups as well as registered Infrastructures.
 ### Requirements
-1. It's required for the PSQL to have the following tables premade upon CGW launch:
+1. It's required for the PSQL to have the following tables pre-made upon CGW launch:
 ```
 CREATE TABLE infrastructure_groups
 (
@@ -53,22 +53,22 @@ $ make all
 ```
 Two new docker images will be generated on host system:
 **openlan_cgw** - image that holds CGW application itself
-**cgw_build_env** - building enviroment docker image that is used for generating openlan_cgw
+**cgw_build_env** - building environment docker image that is used for generating openlan_cgw
 # Running
 The following script can be used to launch the CGW app
 ```console
 $ make
 ```
 Command creates and executed (starts) docker container group consisting of cgw services
-as well as thirdpart depending services (redis, kafka, pgsql) 
+as well as third part depending services (redis, kafka, psql)
 
 To stop the container from running (remove it) use the following cmd:
 ```console
 $ make stop
 ```
 Running application with default arguments might not be desired behavior.
-And thus the run script utilizes the following list of *enviroment* variables that you can define before running it to alternate behavior of the app.
-The following list is a list of enviroment variables you can define to configure cgw-app behavior in certain way:
+And thus the run script utilizes the following list of *environment* variables that you can define before running it to alternate behavior of the app.
+The following list is a list of environment variables you can define to configure cgw-app behavior in certain way:
 ```
 CGW_ID                            - Shard ID
 CGW_GROUPS_CAPACITY               - The CGW instance groups capacity
@@ -166,28 +166,28 @@ There are several environment variable to configure certificates path and names 
 4. CGW_CERTS_PATH - path to certificates located on host machine
 
 The infrastructure connectivity use root certs store - the directory with trusted certificates
-The environemt variable to configure certificates path:
+The environment variable to configure certificates path:
 1. CGW_NB_INFRA_CERTS_PATH - path to certificates located on host machine
 
 # Automated Testing
 Automated python-based tests are located inside the *tests* directory.
-Currently, tests should be run manually by changin PWD to *tests* and launching helper script *run.sh*:
+Currently, tests should be run manually by changing PWD to *tests* and launching helper script *run.sh*:
 ```console
 cd ./test
 ./run.sh
 ```
-or using make target (added for convinience):
+or using make target (added for convenience):
 ```console
 make run-tests
 ```
 *NOTE:* currently, tests are not running inside a container.
-To make sure tests can communicate with CGW-enviroment, tests are currently
-reaching environment through ports exposed to host system. 
+To make sure tests can communicate with CGW-environment, tests are currently
+reaching environment through ports exposed to host system.
 e.g. for WSS - tests try to reach 'wss://localhost:15002' by default and so on.
 
 # Automated multi-CGW instances start/stop with Docker Compose
 Automated multi-CGW start/stop based on "docker-compose-template.yml.j2" file located inside the *utils/docker* directory.
-To bring-up multiple (minumum 1) CGW instances we use templated "docker-compose-template.yml.j2" file.
+To bring-up multiple (minimum 1) CGW instances we use templated "docker-compose-template.yml.j2" file.
 The "StartMultiCGW.py" script located inside the *utils/docker* directory used to:
   1. Stop all running Docker Composes.
   2. Update/generate certificates

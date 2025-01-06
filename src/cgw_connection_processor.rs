@@ -127,7 +127,7 @@ impl CGWConnectionProcessor {
         let (sink, mut stream) = ws_stream.split();
 
         // check if we have any pending msgs (we expect connect at this point, protocol-wise)
-        // TODO: rework to ignore any WS-related frames untill we get a connect message,
+        // TODO: rework to ignore any WS-related frames until we get a connect message,
         // however there's a caveat: we can miss some events logs etc from underlying device
         // rework should consider all the options
         let msg = tokio::select! {
@@ -147,8 +147,8 @@ impl CGWConnectionProcessor {
             }
         };
 
-        // we have a next() result, but it still may be undelying io error: check for it
-        // break connection if we can't work with underlying ws connection (pror err etc)
+        // we have a next() result, but it still may be underlying io error: check for it
+        // break connection if we can't work with underlying ws connection (prot err etc)
         let message = match msg {
             Ok(m) => m,
             Err(e) => {
@@ -181,7 +181,7 @@ impl CGWConnectionProcessor {
         if !allow_mismatch {
             if evt.serial != client_cn {
                 error!(
-                    "The client MAC address {} and clinet certificate CN {} check failed!",
+                    "The client MAC address {} and client certificate CN {} check failed!",
                     evt.serial.to_hex_string(),
                     client_cn.to_hex_string()
                 );
@@ -190,7 +190,7 @@ impl CGWConnectionProcessor {
                 ));
             } else {
                 debug!(
-                    "The client MAC address {} and clinet certificate CN {} chech passed",
+                    "The client MAC address {} and client certificate CN {} check passed",
                     evt.serial.to_hex_string(),
                     client_cn.to_hex_string()
                 );
@@ -231,7 +231,7 @@ impl CGWConnectionProcessor {
         // TODO: we accepted tls stream and split the WS into RX TX part,
         // now we have to ASK cgw_connection_server's permission whether
         // we can proceed on with this underlying connection.
-        // cgw_connection_server has an authorative decision whether
+        // cgw_connection_server has an authoritative decision whether
         // we can proceed.
         debug!("Sending ACK request for device serial: {}", self.serial);
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
@@ -305,7 +305,7 @@ impl CGWConnectionProcessor {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
         let timestamp = Local::now();
-        let mut kafaka_msg: String = String::new();
+        let mut kafka_msg: String = String::new();
 
         match msg {
             Ok(msg) => match msg {
@@ -319,20 +319,20 @@ impl CGWConnectionProcessor {
                         &payload,
                         timestamp.timestamp(),
                     ) {
-                        kafaka_msg.clone_from(&payload);
+                        kafka_msg.clone_from(&payload);
                         if let CGWUCentralEventType::State(_) = evt.evt_type {
                             if let Some(decompressed) = evt.decompressed.clone() {
-                                kafaka_msg = decompressed;
+                                kafka_msg = decompressed;
                             }
                             if self.feature_topomap_enabled {
-                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                let topomap = CGWUCentralTopologyMap::get_ref();
 
                                 // TODO: remove this Arc clone:
-                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Dirty hack for now: pass Arc ref of srv to topomap;
                                 // Future rework and refactoring would require to separate
                                 // NB api from being an internal obj of conn_server to be a
                                 // standalone (singleton?) object.
-                                topo_map.enqueue_event(
+                                topomap.enqueue_event(
                                     evt,
                                     self.device_type,
                                     self.serial,
@@ -371,13 +371,13 @@ impl CGWConnectionProcessor {
                             }
                         } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
                             if self.feature_topomap_enabled {
-                                let topo_map = CGWUCentralTopologyMap::get_ref();
+                                let topomap = CGWUCentralTopologyMap::get_ref();
                                 // TODO: remove this Arc clone:
-                                // Dirty hack for now: pass Arc ref of srv to topo map;
+                                // Dirty hack for now: pass Arc ref of srv to topomap;
                                 // Future rework and refactoring would require to separate
                                 // NB api from being an internal obj of conn_server to be a
                                 // standalone (singleton?) object.
-                                topo_map.enqueue_event(
+                                topomap.enqueue_event(
                                     evt,
                                     self.device_type,
                                     self.serial,
@@ -389,7 +389,7 @@ impl CGWConnectionProcessor {
                     }
 
                     self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafaka_msg)?;
+                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafka_msg)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -421,12 +421,12 @@ impl CGWConnectionProcessor {
                     debug!("process_sink_mbox_rx_msg: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
                     return Ok(CGWConnectionState::IsForcedToClose);
                 }
-                CGWConnectionProcessorReqMsg::SinkRequestToDevice(pload) => {
+                CGWConnectionProcessorReqMsg::SinkRequestToDevice(payload) => {
                     debug!("process_sink_mbox_rx_msg: SinkRequestToDevice, processor (mac: {processor_mac}) request for (mac: {}) payload: {}",
-                        pload.command.serial,
-                        pload.message.clone(),
+                        payload.command.serial,
+                        payload.message.clone(),
                     );
-                    sink.send(Message::text(pload.message)).await.ok();
+                    sink.send(Message::text(payload.message)).await.ok();
                 }
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_group_id) => {
                     debug!(
@@ -512,7 +512,7 @@ impl CGWConnectionProcessor {
                 {
                     // Check if message Queue is not empty
                     if let Some(queue_msg) = queue_lock.dequeue_device_message(&device_mac).await {
-                        // Get message from queue, start measure requet processing time
+                        // Get message from queue, start measure request processing time
                         start_time = Instant::now();
 
                         pending_req_id = queue_msg.command.id;
@@ -572,7 +572,7 @@ impl CGWConnectionProcessor {
                             Some(res) => {
                                 match res {
                                     // Received websocket connection message
-                                    // 'Close' message - may be received on gracefull connection close event
+                                    // 'Close' message - may be received on graceful connection close event
                                     Ok(msg) => wakeup_reason = WakeupReason::WSSRxMsg(Ok(msg)),
                                     // Received an error from stream
                                     Err(msg) => {
@@ -601,25 +601,25 @@ impl CGWConnectionProcessor {
             if fsm_state == CGWUCentralMessageProcessorState::ResultPending {
                 let elapsed_time = Instant::now() - start_time;
 
-                // check request timeout value - if request get timedout - remove it from queue
+                // check request timeout value - if request get timed out - remove it from queue
                 if queue_lock
                     .device_request_tick(&device_mac, elapsed_time)
                     .await
                 {
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    let flushed_reqs = queue_lock.clear_device_message_queue(&device_mac).await;
+                    let flushed_requests = queue_lock.clear_device_message_queue(&device_mac).await;
 
-                    for req in flushed_reqs {
+                    for req in flushed_requests {
                         if let Ok(resp) = cgw_construct_infra_request_result_msg(
                             self.cgw_server.get_local_id(),
                             req.uuid,
                             req.command.id,
                             false,
                             Some(format!(
-                                "Reques flushed from infra queue {device_mac} due to previous request timeout!"
+                                "Request flushed from infra queue {device_mac} due to previous request timeout!"
                             )),
                         ) {
-                            // Currently Device Queue Manager does not store infars GID
+                            // Currently Device Queue Manager does not store infras GID
                             self.cgw_server
                                 .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
                         } else {

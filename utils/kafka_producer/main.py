@@ -9,7 +9,8 @@ def main(args: Args):
     if args.add_groups or args.del_groups:
         producer.handle_group_creation(args.add_groups, args.del_groups)
     if args.assign_to_group or args.remove_from_group:
-        producer.handle_device_assignment(args.assign_to_group, args.remove_from_group)
+        producer.handle_device_assignment(
+            args.assign_to_group, args.remove_from_group)
     if args.message:
         producer.handle_device_messages(args.message, args.group_id, args.send_to_macs,
                                         args.count, args.time_to_send_s, args.interval_s)

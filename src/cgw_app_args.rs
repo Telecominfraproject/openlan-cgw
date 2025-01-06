@@ -60,7 +60,7 @@ pub struct CGWWSSArgs {
     pub wss_cert: String,
     /// WSS private key
     pub wss_key: String,
-    /// Allow Missmatch
+    /// Allow Mismatch
     pub allow_mismatch: bool,
 }
 
@@ -413,7 +413,7 @@ impl CGWMetricsArgs {
 }
 
 #[derive(Clone, Debug)]
-pub enum CGWValionSchemaRef {
+pub enum CGWValidationSchemaRef {
     SchemaUri(Url),
     SchemaPath(PathBuf),
 }
@@ -421,20 +421,21 @@ pub enum CGWValionSchemaRef {
 #[derive(Clone)]
 pub struct CGWValidationSchemaArgs {
     // URI to AP data model schema
-    pub ap_schema_uri: CGWValionSchemaRef,
+    pub ap_schema_uri: CGWValidationSchemaRef,
     // URI to Switch data model schema
-    pub switch_schema_uri: CGWValionSchemaRef,
+    pub switch_schema_uri: CGWValidationSchemaRef,
 }
 
 impl CGWValidationSchemaArgs {
     fn parse() -> Result<CGWValidationSchemaArgs> {
-        let ap_schema_uri: CGWValionSchemaRef = match env::var("CGW_UCENTRAL_AP_DATAMODEL_URI") {
+        let ap_schema_uri: CGWValidationSchemaRef = match env::var("CGW_UCENTRAL_AP_DATAMODEL_URI")
+        {
             Ok(uri) => {
                 // CGW_UCENTRAL_AP_DATAMODEL_URI is set
                 if Path::new(&uri).exists() {
                     // CGW_UCENTRAL_AP_DATAMODEL_URI - is path to local file and file exist
                     match PathBuf::from_str(&uri) {
-                        Ok(path) => CGWValionSchemaRef::SchemaPath(path),
+                        Ok(path) => CGWValidationSchemaRef::SchemaPath(path),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
                                 "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
@@ -443,7 +444,7 @@ impl CGWValidationSchemaArgs {
                     }
                 } else {
                     match Url::parse(&uri) {
-                        Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                        Ok(url) => CGWValidationSchemaRef::SchemaUri(url),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
                                                     "Failed to parse CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
@@ -455,7 +456,7 @@ impl CGWValidationSchemaArgs {
             // Environment variable was not set - use default
             Err(_e) => match Url::parse(CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI) {
                 // CGW_UCENTRAL_AP_DATAMODEL_URI was not set - try to use default
-                Ok(uri) => CGWValionSchemaRef::SchemaUri(uri),
+                Ok(uri) => CGWValidationSchemaRef::SchemaUri(uri),
                 Err(e) => {
                     return Err(Error::AppArgsParser(format!(
                                             "Failed to parse default CGW_UCENTRAL_AP_DATAMODEL_URI! Invalid URI: {CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI}! Error: {e}"
@@ -464,14 +465,14 @@ impl CGWValidationSchemaArgs {
             },
         };
 
-        let switch_schema_uri: CGWValionSchemaRef = match env::var(
+        let switch_schema_uri: CGWValidationSchemaRef = match env::var(
             "CGW_UCENTRAL_SWITCH_DATAMODEL_URI",
         ) {
             Ok(uri) => {
                 // CGW_UCENTRAL_SWITCH_DATAMODEL_URI is set
                 if Path::new(&uri).exists() {
                     match PathBuf::from_str(&uri) {
-                        Ok(path) => CGWValionSchemaRef::SchemaPath(path),
+                        Ok(path) => CGWValidationSchemaRef::SchemaPath(path),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
                                 "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
@@ -480,7 +481,7 @@ impl CGWValidationSchemaArgs {
                     }
                 } else {
                     match Url::parse(&uri) {
-                        Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                        Ok(url) => CGWValidationSchemaRef::SchemaUri(url),
                         Err(e) => {
                             return Err(Error::AppArgsParser(format!(
                                                     "Failed to parse CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid URI: {uri}! Error: {e}"
@@ -491,7 +492,7 @@ impl CGWValidationSchemaArgs {
             }
             // Environment variable was not set - use default
             Err(_e) => match Url::from_str(CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI) {
-                Ok(url) => CGWValionSchemaRef::SchemaUri(url),
+                Ok(url) => CGWValidationSchemaRef::SchemaUri(url),
                 Err(e) => {
                     return Err(Error::AppArgsParser(format!(
                                             "Failed to parse default CGW_UCENTRAL_SWITCH_DATAMODEL_URI! Invalid value: {CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI}! Error: {e}"
@@ -508,7 +509,7 @@ impl CGWValidationSchemaArgs {
 }
 
 pub struct AppArgs {
-    /// Loglevel of application
+    /// Log level of application
     pub log_level: AppCoreLogLevel,
 
     /// CGW unique identifier (i32)
@@ -523,7 +524,7 @@ pub struct AppArgs {
     /// CGW group infras capacity (i32)
     pub cgw_group_infras_capacity: i32,
 
-    /// Topomap featue status (enabled/disabled)
+    /// Topomap feature status (enabled/disabled)
     pub feature_topomap_enabled: bool,
 
     /// CGW Websocket args

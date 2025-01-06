@@ -15,7 +15,7 @@ CGW_CONTAINER_BASE_NAME: Final[str] = "openlan_cgw"
 
 # CGW params
 DEFAULT_CGW_BASE_ID: Final[int] = 0
-DEFAULT_LOG_LEVEL: Final[str] ="debug"
+DEFAULT_LOG_LEVEL: Final[str] = "debug"
 
 # CGW groups & group infras params
 DEFAULT_GROUPS_CAPACITY: Final[int] = 1000
@@ -26,7 +26,7 @@ DEFAULT_GROUP_INFRAS_CAPACITY: Final[int] = 2000
 DEFAULT_GRPC_LISTENING_IP: Final[str] = "0.0.0.0"
 DEFAULT_GRPC_LISTENING_BASE_PORT: Final[int] = 50051
 DEFAULT_GRPC_PUBLIC_BASE_PORT: Final[int] = 50051
-DEFAULT_GRPC_PUBLIC_HOST: Final[str] ="openlan_cgw"
+DEFAULT_GRPC_PUBLIC_HOST: Final[str] = "openlan_cgw"
 
 # WSS params
 DEFAULT_WSS_IP: Final[str] = "0.0.0.0"
@@ -61,20 +61,20 @@ DEFAULT_REDIS_PASSWORD: Final[str] = ""
 DEFAULT_METRICS_BASE_PORT: Final[int] = 8080
 
 # TLS params: cert volumes
-DEFAULT_CERTS_PATH="../cert_generator/certs/server/"
-DEFAULT_CLIENT_CERTS_PATH="../cert_generator/certs/client/"
+DEFAULT_CERTS_PATH = "../cert_generator/certs/server/"
+DEFAULT_CLIENT_CERTS_PATH = "../cert_generator/certs/client/"
 
 CONTAINTER_CERTS_VOLUME: Final[str] = "/etc/cgw/certs"
 CONTAINTER_NB_INFRA_CERTS_VOLUME: Final[str] = "/etc/cgw/nb_infra/certs"
 
 # Cert & key files name
-DEFAULT_CERT_GENERATOR_PATH="../cert_generator"
+DEFAULT_CERT_GENERATOR_PATH = "../cert_generator"
 
-DEFAULT_WSS_CAS="cas.pem"
-DEFAULT_WSS_CERT="cert.pem"
-DEFAULT_WSS_KEY="key.pem"
-DEFAULT_CLIENT_CERT="base.crt"
-DEFAULT_CLIENT_KEY="base.key"
+DEFAULT_WSS_CAS = "cas.pem"
+DEFAULT_WSS_CERT = "cert.pem"
+DEFAULT_WSS_KEY = "key.pem"
+DEFAULT_CLIENT_CERT = "base.crt"
+DEFAULT_CLIENT_KEY = "base.key"
 
 # TLS params
 DEFAULT_NB_INFRA_TLS: Final[str] = "no"
@@ -100,14 +100,16 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
     missing_files = any(
         not os.path.isfile(os.path.join(certs_path, file))
         for file in [DEFAULT_WSS_CERT, DEFAULT_WSS_KEY, DEFAULT_WSS_CAS]
-    ) or any (
+    ) or any(
         not os.path.isfile(os.path.join(client_certs_path, file))
         for file in [DEFAULT_CLIENT_CERT, DEFAULT_CLIENT_KEY]
     )
 
     if missing_files:
-        print(f"WARNING: At specified path {certs_path}, either CAS, CERT, or KEY is missing!")
-        print(f"WARNING: Changing source folder for certificates to default: {client_certs_path} and generating self-signed...")
+        print(
+            f"WARNING: At specified path {certs_path}, either CAS, CERT, or KEY is missing!")
+        print(
+            f"WARNING: Changing source folder for certificates to default: {client_certs_path} and generating self-signed...")
 
         cert_gen_path = get_realpath(DEFAULT_CERT_GENERATOR_PATH)
 
@@ -131,23 +133,31 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
 
             subprocess.run([cert_gen_script, "-a"], check=True)
             subprocess.run([cert_gen_script, "-s"], check=True)
-            subprocess.run([cert_gen_script, "-c", "1", "-m", "02:00:00:00:00:00"], check=True)
+            subprocess.run([cert_gen_script, "-c", "1", "-m",
+                           "02:00:00:00:00:00"], check=True)
 
             # Copy generated certificates to default paths
-            shutil.copy(os.path.join(cert_gen_path, "certs", "ca", "ca.crt"), os.path.join(DEFAULT_CERTS_PATH, DEFAULT_WSS_CAS))
-            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.crt"), os.path.join(DEFAULT_CERTS_PATH, DEFAULT_WSS_CERT))
-            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.key"), os.path.join(DEFAULT_CERTS_PATH, DEFAULT_WSS_KEY))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "ca", "ca.crt"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_WSS_CAS))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.crt"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_WSS_CERT))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.key"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_WSS_KEY))
 
             for client_file in os.listdir(os.path.join(cert_gen_path, "certs", "client")):
                 if client_file.endswith(".crt"):
                     shutil.copy(
-                        os.path.join(cert_gen_path, "certs", "client", client_file),
-                        os.path.join(DEFAULT_CLIENT_CERTS_PATH, DEFAULT_CLIENT_CERT)
+                        os.path.join(cert_gen_path, "certs",
+                                     "client", client_file),
+                        os.path.join(DEFAULT_CLIENT_CERTS_PATH,
+                                     DEFAULT_CLIENT_CERT)
                     )
                 elif client_file.endswith(".key"):
                     shutil.copy(
-                        os.path.join(cert_gen_path, "certs", "client", client_file),
-                        os.path.join(DEFAULT_CLIENT_CERTS_PATH, DEFAULT_CLIENT_KEY)
+                        os.path.join(cert_gen_path, "certs",
+                                     "client", client_file),
+                        os.path.join(DEFAULT_CLIENT_CERTS_PATH,
+                                     DEFAULT_CLIENT_KEY)
                     )
 
             print("Generating self-signed certificates done!")
@@ -195,7 +205,7 @@ def get_cgw_image_tag() -> str:
         # Append '-dirty' if there are uncommitted changes
         if status_output:
             tag = f"{commit_hash}-dirty"
-        else: 
+        else:
             tag = commit_hash
 
     except subprocess.CalledProcessError as e:
@@ -218,7 +228,8 @@ def get_cgw_instances_num() -> int:
     """
 
     # Number of clients from an environment variable or fallback to default
-    number_of_cgw_instances = int(os.getenv("CGW_INSTANCES_NUM", DEFAULT_NUMBER_OF_CGW_INSTANCES))
+    number_of_cgw_instances = int(
+        os.getenv("CGW_INSTANCES_NUM", DEFAULT_NUMBER_OF_CGW_INSTANCES))
 
     return number_of_cgw_instances
 
@@ -232,12 +243,13 @@ def remove_docker_compose_multi_cgw_file(docker_compose_multi_cgw_file: str = DO
         try:
             os.remove(docker_compose_multi_cgw_file)
         except Exception as e:
-            print(f"Error: Filed to remove file {docker_compose_multi_cgw_file}! Error: {e}")
+            print(
+                f"Error: Filed to remove file {docker_compose_multi_cgw_file}! Error: {e}")
 
 
 def generate_docker_compose_file(instances_num: int,
-                                docker_compose_template_file: str = DOCKER_COMPOSE_TEMPLATE_FILE_NAME,
-                                docker_compose_multi_cgw_file: str = DOCKER_COMPOSE_MULTI_CGW_FILE_NAME):
+                                 docker_compose_template_file: str = DOCKER_COMPOSE_TEMPLATE_FILE_NAME,
+                                 docker_compose_multi_cgw_file: str = DOCKER_COMPOSE_MULTI_CGW_FILE_NAME):
     """
     Generate docker compose file based on template
     """
@@ -265,48 +277,48 @@ def generate_docker_compose_file(instances_num: int,
     template = env.get_template(docker_compose_template_file)
 
     # 5. Render the template with the variable
-    output = template.render(cgw_instances_num = instances_num,
-                            cgw_image_name = image_name,
-                            cgw_image_tag = image_tag,
-                            cgw_container_name = container_name,
-                            cgw_base_id = DEFAULT_CGW_BASE_ID,
-                            cgw_grpc_listening_ip = DEFAULT_GRPC_LISTENING_IP,
-                            cgw_grpc_listening_base_port = DEFAULT_GRPC_LISTENING_BASE_PORT,
-                            cgw_grpc_public_host = DEFAULT_GRPC_PUBLIC_HOST,
-                            cgw_grpc_public_base_port = DEFAULT_GRPC_PUBLIC_BASE_PORT,
-                            cgw_db_host = DEFAULT_DB_HOST,
-                            cgw_db_port = DEFAULT_DB_PORT,
-                            cgw_db_name = DEFAULT_DB_NAME,
-                            cgw_db_username = DEFAULT_DB_USER,
-                            cgw_db_password = DEFAULT_DB_PASW,
-                            cgw_db_tls = DEFAULT_DB_TLS,
-                            cgw_kafka_host = DEFAULT_KAFKA_HOST,
-                            cgw_kafka_port = DEFAULT_KAFKA_PORT,
-                            cgw_kafka_consumer_topic = DEFAULT_KAFKA_CONSUME_TOPIC,
-                            cgw_kafka_producer_topic = DEFAULT_KAFKA_PRODUCE_TOPIC,
-                            cgw_log_level = DEFAULT_LOG_LEVEL,
-                            cgw_redis_host = DEFAULT_REDIS_HOST,
-                            cgw_redis_port = DEFAULT_REDIS_PORT,
-                            cgw_redis_tls = DEFAULT_REDIS_TLS,
-                            cgw_redis_username = DEFAULT_REDIS_USERNAME,
-                            cgw_redis_password = DEFAULT_REDIS_PASSWORD,
-                            cgw_metrics_base_port = DEFAULT_METRICS_BASE_PORT,
-                            cgw_wss_ip = DEFAULT_WSS_IP,
-                            cgw_wss_base_port = DEFAULT_WSS_BASE_PORT,
-                            cgw_wss_cas = DEFAULT_WSS_CAS,
-                            cgw_wss_cert = DEFAULT_WSS_CERT,
-                            cgw_wss_key = DEFAULT_WSS_KEY,
-                            cgw_wss_t_num = DEFAULT_WSS_T_NUM,
-                            cgw_ucentral_ap_datamodel_uri = DEFAULT_UCENTRAL_AP_DATAMODEL_URI,
-                            cgw_ucentral_switch_datamodel_uri = DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI,
-                            cgw_groups_capacity = DEFAULT_GROUPS_CAPACITY,
-                            cgw_groups_threshold = DEFAULT_GROUPS_THRESHOLD,
-                            cgw_group_infras_capacity = DEFAULT_GROUP_INFRAS_CAPACITY,
-                            cgw_allow_certs_missmatch = DEFAULT_ALLOW_CERT_MISMATCH,
-                            cgw_nb_infra_tls = DEFAULT_NB_INFRA_TLS,
-                            container_certs_voulume = CONTAINTER_CERTS_VOLUME,
-                            container_nb_infra_certs_voulume = CONTAINTER_NB_INFRA_CERTS_VOLUME,
-                            default_certs_path = certs_realpath)
+    output = template.render(cgw_instances_num=instances_num,
+                             cgw_image_name=image_name,
+                             cgw_image_tag=image_tag,
+                             cgw_container_name=container_name,
+                             cgw_base_id=DEFAULT_CGW_BASE_ID,
+                             cgw_grpc_listening_ip=DEFAULT_GRPC_LISTENING_IP,
+                             cgw_grpc_listening_base_port=DEFAULT_GRPC_LISTENING_BASE_PORT,
+                             cgw_grpc_public_host=DEFAULT_GRPC_PUBLIC_HOST,
+                             cgw_grpc_public_base_port=DEFAULT_GRPC_PUBLIC_BASE_PORT,
+                             cgw_db_host=DEFAULT_DB_HOST,
+                             cgw_db_port=DEFAULT_DB_PORT,
+                             cgw_db_name=DEFAULT_DB_NAME,
+                             cgw_db_username=DEFAULT_DB_USER,
+                             cgw_db_password=DEFAULT_DB_PASW,
+                             cgw_db_tls=DEFAULT_DB_TLS,
+                             cgw_kafka_host=DEFAULT_KAFKA_HOST,
+                             cgw_kafka_port=DEFAULT_KAFKA_PORT,
+                             cgw_kafka_consumer_topic=DEFAULT_KAFKA_CONSUME_TOPIC,
+                             cgw_kafka_producer_topic=DEFAULT_KAFKA_PRODUCE_TOPIC,
+                             cgw_log_level=DEFAULT_LOG_LEVEL,
+                             cgw_redis_host=DEFAULT_REDIS_HOST,
+                             cgw_redis_port=DEFAULT_REDIS_PORT,
+                             cgw_redis_tls=DEFAULT_REDIS_TLS,
+                             cgw_redis_username=DEFAULT_REDIS_USERNAME,
+                             cgw_redis_password=DEFAULT_REDIS_PASSWORD,
+                             cgw_metrics_base_port=DEFAULT_METRICS_BASE_PORT,
+                             cgw_wss_ip=DEFAULT_WSS_IP,
+                             cgw_wss_base_port=DEFAULT_WSS_BASE_PORT,
+                             cgw_wss_cas=DEFAULT_WSS_CAS,
+                             cgw_wss_cert=DEFAULT_WSS_CERT,
+                             cgw_wss_key=DEFAULT_WSS_KEY,
+                             cgw_wss_t_num=DEFAULT_WSS_T_NUM,
+                             cgw_ucentral_ap_datamodel_uri=DEFAULT_UCENTRAL_AP_DATAMODEL_URI,
+                             cgw_ucentral_switch_datamodel_uri=DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI,
+                             cgw_groups_capacity=DEFAULT_GROUPS_CAPACITY,
+                             cgw_groups_threshold=DEFAULT_GROUPS_THRESHOLD,
+                             cgw_group_infras_capacity=DEFAULT_GROUP_INFRAS_CAPACITY,
+                             cgw_allow_certs_missmatch=DEFAULT_ALLOW_CERT_MISMATCH,
+                             cgw_nb_infra_tls=DEFAULT_NB_INFRA_TLS,
+                             container_certs_voulume=CONTAINTER_CERTS_VOLUME,
+                             container_nb_infra_certs_voulume=CONTAINTER_NB_INFRA_CERTS_VOLUME,
+                             default_certs_path=certs_realpath)
 
     # 6. Save the rendered template as docker-compose.yml
     with open(docker_compose_multi_cgw_file, "w") as f:
@@ -322,7 +334,8 @@ def docker_compose_up(docker_compose_file: str = "docker-compose.yml"):
 
     if docker_compose_file:
         if not os.path.isfile(docker_compose_file):
-            print(f"Error: The specified compose file '{docker_compose_file}' does not exist.")
+            print(
+                f"Error: The specified compose file '{docker_compose_file}' does not exist.")
             return
         cmd = ["docker", "compose", "--file", docker_compose_file, "up", "-d"]
     else:
@@ -345,7 +358,8 @@ def docker_compose_down(docker_compose_file: str = "docker-compose.yml"):
 
     if docker_compose_file:
         if not os.path.isfile(docker_compose_file):
-            print(f"The specified compose file '{docker_compose_file}' does not exist.")
+            print(
+                f"The specified compose file '{docker_compose_file}' does not exist.")
             return
         cmd = ["docker", "compose", "--file", docker_compose_file, "down"]
     else:
@@ -361,12 +375,16 @@ def docker_compose_down(docker_compose_file: str = "docker-compose.yml"):
 
 if __name__ == "__main__":
     # Create the parser
-    parser = argparse.ArgumentParser(description="Demo application to parse arguments.")
+    parser = argparse.ArgumentParser(
+        description="Demo application to parse arguments.")
 
     # Add arguments
-    parser.add_argument("--start", action="store_true", help="Stop all Docker Composes. Clean up and generate new compose file. Start Docker Compose.")
-    parser.add_argument("--stop", action="store_true", help="Stop all Docker Composes.")
-    parser.add_argument("--generate-compose", action="store_true", help="Generate new Docker Compose file.")
+    parser.add_argument("--start", action="store_true",
+                        help="Stop all Docker Composes. Clean up and generate new compose file. Start Docker Compose.")
+    parser.add_argument("--stop", action="store_true",
+                        help="Stop all Docker Composes.")
+    parser.add_argument("--generate-compose", action="store_true",
+                        help="Generate new Docker Compose file.")
 
     # Parse the arguments
     args = parser.parse_args()

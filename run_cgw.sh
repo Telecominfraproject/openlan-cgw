@@ -43,8 +43,8 @@ DEFAULT_REDIS_TLS="no"
 
 DEFAULT_METRICS_PORT=8080
 
-CONTAINTER_CERTS_VOLUME="/etc/cgw/certs"
-CONTAINTER_NB_INFRA_CERTS_VOLUME="/etc/cgw/nb_infra/certs"
+CONTAINER_CERTS_VOLUME="/etc/cgw/certs"
+CONTAINER_NB_INFRA_CERTS_VOLUME="/etc/cgw/nb_infra/certs"
 DEFAULT_NB_INFRA_TLS="no"
 
 DEFAULT_ALLOW_CERT_MISMATCH="yes"
@@ -160,8 +160,8 @@ docker run \
 	-p $CGW_GRPC_PUBLIC_PORT:$CGW_GRPC_PUBLIC_PORT \
 	-p $CGW_METRICS_PORT:$CGW_METRICS_PORT \
 	--cap-add=SYS_PTRACE --security-opt seccomp=unconfined        \
-	-v $CGW_CERTS_PATH:$CONTAINTER_CERTS_VOLUME                   \
-	-v $CGW_NB_INFRA_CERTS_PATH:$CONTAINTER_NB_INFRA_CERTS_VOLUME \
+	-v $CGW_CERTS_PATH:$CONTAINER_CERTS_VOLUME                   \
+	-v $CGW_NB_INFRA_CERTS_PATH:$CONTAINER_NB_INFRA_CERTS_VOLUME \
 	-e CGW_LOG_LEVEL                     \
 	-e CGW_ID                            \
 	-e CGW_GROUPS_CAPACITY               \

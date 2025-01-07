@@ -1,6 +1,6 @@
 # cgw
 
-This Helm chart helps to deploy OpenLAN CGW (further on refered as __Gateway__) to the Kubernetes clusters. It is mainly used in [assembly chart](https://github.com/Telecominfraproject/wlan-cloud-ucentral-deploy/tree/main/cgwchart) as Gateway requires other services as dependencies that are considered in that Helm chart. This chart is purposed to define deployment logic close to the application code itself and define default values that could be overriden during deployment.
+This Helm chart helps to deploy OpenLAN CGW (further on referred as __Gateway__) to the Kubernetes clusters. It is mainly used in [assembly chart](https://github.com/Telecominfraproject/wlan-cloud-ucentral-deploy/tree/main/cgwchart) as Gateway requires other services as dependencies that are considered in that Helm chart. This chart is purposed to define deployment logic close to the application code itself and define default values that could be overridden during deployment.
 
 
 ## TL;DR;
@@ -71,7 +71,7 @@ The following table lists the configurable parameters of the chart and their def
 | public\_env\_variables | hash | Defines list of environment variables to be passed to the Gateway via ConfigMaps | |
 | secret\_env\_variables | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |
 | existingCertsSecret | string | Existing Kubernetes secret containing all required certificates and private keys for microservice operation. If set, certificates from `certs` key are ignored | `""` |
-| certs | hash | Defines files (keys and certificates) that should be passed to the Gateway (PEM format is adviced to be used) (see `volumes.cgw` on where it is mounted). If `existingCertsSecret` is set, certificates passed this way will not be used. |  |
+| certs | hash | Defines files (keys and certificates) that should be passed to the Gateway (PEM format is advised to be used) (see `volumes.cgw` on where it is mounted). If `existingCertsSecret` is set, certificates passed this way will not be used. |  |
 | certsCAs | hash | Defines files with CAs that should be passed to the Gateway (see `volumes.cgw` on where it is mounted) |  |
 
 

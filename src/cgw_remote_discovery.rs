@@ -549,7 +549,7 @@ impl CGWRemoteDiscovery {
                         + ":"
                         + &shard.server_port.to_string();
                     let cgw_iface = CGWRemoteIface {
-                        shard: shard,
+                        shard,
                         client: CGWRemoteClient::new(endpoint_str)?,
                     };
                     lock.insert(cgw_iface.shard.id, cgw_iface);
@@ -916,7 +916,7 @@ impl CGWRemoteDiscovery {
                 if device.get_device_state() == CGWDeviceState::CGWDeviceConnected {
                     device.set_device_remains_in_db(false);
                     device.set_device_group_id(0);
-                    devices_to_update.push((key.clone(), device.clone()));
+                    devices_to_update.push((*key, device.clone()));
                 } else {
                     devices_to_remove.push(*key);
                 }
@@ -1447,7 +1447,7 @@ impl CGWRemoteDiscovery {
                 }
             };
 
-            let mut splitted_key = key.split_terminator("|");
+            let mut splitted_key = key.split_terminator('|');
             let _shard_id = splitted_key.next();
             let device_mac = match splitted_key.next() {
                 Some(mac) => match MacAddress::from_str(mac) {

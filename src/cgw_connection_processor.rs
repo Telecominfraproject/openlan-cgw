@@ -651,7 +651,7 @@ impl CGWConnectionProcessor {
                         pending_req_uuid,
                         pending_req_id,
                         false,
-                        Some(format!("Request timed out")),
+                        Some("Request timed out".to_string()),
                     ) {
                         self.cgw_server
                             .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);

@@ -94,21 +94,22 @@ class TestCgwBasic:
                 join_message_received = True
                 continue
 
-            if message.value['type'] == 'unassigned_infra_connection' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
+            if message.value['type'] == 'unassigned_infra_join' and message.key == b'0' and message.value['infra_group_infra'] == msg_mac:
                 infra_is_unassigned = True
                 continue
 
         assert cgw_metrics_get_connections_num() == 1
 
-        assert join_message_received, \
-            f"Failed to find 'infra_join' message for default infra MAC"
+        assert (join_message_received == False), \
+            f"Found 'infra_join' message for default infra MAC, when expected 'unassigned_infra_join' only to be received"
 
         assert infra_is_unassigned, \
-            f"Failed to find unassigned 'unassigned_infra_connection' message for default infra MAC"
+            f"Failed to find unassigned 'unassigned_infra_join' message for default infra MAC"
 
     # Base test:
     # - assigned infra connects to CGW, and kafka sim can validate it
     #   through the <infra_join> msg + kafka key
+
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
                              "kafka_probe",

@@ -1,5 +1,6 @@
 use crate::cgw_device::{
     cgw_detect_device_changes, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
+    OldNew,
 };
 use crate::cgw_nb_api_listener::{
     cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_capabilities_changed_msg,
@@ -7,7 +8,8 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
     cgw_construct_infra_group_infras_del_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
-    cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_connection_msg,
+    cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_join_msg,
+    cgw_construct_unassigned_infra_leave_msg,
 };
 use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
@@ -92,6 +94,7 @@ pub enum CGWConnectionServerReqMsg {
         SocketAddr,
         CGWDeviceCapabilities,
         UnboundedSender<CGWConnectionProcessorReqMsg>,
+        String,
     ),
     ConnectionClosed(MacAddress),
 }
@@ -1648,6 +1651,7 @@ impl CGWConnectionServer {
                     ip_addr,
                     caps,
                     conn_processor_mbox_tx,
+                    orig_connect_message,
                 ) = msg
                 {
                     let device_platform: String = caps.platform.clone();
@@ -1693,82 +1697,33 @@ impl CGWConnectionServer {
                         }
                     };
 
-                    // Received new connection - check if infra exist in cache
-                    // If exists - it already should have assigned group
-                    // If not - simply add to cache - set gid == 0, devices should't remain in DB
                     let mut devices_cache = self.devices_cache.write().await;
+                    let cache_item = devices_cache.get_device_mut(&device_mac);
                     let mut device_group_id: i32 = 0;
-                    if let Some(device) = devices_cache.get_device_mut(&device_mac) {
-                        device_group_id = device.get_device_group_id();
-                        device.set_device_state(CGWDeviceState::CGWDeviceConnected);
-                        device.set_device_type(device_type);
+                    let mut group_owner_shard_id: i32 = 0;
+                    let mut capability_changes: Option<HashMap<String, OldNew>> = None;
+                    let mut foreign_infra_join: bool = false;
 
-                        let group_id = device.get_device_group_id();
+                    if let Some(infra) = cache_item {
+                        device_group_id = infra.get_device_group_id();
+                        let current_device_caps = infra.get_device_capabilities();
+
                         if let Some(group_owner_id) = self
                             .cgw_remote_discovery
-                            .get_infra_group_owner_id(group_id)
+                            .get_infra_group_owner_id(device_group_id)
                             .await
                         {
-                            if group_owner_id != self.local_cgw_id {
-                                if let Ok(resp) = cgw_construct_foreign_infra_connection_msg(
-                                    group_id,
-                                    device_mac,
-                                    self.local_cgw_id,
-                                    group_owner_id,
-                                ) {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
-                                } else {
-                                    error!("Failed to construct foreign_infra_connection message!");
-                                }
-
-                                debug!("Detected foreign infra {} connection. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), group_id, group_owner_id);
-                            }
-
-                            let changes =
-                                cgw_detect_device_changes(&device.get_device_capabilities(), &caps);
-                            match changes {
-                                Some(diff) => {
-                                    if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
-                                        device_mac,
-                                        device.get_device_group_id(),
-                                        &diff,
-                                        self.local_cgw_id,
-                                    ) {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
-                                            device.get_device_group_id(),
-                                            resp,
-                                        );
-                                    } else {
-                                        error!(
-                                        "Failed to construct device_capabilities_changed message!"
-                                    );
-                                    }
-                                }
-                                None => {
-                                    debug!(
-                                        "Capabilities for device: {} was not changed",
-                                        device_mac.to_hex_string()
-                                    )
-                                }
-                            }
-                        } else {
-                            if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
-                                device_mac,
-                                self.local_cgw_id,
-                            ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
-                            } else {
-                                error!("Failed to construct unassigned_infra_connection message!");
-                            }
-
-                            debug!(
-                                "Detected unassigned infra {} connection",
-                                device_mac.to_hex_string()
-                            );
+                            foreign_infra_join = self.local_cgw_id == group_owner_id;
+                            group_owner_shard_id = group_owner_id;
                         }
 
-                        device.update_device_capabilities(&caps);
-                        match serde_json::to_string(device) {
+                        // Update cached infra with new info
+                        infra.set_device_state(CGWDeviceState::CGWDeviceConnected);
+                        infra.set_device_type(device_type);
+                        infra.update_device_capabilities(&caps);
+
+                        // Update Redis Cache
+                        match serde_json::to_string(infra) {
                             Ok(device_json) => {
                                 if let Err(e) = self
                                     .cgw_remote_discovery
@@ -1782,16 +1737,20 @@ impl CGWConnectionServer {
                                 error!("Failed to serialize device to json string! Error: {e}");
                             }
                         }
+
+                        // Detect Capabilities changes as device exists in Cache
+                        capability_changes = cgw_detect_device_changes(&current_device_caps, &caps);
                     } else {
                         let device: CGWDevice = CGWDevice::new(
                             device_type,
                             CGWDeviceState::CGWDeviceConnected,
-                            0,
+                            device_group_id,
                             false,
                             caps,
                         );
                         devices_cache.add_device(&device_mac, &device);
 
+                        // Update Redis Cache
                         match serde_json::to_string(&device) {
                             Ok(device_json) => {
                                 if let Err(e) = self
@@ -1806,38 +1765,81 @@ impl CGWConnectionServer {
                                 error!("Failed to serialize device to json string! Error: {e}");
                             }
                         }
-
-                        if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
-                            device_mac,
-                            self.local_cgw_id,
-                        ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
-                        } else {
-                            error!("Failed to construct unassigned_infra_connection message!");
-                        }
-
-                        debug!(
-                            "Detected unassigned infra {} connection",
-                            device_mac.to_hex_string()
-                        );
                     }
 
+                    // Check if foreign infra connection - send event
+                    if foreign_infra_join {
+                        debug!("Detected foreign infra {} connection. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), device_group_id, group_owner_shard_id);
+
+                        if let Ok(resp) = cgw_construct_foreign_infra_connection_msg(
+                            device_group_id,
+                            device_mac,
+                            ip_addr,
+                            self.local_cgw_id,
+                            group_owner_shard_id,
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                        } else {
+                            error!("Failed to construct foreign_infra_connection message!");
+                        }
+                    }
+
+                    // Send [un]assigned infra join message
+                    let unassigned_infra_join: bool = device_group_id == 0;
+                    let join_message = match unassigned_infra_join {
+                        true => {
+                            debug!(
+                                "Detected unassigned infra {} connection, group id {}, group owner id: {}",
+                                device_mac.to_hex_string(), device_group_id, group_owner_shard_id
+                            );
+                            cgw_construct_unassigned_infra_join_msg(
+                                device_mac,
+                                ip_addr,
+                                self.local_cgw_id,
+                                orig_connect_message,
+                            )
+                        }
+                        false => {
+                            debug!(
+                                "Detected assigned infra {} connection, group id {}, group owner id: {}",
+                                device_mac.to_hex_string(), device_group_id, group_owner_shard_id
+                            );
+                            cgw_construct_infra_join_msg(
+                                device_group_id,
+                                device_mac,
+                                ip_addr,
+                                self.local_cgw_id,
+                                orig_connect_message,
+                            )
+                        }
+                    };
+
+                    if let Ok(resp) = join_message {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                    } else {
+                        error!("Failed to construct [un]assigned_infra_join message!");
+                    }
+
+                    // Check where there capabilities change event should be sent
+                    if let Some(diff) = capability_changes {
+                        if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
+                            device_mac,
+                            device_group_id,
+                            &diff,
+                            self.local_cgw_id,
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                        } else {
+                            error!("Failed to construct device_capabilities_changed message!");
+                        }
+                    }
+
+                    // Update topomap
                     if self.feature_topomap_enabled {
                         let topomap = CGWUCentralTopologyMap::get_ref();
                         topomap
                             .insert_device(&device_mac, device_platform.as_str(), device_group_id)
                             .await;
-                    }
-
-                    if let Ok(resp) = cgw_construct_infra_join_msg(
-                        device_group_id,
-                        device_mac,
-                        ip_addr,
-                        self.local_cgw_id,
-                    ) {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
-                    } else {
-                        error!("Failed to construct device_join message!");
                     }
 
                     connmap_w_lock.insert(device_mac, conn_processor_mbox_tx);
@@ -1905,14 +1907,24 @@ impl CGWConnectionServer {
                             .await;
                     }
 
-                    if let Ok(resp) = cgw_construct_infra_leave_msg(
-                        device_group_id,
-                        device_mac,
-                        self.local_cgw_id,
-                    ) {
+                    // Send [un]assigned infra join message
+                    let unassigned_infra_join: bool = device_group_id == 0;
+                    let leave_message = match unassigned_infra_join {
+                        true => {
+                            cgw_construct_unassigned_infra_leave_msg(device_mac, self.local_cgw_id)
+                        }
+
+                        false => cgw_construct_infra_leave_msg(
+                            device_group_id,
+                            device_mac,
+                            self.local_cgw_id,
+                        ),
+                    };
+
+                    if let Ok(resp) = leave_message {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
                     } else {
-                        error!("Failed to construct device_leave message!");
+                        error!("Failed to construct [un]assigned_infra_leave message!");
                     }
 
                     CGWMetrics::get_ref().change_counter(

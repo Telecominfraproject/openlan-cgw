@@ -23,6 +23,10 @@ infra_join:
       Peer address of the connected infra, as seen on the socket level
       of the CGW.
     type: string
+  connect_message_payload:
+    description:
+      Payload of infra CONNECT message
+    type: string
 
 infra_leave:
   description:
@@ -42,13 +46,13 @@ infra_leave:
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
 
-unassigned_infra_connection:
+unassigned_infra_join:
   description:
     Event, that CGW generates whenever un-assigned infra successfully connects to CGW.
   type:
     type: string
     enum:
-    - unassigned_infra_connection
+    - unassigned_infra_join
   reporter_shard_id:
     description:
       ID of the shard that handled request and generated this response.
@@ -56,6 +60,31 @@ unassigned_infra_connection:
   group_owner_shard_id:
     description:
       ID of the shard that is the actual owner of the infra group.
+    type: integer
+  infra_group_infra:
+    description:
+      MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+  infra_public_ip:
+    description:
+      Peer address of the connected infra, as seen on the socket level
+      of the CGW.
+    type: string
+  connect_message_payload:
+    description:
+      Payload of infra CONNECT message
+    type: string
+
+unassigned_infra_leave:
+  description:
+    Event, that CGW generates whenever unassigned infra disconnects from the CGW.
+  type:
+    type: string
+    enum:
+    - unassigned_infra_leave
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_infra:
     description:

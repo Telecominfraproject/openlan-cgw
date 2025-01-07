@@ -162,7 +162,7 @@ impl CGWConnectionProcessor {
         };
 
         debug!("Parse Connect Event");
-        let evt = match cgw_ucentral_parse_connect_event(message) {
+        let evt = match cgw_ucentral_parse_connect_event(message.clone()) {
             Ok(e) => {
                 debug!("Some: {:?}", e);
                 e
@@ -234,8 +234,18 @@ impl CGWConnectionProcessor {
         // cgw_connection_server has an authoritative decision whether
         // we can proceed.
         debug!("Sending ACK request for device serial: {}", self.serial);
+        let orig_connect_msg = match message.into_text() {
+            Ok(conn_msg) => conn_msg,
+            Err(_) => String::default(),
+        };
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
-        let msg = CGWConnectionServerReqMsg::AddNewConnection(evt.serial, self.addr, caps, mbox_tx);
+        let msg = CGWConnectionServerReqMsg::AddNewConnection(
+            evt.serial,
+            self.addr,
+            caps,
+            mbox_tx,
+            orig_connect_msg,
+        );
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
             .await;

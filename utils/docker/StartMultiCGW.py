@@ -64,8 +64,8 @@ DEFAULT_METRICS_BASE_PORT: Final[int] = 8080
 DEFAULT_CERTS_PATH = "../cert_generator/certs/server/"
 DEFAULT_CLIENT_CERTS_PATH = "../cert_generator/certs/client/"
 
-CONTAINTER_CERTS_VOLUME: Final[str] = "/etc/cgw/certs"
-CONTAINTER_NB_INFRA_CERTS_VOLUME: Final[str] = "/etc/cgw/nb_infra/certs"
+CONTAINER_CERTS_VOLUME: Final[str] = "/etc/cgw/certs"
+CONTAINER_NB_INFRA_CERTS_VOLUME: Final[str] = "/etc/cgw/nb_infra/certs"
 
 # Cert & key files name
 DEFAULT_CERT_GENERATOR_PATH = "../cert_generator"
@@ -169,7 +169,7 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
             print(f"Returned to original directory: {os.getcwd()}")
 
 
-# Jinga2 template generator
+# Jinja2 template generator
 def get_cgw_image_base_name() -> str:
     """
     Returns CGW Docker image base name
@@ -314,10 +314,10 @@ def generate_docker_compose_file(instances_num: int,
                              cgw_groups_capacity=DEFAULT_GROUPS_CAPACITY,
                              cgw_groups_threshold=DEFAULT_GROUPS_THRESHOLD,
                              cgw_group_infras_capacity=DEFAULT_GROUP_INFRAS_CAPACITY,
-                             cgw_allow_certs_missmatch=DEFAULT_ALLOW_CERT_MISMATCH,
+                             cgw_allow_certs_mismatch=DEFAULT_ALLOW_CERT_MISMATCH,
                              cgw_nb_infra_tls=DEFAULT_NB_INFRA_TLS,
-                             container_certs_voulume=CONTAINTER_CERTS_VOLUME,
-                             container_nb_infra_certs_voulume=CONTAINTER_NB_INFRA_CERTS_VOLUME,
+                             container_certs_volume=CONTAINER_CERTS_VOLUME,
+                             container_nb_infra_certs_volume=CONTAINER_NB_INFRA_CERTS_VOLUME,
                              default_certs_path=certs_realpath)
 
     # 6. Save the rendered template as docker-compose.yml
@@ -400,7 +400,7 @@ if __name__ == "__main__":
         # 3. Remove old multi cgw docker compose file
         remove_docker_compose_multi_cgw_file()
 
-        # 4. Update Certitifacates
+        # 4. Update Certificates
         certificates_update()
 
         # 4. Generate new multi cgw docker compose file

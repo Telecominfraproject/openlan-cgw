@@ -113,7 +113,7 @@ services:
       - CGW_WSS_CERT={{ cgw_wss_cert }}
       - CGW_WSS_KEY={{ cgw_wss_key }}
       - DEFAULT_WSS_THREAD_NUM={{ cgw_wss_t_num }}
-      - CGW_ALLOW_CERT_MISMATCH={{ cgw_allow_certs_missmatch }}
+      - CGW_ALLOW_CERT_MISMATCH={{ cgw_allow_certs_mismatch }}
       - CGW_NB_INFRA_TLS={{ cgw_nb_infra_tls }}
       - CGW_UCENTRAL_AP_DATAMODEL_URI={{ cgw_ucentral_ap_datamodel_uri }}
       - CGW_UCENTRAL_SWITCH_DATAMODEL_URI={{ cgw_ucentral_switch_datamodel_uri }}
@@ -125,8 +125,8 @@ services:
       broker:
         condition: service_healthy
     volumes:
-      - {{ default_certs_path }}:{{ container_certs_voulume }}
-      - {{ default_certs_path }}:{{ container_nb_infra_certs_voulume }}
+      - {{ default_certs_path }}:{{ container_certs_volume }}
+      - {{ default_certs_path }}:{{ container_nb_infra_certs_volume }}
     networks:
       - cgw_multi_instances_network
 {% endfor %}

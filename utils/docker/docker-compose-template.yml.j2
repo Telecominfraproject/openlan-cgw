@@ -65,9 +65,13 @@ services:
       # to block init container to wait for Kafka broker to be ready
       kafka-topics --bootstrap-server broker:9092 --list
 
-      # create CnC and CnC_Res topics
-      kafka-topics.sh --create --partitions {{ cgw_instances_num }} --bootstrap-server broker:9092 --topic CnC
+      # create CnC, CnC_Res, Connection, State, Infra_Realtime and Topology topics
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions {{ cgw_instances_num }} --topic CnC
       kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic CnC_Res
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Connection
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic State
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Infra_Realtime
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Topology
       "
     networks:
       - cgw_multi_instances_network

@@ -16,6 +16,7 @@ use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
 use rdkafka::{
     consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
+    producer::future_producer::OwnedDeliveryResult,
     producer::{FutureProducer, FutureRecord},
 };
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
 use std::sync::Arc;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::UnboundedSender,
@@ -32,7 +35,28 @@ use uuid::Uuid;
 
 type CGWConnectionServerMboxTx = UnboundedSender<CGWConnectionNBAPIReqMsg>;
 type CGWCNCConsumerType = StreamConsumer<CustomContext>;
-type CGWCNCProducerType = FutureProducer;
+type CGWKafkaProducerType = FutureProducer;
+
+#[derive(EnumIter, Eq, Hash, PartialEq)]
+pub enum CGWKafkaProducerTopic {
+    CnCRes,
+    Connection,
+    State,
+    InfraRealtime,
+    Topology,
+}
+
+impl std::fmt::Display for CGWKafkaProducerTopic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            CGWKafkaProducerTopic::CnCRes => write!(f, "CnC_Res"),
+            CGWKafkaProducerTopic::Connection => write!(f, "Connection"),
+            CGWKafkaProducerTopic::State => write!(f, "State"),
+            CGWKafkaProducerTopic::InfraRealtime => write!(f, "Infra_Realtime"),
+            CGWKafkaProducerTopic::Topology => write!(f, "Topology"),
+        }
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct InfraGroupCreateResponse {
@@ -711,11 +735,6 @@ impl ConsumerContext for CustomContext {
 
 static GROUP_ID: &str = "CGW";
 const CONSUMER_TOPICS: [&str; 1] = ["CnC"];
-const PRODUCER_TOPICS: &str = "CnC_Res";
-
-struct CGWCNCProducer {
-    p: CGWCNCProducerType,
-}
 
 struct CGWCNCConsumer {
     c: Arc<CGWCNCConsumerType>,
@@ -786,13 +805,24 @@ impl CGWCNCConsumer {
     }
 }
 
-impl CGWCNCProducer {
-    pub fn new(kafka_args: &CGWKafkaArgs) -> Result<Self> {
-        let prod: CGWCNCProducerType = Self::create_producer(kafka_args)?;
-        Ok(CGWCNCProducer { p: prod })
+struct CGWKafkaProducer {
+    producer: CGWKafkaProducerType,
+    topic: String,
+}
+
+impl CGWKafkaProducer {
+    pub fn new(kafka_args: &CGWKafkaArgs, topic: String) -> Result<Self> {
+        let producer: CGWKafkaProducerType = Self::create_producer(kafka_args)?;
+
+        debug!(
+            "(producer) Created lazy connection to kafka broker ({}:{}). Topic: {topic}",
+            kafka_args.kafka_host, kafka_args.kafka_port,
+        );
+
+        Ok(CGWKafkaProducer { producer, topic })
     }
 
-    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWCNCProducerType> {
+    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWKafkaProducerType> {
         let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
@@ -808,19 +838,51 @@ impl CGWCNCProducer {
             }
         };
 
-        debug!(
-            "(producer) Created lazy connection to kafka broker ({}:{})...",
-            kafka_args.kafka_host, kafka_args.kafka_port,
-        );
-
         Ok(producer)
+    }
+
+    pub async fn send(&self, key: String, payload: String) -> OwnedDeliveryResult {
+        self.producer
+            .send(
+                FutureRecord::to(&self.topic).key(&key).payload(&payload),
+                Duration::from_secs(0),
+            )
+            .await
+    }
+}
+
+pub struct CGWKafkaProducersMap {
+    kafka_producer_map: HashMap<CGWKafkaProducerTopic, CGWKafkaProducer>,
+}
+
+impl CGWKafkaProducersMap {
+    pub fn new(kafka_args: &CGWKafkaArgs) -> Result<CGWKafkaProducersMap> {
+        let mut map: HashMap<CGWKafkaProducerTopic, CGWKafkaProducer> = HashMap::new();
+
+        for topic in CGWKafkaProducerTopic::iter() {
+            match CGWKafkaProducer::new(kafka_args, topic.to_string()) {
+                Ok(producer) => map.insert(topic, producer),
+                Err(e) => {
+                    error!("Failed to create Kafka producer for topic: {topic}. Error: {e}");
+                    return Err(e);
+                }
+            };
+        }
+
+        Ok(CGWKafkaProducersMap {
+            kafka_producer_map: map,
+        })
+    }
+
+    pub fn get(&self, key: CGWKafkaProducerTopic) -> Option<&CGWKafkaProducer> {
+        self.kafka_producer_map.get(&key)
     }
 }
 
 pub struct CGWNBApiClient {
     working_runtime_handle: Runtime,
     cgw_server_tx_mbox: CGWConnectionServerMboxTx,
-    prod: CGWCNCProducer,
+    producers: CGWKafkaProducersMap,
     consumer: Arc<CGWCNCConsumer>,
     // TBD: split different implementations through a defined trait,
     // that implements async R W operations?
@@ -839,12 +901,13 @@ impl CGWNBApiClient {
             .enable_all()
             .build()?;
 
+        let producers = CGWKafkaProducersMap::new(kafka_args)?;
         let consumer: Arc<CGWCNCConsumer> = Arc::new(CGWCNCConsumer::new(cgw_id, kafka_args)?);
         let consumer_clone = consumer.clone();
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(kafka_args)?,
+            producers,
             consumer: consumer_clone,
         });
 
@@ -918,15 +981,19 @@ impl CGWNBApiClient {
     }
 
     pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {
-        let produce_future = self.prod.p.send(
-            FutureRecord::to(PRODUCER_TOPICS)
-                .key(&key)
-                .payload(&payload),
-            Duration::from_secs(0),
-        );
+        // Currently - pre-defined CnC_Res topic to be used
 
-        if let Err((e, _)) = produce_future.await {
-            error!("{e}")
+        if let Some(producer) = self.producers.get(CGWKafkaProducerTopic::CnCRes) {
+            let produce_future = producer.send(key, payload);
+
+            if let Err((e, _)) = produce_future.await {
+                error!("{e}")
+            }
+        } else {
+            error!(
+                "Failed to get kafka producer for {} topic!",
+                CGWKafkaProducerTopic::CnCRes
+            );
         }
     }
 

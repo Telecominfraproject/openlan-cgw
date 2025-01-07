@@ -2,7 +2,7 @@ use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
-    cgw_nb_api_listener::cgw_construct_infra_request_result_msg,
+    cgw_nb_api_listener::{cgw_construct_infra_request_result_msg, CGWKafkaProducerTopic},
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
         MESSAGE_TIMEOUT_DURATION,
@@ -350,6 +350,12 @@ impl CGWConnectionProcessor {
                                     self.cgw_server.clone(),
                                 );
                             }
+                            self.cgw_server
+                                .enqueue_mbox_message_from_device_to_nb_api_c(
+                                    self.group_id,
+                                    kafka_msg,
+                                    CGWKafkaProducerTopic::State,
+                                )?;
                         } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
                             if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
                                 error!(
@@ -374,8 +380,11 @@ impl CGWConnectionProcessor {
                                 true,
                                 None,
                             ) {
-                                self.cgw_server
-                                    .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                                self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    self.group_id,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct rebalance_group message!");
                             }
@@ -395,11 +404,23 @@ impl CGWConnectionProcessor {
                                     self.cgw_server.clone(),
                                 );
                             }
+                            self.cgw_server
+                                .enqueue_mbox_message_from_device_to_nb_api_c(
+                                    self.group_id,
+                                    kafka_msg,
+                                    CGWKafkaProducerTopic::InfraRealtime,
+                                )?;
+                        } else {
+                            // Send all other events to CnC_Res
+                            self.cgw_server
+                                .enqueue_mbox_message_from_device_to_nb_api_c(
+                                    self.group_id,
+                                    kafka_msg,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                )?;
                         }
                     }
 
-                    self.cgw_server
-                        .enqueue_mbox_message_from_device_to_nb_api_c(self.group_id, kafka_msg)?;
                     return Ok(CGWConnectionState::IsActive);
                 }
                 Ping(_t) => {
@@ -631,7 +652,7 @@ impl CGWConnectionProcessor {
                         ) {
                             // Currently Device Queue Manager does not store infras GID
                             self.cgw_server
-                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp, CGWKafkaProducerTopic::CnCRes);
                         } else {
                             error!("Failed to construct  message!");
                         }
@@ -653,8 +674,11 @@ impl CGWConnectionProcessor {
                         false,
                         Some("Request timed out".to_string()),
                     ) {
-                        self.cgw_server
-                            .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp);
+                        self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                            self.group_id,
+                            resp,
+                            CGWKafkaProducerTopic::CnCRes,
+                        );
                     } else {
                         error!("Failed to construct rebalance_group message!");
                     }

@@ -9,7 +9,7 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_infras_del_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
     cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_join_msg,
-    cgw_construct_unassigned_infra_leave_msg,
+    cgw_construct_unassigned_infra_leave_msg, CGWKafkaProducerTopic,
 };
 use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
@@ -444,23 +444,29 @@ impl CGWConnectionServer {
         &self,
         group_id: i32,
         req: String,
+        topic: CGWKafkaProducerTopic,
     ) -> Result<()> {
         let nb_api_client_clone = self.nb_api_client.clone();
         tokio::spawn(async move {
             let key = group_id.to_string();
             nb_api_client_clone
-                .enqueue_mbox_message_from_cgw_server(key, req)
+                .enqueue_mbox_message_from_cgw_server(key, req, topic)
                 .await;
         });
 
         Ok(())
     }
 
-    pub fn enqueue_mbox_message_from_cgw_to_nb_api(&self, gid: i32, req: String) {
+    pub fn enqueue_mbox_message_from_cgw_to_nb_api(
+        &self,
+        gid: i32,
+        req: String,
+        topic: CGWKafkaProducerTopic,
+    ) {
         let nb_api_client_clone = self.nb_api_client.clone();
         self.mbox_nb_api_tx_runtime_handle.spawn(async move {
             nb_api_client_clone
-                .enqueue_mbox_message_from_cgw_server(gid.to_string(), req)
+                .enqueue_mbox_message_from_cgw_server(gid.to_string(), req, topic)
                 .await;
         });
     }
@@ -791,7 +797,11 @@ impl CGWConnectionServer {
                             Some(format!("Failed to parse NB API message with key {key}")),
                             local_shard_partition_key.clone(),
                         ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                -1,
+                                resp,
+                                CGWKafkaProducerTopic::CnCRes,
+                            );
                         } else {
                             error!("Failed to construct device_enqueue message!");
                         }
@@ -843,7 +853,11 @@ impl CGWConnectionServer {
                                 true,
                                 None,
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_create message!");
                             }
@@ -858,7 +872,11 @@ impl CGWConnectionServer {
                                 false,
                                 Some(format!("Failed to create new group! Error: {e}")),
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_create message!");
                             }
@@ -902,7 +920,11 @@ impl CGWConnectionServer {
                                 true,
                                 None,
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_create message!");
                             }
@@ -921,7 +943,11 @@ impl CGWConnectionServer {
                                     "Failed to create new group to shard id {shard_id}! Error {e}"
                                 )),
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_create message!");
                             }
@@ -986,7 +1012,11 @@ impl CGWConnectionServer {
                                 true,
                                 None,
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_delete message!");
                             }
@@ -1003,7 +1033,11 @@ impl CGWConnectionServer {
                                 false,
                                 Some(format!("Failed to delete group! Error: {e}")),
                             ) {
-                                self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    gid,
+                                    resp,
+                                    CGWKafkaProducerTopic::CnCRes,
+                                );
                             } else {
                                 error!("Failed to construct infra_group_delete message!");
                             }
@@ -1125,7 +1159,7 @@ impl CGWConnectionServer {
                                 Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
                                 local_shard_partition_key_clone,
                             ) {
-                                self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                                self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp, CGWKafkaProducerTopic::CnCRes);
                             } else {
                                 error!("Failed to construct device_enqueue message!");
                             }
@@ -1175,7 +1209,7 @@ impl CGWConnectionServer {
                                     Some(format!("Failed to add infra list to nonexisting group, gid {gid}, uuid {uuid}")),
                                     local_shard_partition_key.clone(),
                                 ) {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                 } else {
                                     error!("Failed to construct infra_group_device_add message!");
                                 }
@@ -1206,7 +1240,11 @@ impl CGWConnectionServer {
                                         None,
                                         local_shard_partition_key.clone(),
                                     ) {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                            gid,
+                                            resp,
+                                            CGWKafkaProducerTopic::CnCRes,
+                                        );
                                     } else {
                                         error!(
                                             "Failed to construct infra_group_device_add message!"
@@ -1247,6 +1285,7 @@ impl CGWConnectionServer {
                                                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                                                 dev_gid,
                                                                 resp,
+                                                                CGWKafkaProducerTopic::Connection
                                                             );
                                                         } else {
                                                             error!(
@@ -1300,7 +1339,7 @@ impl CGWConnectionServer {
                                             Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
                                             local_shard_partition_key.clone(),
                                         ) {
-                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                         } else {
                                             error!(
                                                 "Failed to construct infra_group_device_add message!"
@@ -1334,7 +1373,7 @@ impl CGWConnectionServer {
                                     Some(format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist")),
                                     local_shard_partition_key.clone(),
                                 ) {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                 } else {
                                     error!(
                                         "Failed to construct infra_group_device_del message!"
@@ -1369,7 +1408,11 @@ impl CGWConnectionServer {
                                         None,
                                         local_shard_partition_key.clone(),
                                     ) {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                            gid,
+                                            resp,
+                                            CGWKafkaProducerTopic::CnCRes,
+                                        );
                                     } else {
                                         error!(
                                             "Failed to construct infra_group_device_del message!"
@@ -1404,7 +1447,7 @@ impl CGWConnectionServer {
                                             Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
                                             local_shard_partition_key.clone(),
                                         ) {
-                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                            self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                         } else {
                                             error!(
                                                 "Failed to construct infra_group_device_del message!"
@@ -1440,7 +1483,7 @@ impl CGWConnectionServer {
                                     Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist")),
                                     local_shard_partition_key.clone(),
                                 ) {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                 } else {
                                     error!("Failed to construct device_enqueue message!");
                                 }
@@ -1484,7 +1527,7 @@ impl CGWConnectionServer {
                                                         Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
                                                         local_shard_partition_key.clone(),
                                                 ) {
-                                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                                 } else {
                                                     error!("Failed to construct device_enqueue message!");
                                                 }
@@ -1518,7 +1561,7 @@ impl CGWConnectionServer {
                                     Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
                                     local_shard_partition_key.clone(),
                                 ) {
-                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                    self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes);
                                 } else {
                                     error!("Failed to construct device_enqueue message!");
                                 }
@@ -1540,7 +1583,11 @@ impl CGWConnectionServer {
                                         true,
                                         None,
                                     ) {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                            gid,
+                                            resp,
+                                            CGWKafkaProducerTopic::CnCRes,
+                                        );
                                     } else {
                                         error!("Failed to construct rebalance_group message!");
                                     }
@@ -1559,7 +1606,11 @@ impl CGWConnectionServer {
                                         false,
                                         Some(format!("Failed to rebalance groups! Error: {e}")),
                                     ) {
-                                        self.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp);
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                            gid,
+                                            resp,
+                                            CGWKafkaProducerTopic::CnCRes,
+                                        );
                                     } else {
                                         error!("Failed to construct rebalance_group message!");
                                     }
@@ -1582,7 +1633,11 @@ impl CGWConnectionServer {
                         Some(format!("Failed to parse NB API message with key {key}")),
                         local_shard_partition_key.clone(),
                     ) {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp);
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            -1,
+                            resp,
+                            CGWKafkaProducerTopic::CnCRes,
+                        );
                     } else {
                         error!("Failed to construct device_enqueue message!");
                     }
@@ -1778,7 +1833,11 @@ impl CGWConnectionServer {
                             self.local_cgw_id,
                             group_owner_shard_id,
                         ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                device_group_id,
+                                resp,
+                                CGWKafkaProducerTopic::Connection,
+                            );
                         } else {
                             error!("Failed to construct foreign_infra_connection message!");
                         }
@@ -1815,7 +1874,11 @@ impl CGWConnectionServer {
                     };
 
                     if let Ok(resp) = join_message {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            device_group_id,
+                            resp,
+                            CGWKafkaProducerTopic::Connection,
+                        );
                     } else {
                         error!("Failed to construct [un]assigned_infra_join message!");
                     }
@@ -1828,7 +1891,11 @@ impl CGWConnectionServer {
                             &diff,
                             self.local_cgw_id,
                         ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                device_group_id,
+                                resp,
+                                CGWKafkaProducerTopic::Connection,
+                            );
                         } else {
                             error!("Failed to construct device_capabilities_changed message!");
                         }
@@ -1922,7 +1989,11 @@ impl CGWConnectionServer {
                     };
 
                     if let Ok(resp) = leave_message {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(device_group_id, resp);
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            device_group_id,
+                            resp,
+                            CGWKafkaProducerTopic::Connection,
+                        );
                     } else {
                         error!("Failed to construct [un]assigned_infra_leave message!");
                     }
@@ -2027,25 +2098,31 @@ impl CGWConnectionServer {
             };
 
             match resp_result {
-                Ok(resp) => self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp),
+                Ok(resp) => self.enqueue_mbox_message_from_cgw_to_nb_api(
+                    infra_gid,
+                    resp,
+                    CGWKafkaProducerTopic::CnCRes,
+                ),
                 Err(e) => {
                     error!("Failed to construct infra_request_result message! Error: {e}")
                 }
             }
+        } else if let Ok(resp) = cgw_construct_infra_enqueue_response(
+            self.local_cgw_id,
+            uuid,
+            false,
+            Some(format!(
+                "Device {mac} is disconnected! Accepting only Configure and Upgrade requests!"
+            )),
+            local_shard_partition_key,
+        ) {
+            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                infra_gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+            );
         } else {
-            if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                self.local_cgw_id,
-                uuid,
-                false,
-                Some(format!(
-                    "Device {mac} is disconnected! Accepting only Configure and Upgrade requests!"
-                )),
-                local_shard_partition_key,
-            ) {
-                self.enqueue_mbox_message_from_cgw_to_nb_api(infra_gid, resp);
-            } else {
-                error!("Failed to construct infra_request_result message!");
-            }
+            error!("Failed to construct infra_request_result message!");
         }
     }
 
@@ -2067,7 +2144,11 @@ impl CGWConnectionServer {
                         false,
                         Some(format!("Request failed due to infra {} disconnect", infra)),
                     ) {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(req.0, resp);
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            req.0,
+                            resp,
+                            CGWKafkaProducerTopic::CnCRes,
+                        );
                     } else {
                         error!("Failed to construct  message!");
                     }

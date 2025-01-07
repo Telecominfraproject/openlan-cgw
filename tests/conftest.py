@@ -59,7 +59,7 @@ class TestContext:
 
         producer = KafkaProducer(db='localhost:9092', topic='CnC')
         consumer = KafkaConsumer(
-            db='localhost:9092', topic='CnC_Res', consumer_timeout=12000)
+            db='localhost:9092', topics=['CnC_Res', 'Connection', 'State', 'Infra_Realtime', 'Topology'], consumer_timeout=12000)
         admin = KafkaAdmin(host='localhost', port=9092)
 
         self.kafka_producer = producer

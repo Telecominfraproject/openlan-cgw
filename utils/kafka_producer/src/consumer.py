@@ -12,10 +12,10 @@ import json
 
 
 class Consumer:
-    def __init__(self, db: str, topic: str, consumer_timeout: int) -> None:
+    def __init__(self, db: str, topics: List[str], consumer_timeout: int) -> None:
         self.db = db
         self.conn = None
-        self.topic = topic
+        self.topics = topics
         self.consumer_timeout = consumer_timeout
         self.message = Message()
 
@@ -27,7 +27,7 @@ class Consumer:
 
     def connect(self) -> kafka.KafkaConsumer:
         if self.is_connected() is False:
-            self.conn = kafka.KafkaConsumer(self.topic,
+            self.conn = kafka.KafkaConsumer(*self.topics,
                                             bootstrap_servers=self.db,
                                             client_id="consumer_1",
                                             group_id="cgw_tests_consumer",
@@ -52,7 +52,7 @@ class Consumer:
 
     def flush(self, timeout_ms: int = 1000):
         assert self.is_connected(), \
-            f"consumer: Cannot flush kafka topic while not connected!"
+            f"consumer: Cannot flush kafka topics while not connected!"
 
         while True:
             # We explicitly use get_single_msg instead of <get_msgs>

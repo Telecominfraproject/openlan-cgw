@@ -3,7 +3,7 @@ use crate::{
     cgw_device::CGWDeviceType,
     cgw_nb_api_listener::{
         cgw_construct_client_join_msg, cgw_construct_client_leave_msg,
-        cgw_construct_client_migrate_msg,
+        cgw_construct_client_migrate_msg, CGWKafkaProducerTopic,
     },
     cgw_ucentral_parser::{
         CGWUCentralEvent, CGWUCentralEventRealtimeEventType, CGWUCentralEventStateClientsType,
@@ -439,7 +439,11 @@ impl CGWUCentralTopologyMap {
         for (client_mac, new_ssid, new_band) in clients_list {
             let msg = cgw_construct_client_join_msg(gid, client_mac, node_mac, new_ssid, new_band);
             if let Ok(r) = msg {
-                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
+                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
+                    gid,
+                    r,
+                    CGWKafkaProducerTopic::Topology,
+                );
             } else {
                 warn!("Failed to convert client leave event to string!");
             }
@@ -469,7 +473,11 @@ impl CGWUCentralTopologyMap {
         for (client_mac, band) in clients_list {
             let msg = cgw_construct_client_leave_msg(gid, client_mac, node_mac, band);
             if let Ok(r) = msg {
-                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
+                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
+                    gid,
+                    r,
+                    CGWKafkaProducerTopic::Topology,
+                );
             } else {
                 warn!("Failed to convert client leave event to string!");
             }
@@ -504,7 +512,11 @@ impl CGWUCentralTopologyMap {
                 new_band,
             );
             if let Ok(r) = msg {
-                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(gid, r);
+                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
+                    gid,
+                    r,
+                    CGWKafkaProducerTopic::Topology,
+                );
             } else {
                 warn!("Failed to convert client leave event to string!");
             }

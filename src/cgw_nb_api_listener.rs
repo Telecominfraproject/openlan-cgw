@@ -991,10 +991,15 @@ impl CGWNBApiClient {
         return_vec
     }
 
-    pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {
+    pub async fn enqueue_mbox_message_from_cgw_server(
+        &self,
+        key: String,
+        payload: String,
+        topic: CGWKafkaProducerTopic,
+    ) {
         // Currently - pre-defined CnC_Res topic to be used
 
-        if let Some(producer) = self.producers.get(CGWKafkaProducerTopic::CnCRes) {
+        if let Some(producer) = self.producers.get(topic) {
             let produce_future = producer.send(key, payload);
 
             if let Err((e, _)) = produce_future.await {

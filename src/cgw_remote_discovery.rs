@@ -1526,13 +1526,12 @@ impl CGWRemoteDiscovery {
             }
 
             for key in redis_keys {
-                let res: RedisResult<()> = redis::cmd("DEL").arg(&key).query_async(&mut con).await;
-                if res.is_err() {
-                    warn!(
-                        "Failed to delete cache entry {}! Error: {}",
-                        key,
-                        res.err().unwrap()
-                    );
+                if let Err(res) = redis::cmd("DEL")
+                    .arg(&key)
+                    .query_async::<redis::aio::MultiplexedConnection, ()>(&mut con)
+                    .await
+                {
+                    warn!("Failed to delete cache entry {}! Error: {}", key, res);
                 }
             }
         }

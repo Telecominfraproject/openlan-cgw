@@ -348,11 +348,21 @@ impl CGWConnectionServer {
         // but use spawn_blocking where needed in contexts that rely on the
         // underlying async calls.
         let app_args_clone = app_args.validation_schema.clone();
-        let get_config_validator_fut = tokio::task::spawn_blocking(move || {
-            CGWUCentralConfigValidators::new(app_args_clone).unwrap()
-        });
+        let get_config_validator_fut =
+            tokio::task::spawn_blocking(move || CGWUCentralConfigValidators::new(app_args_clone));
         let config_validator = match get_config_validator_fut.await {
-            Ok(res) => res,
+            Ok(res) => match res {
+                Ok(validator) => validator,
+                Err(e) => {
+                    error!(
+                        "Can't create CGW Connection server: Config validator create failed: {e}"
+                    );
+
+                    return Err(Error::ConnectionServer(format!(
+                        "Can't create CGW Connection server: Config validator create failed: {e}",
+                    )));
+                }
+            },
             Err(e) => {
                 error!("Failed to retrieve json config validators! Error: {e}");
                 return Err(Error::ConnectionServer(format!(

@@ -39,6 +39,38 @@ type ClientsMigrateList = Vec<(MacAddress, MacAddress, String, String)>;
 // Last seen, ssid, band
 type ClientsConnectedList = (ClientLastSeenTimestamp, String, String);
 
+// Topology map item
+type TopologyMapItem = HashMap<
+    i32,
+    (
+        CGWUCentralTopologyMapData,
+        // This hashmap is needed to keep track of _all_ topomap nodes
+        // connected (directly reported) by this device, to detect _migration_
+        // process:
+        // we need to keep track whenever WiFi client of AP_1, for example,
+        // 'silently' migrates to AP_2.
+        //
+        // We should also track the last time seen value of this
+        // client / node, to make appropriate decision
+        // whenever leave/join/migrate happens.
+        //
+        // LIMITATION:
+        //   * Works only on a per-group basis (if wifi-client migrates to
+        //     another GID, this event would be missed)
+        //     (as per current implementation).
+        // Track key:client mac, values:parent AP mac, last seen timestamp, ssid and band
+        HashMap<MacAddress, (MacAddress, ClientLastSeenTimestamp, String, String)>,
+    ),
+>;
+
+type TopologyMapNode = (
+    MacAddress,
+    (
+        CGWUCentralTopologyMapNodeOrigin,
+        CGWUCentralTopologyMapConnections,
+        HashMap<MacAddress, ClientsConnectedList>,
+    ),
+);
 struct CGWTopologyMapQueueMessage {
     evt: CGWUCentralEvent,
     dev_type: CGWDeviceType,
@@ -149,32 +181,7 @@ struct CGWUCentralTopologyMapData {
 #[derive(Debug)]
 pub struct CGWUCentralTopologyMap {
     // Stored on a per-gid basis
-    data: Arc<
-        RwLock<
-            HashMap<
-                i32,
-                (
-                    CGWUCentralTopologyMapData,
-                    // This hashmap is needed to keep track of _all_ topomap nodes
-                    // connected (directly reported) by this device, to detect _migration_
-                    // process:
-                    // we need to keep track whenever WiFi client of AP_1, for example,
-                    // 'silently' migrates to AP_2.
-                    //
-                    // We should also track the last time seen value of this
-                    // client / node, to make appropriate decision
-                    // whenever leave/join/migrate happens.
-                    //
-                    // LIMITATION:
-                    //   * Works only on a per-group basis (if wifi-client migrates to
-                    //     another GID, this event would be missed)
-                    //     (as per current implementation).
-                    // Track key:client mac, values:parent AP mac, last seen timestamp, ssid and band
-                    HashMap<MacAddress, (MacAddress, ClientLastSeenTimestamp, String, String)>,
-                ),
-            >,
-        >,
-    >,
+    data: Arc<RwLock<TopologyMapItem>>,
     queue: (
         Arc<CGWTopologyMapQueueTxHandle>,
         Arc<Mutex<CGWTopologyMapQueueRxHandle>>,
@@ -568,14 +575,7 @@ impl CGWUCentralTopologyMap {
             let mut upstream_lldp_node: Option<(MacAddress, CGWUCentralEventStatePort)> = None;
             let mut downstream_lldp_nodes: HashMap<CGWUCentralEventStatePort, MacAddress> =
                 HashMap::new();
-            let mut nodes_to_create: Vec<(
-                MacAddress,
-                (
-                    CGWUCentralTopologyMapNodeOrigin,
-                    CGWUCentralTopologyMapConnections,
-                    HashMap<MacAddress, ClientsConnectedList>,
-                ),
-            )> = Vec::new();
+            let mut nodes_to_create: Vec<TopologyMapNode> = Vec::new();
 
             // Map connections that will be populated on behalf of device
             // that sent the state data itself.

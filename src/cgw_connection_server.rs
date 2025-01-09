@@ -1068,9 +1068,7 @@ impl CGWConnectionServer {
                 // forwarded to.
                 // In order to get it, match to <any> parsed msg, and
                 // get only gid field.
-                let gid: i32 = match parsed_msg {
-                    CGWNBApiParsedMsg { gid, .. } => gid,
-                };
+                let CGWNBApiParsedMsg { gid, .. } = parsed_msg;
 
                 match self
                     .cgw_remote_discovery
@@ -1507,9 +1505,11 @@ impl CGWConnectionServer {
                                                 Ok(()) => {
                                                     // 3. Add message to queue
                                                     self.enqueue_infrastructure_request(
-                                                        device_mac,
-                                                        infra.get_device_state(),
-                                                        infra.get_device_group_id(),
+                                                        (
+                                                            device_mac,
+                                                            infra.get_device_state(),
+                                                            infra.get_device_group_id(),
+                                                        ),
                                                         parsed_cmd,
                                                         msg,
                                                         uuid,
@@ -1536,9 +1536,11 @@ impl CGWConnectionServer {
                                             }
                                         } else {
                                             self.enqueue_infrastructure_request(
-                                                device_mac,
-                                                infra.get_device_state(),
-                                                infra.get_device_group_id(),
+                                                (
+                                                    device_mac,
+                                                    infra.get_device_state(),
+                                                    infra.get_device_group_id(),
+                                                ),
                                                 parsed_cmd,
                                                 msg,
                                                 uuid,
@@ -2053,17 +2055,15 @@ impl CGWConnectionServer {
 
     async fn enqueue_infrastructure_request(
         &self,
-        mac: MacAddress,
-        infra_state: CGWDeviceState,
-        infra_gid: i32,
+        infra: (MacAddress, CGWDeviceState, i32),
         command: CGWUCentralCommand,
         message: String,
         uuid: Uuid,
         timeout: Option<u64>,
         local_shard_partition_key: Option<String>,
     ) {
-        if (infra_state == CGWDeviceState::CGWDeviceConnected)
-            || (infra_state == CGWDeviceState::CGWDeviceDisconnected
+        if (infra.1 == CGWDeviceState::CGWDeviceConnected)
+            || (infra.1 == CGWDeviceState::CGWDeviceDisconnected
                 && (command.cmd_type == CGWUCentralCommandType::Configure
                     || command.cmd_type == CGWUCentralCommandType::Upgrade))
         {
@@ -2071,7 +2071,7 @@ impl CGWConnectionServer {
                 CGWUCentralMessagesQueueItem::new(command, message, uuid, timeout);
             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
 
-            let resp_result = match queue_lock.push_device_message(mac, queue_msg).await {
+            let resp_result = match queue_lock.push_device_message(infra.0, queue_msg).await {
                 Ok(replaced_item) => match replaced_item {
                     Some(req) => cgw_construct_infra_enqueue_response(
                         self.local_cgw_id,
@@ -2099,7 +2099,7 @@ impl CGWConnectionServer {
 
             match resp_result {
                 Ok(resp) => self.enqueue_mbox_message_from_cgw_to_nb_api(
-                    infra_gid,
+                    infra.2,
                     resp,
                     CGWKafkaProducerTopic::CnCRes,
                 ),
@@ -2112,12 +2112,13 @@ impl CGWConnectionServer {
             uuid,
             false,
             Some(format!(
-                "Device {mac} is disconnected! Accepting only Configure and Upgrade requests!"
+                "Device {} is disconnected! Accepting only Configure and Upgrade requests!",
+                infra.0
             )),
             local_shard_partition_key,
         ) {
             self.enqueue_mbox_message_from_cgw_to_nb_api(
-                infra_gid,
+                infra.2,
                 resp,
                 CGWKafkaProducerTopic::CnCRes,
             );

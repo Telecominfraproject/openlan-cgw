@@ -247,6 +247,32 @@ pub enum CGWUCentralEventType {
     Unknown,
 }
 
+impl std::fmt::Display for CGWUCentralEventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CGWUCentralEventType::Connect(_) => write!(f, "connect"),
+            CGWUCentralEventType::State(_) => write!(f, "state"),
+            CGWUCentralEventType::Healthcheck => write!(f, "healthcheck"),
+            CGWUCentralEventType::Log => write!(f, "log"),
+            CGWUCentralEventType::Event => write!(f, "event"),
+            CGWUCentralEventType::Alarm => write!(f, "alarm"),
+            CGWUCentralEventType::WifiScan => write!(f, "wifiscan"),
+            CGWUCentralEventType::CrashLog => write!(f, "crashlog"),
+            CGWUCentralEventType::RebootLog => write!(f, "rebootLog"),
+            CGWUCentralEventType::CfgPending => write!(f, "cfgpending"),
+            CGWUCentralEventType::DeviceUpdate => write!(f, "deviceupdate"),
+            CGWUCentralEventType::Ping => write!(f, "ping"),
+            CGWUCentralEventType::Recovery => write!(f, "recovery"),
+            CGWUCentralEventType::VenueBroadcast => write!(f, "venue_broadcast"),
+            CGWUCentralEventType::RealtimeEvent(_) => {
+                write!(f, "realtime_event")
+            }
+            CGWUCentralEventType::Reply(_) => write!(f, "reply"),
+            CGWUCentralEventType::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CGWUCentralEvent {
     pub serial: MacAddress,

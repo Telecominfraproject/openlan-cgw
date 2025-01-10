@@ -2,7 +2,10 @@ use crate::{
     cgw_connection_server::{CGWConnectionServer, CGWConnectionServerReqMsg},
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
-    cgw_nb_api_listener::{cgw_construct_infra_request_result_msg, CGWKafkaProducerTopic},
+    cgw_nb_api_listener::{
+        cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
+        cgw_construct_infra_state_event_message, CGWKafkaProducerTopic,
+    },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
         MESSAGE_TIMEOUT_DURATION,
@@ -330,6 +333,7 @@ impl CGWConnectionProcessor {
                         timestamp.timestamp(),
                     ) {
                         kafka_msg.clone_from(&payload);
+                        let event_type_str: String = evt.evt_type.to_string();
                         match evt.evt_type {
                             CGWUCentralEventType::State(_) => {
                                 if let Some(decompressed) = evt.decompressed.clone() {
@@ -351,20 +355,36 @@ impl CGWConnectionProcessor {
                                         self.cgw_server.clone(),
                                     );
                                 }
-                                self.cgw_server
-                                    .enqueue_mbox_message_from_device_to_nb_api_c(
-                                        self.group_id,
-                                        kafka_msg,
-                                        CGWKafkaProducerTopic::State,
-                                    )?;
+                                if let Ok(resp) = cgw_construct_infra_state_event_message(
+                                    event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                ) {
+                                    self.cgw_server
+                                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                                            self.group_id,
+                                            resp,
+                                            CGWKafkaProducerTopic::State,
+                                        )?;
+                                } else {
+                                    error!("Failed to construct infra_state_event message!");
+                                }
                             }
                             CGWUCentralEventType::Healthcheck => {
-                                self.cgw_server
-                                    .enqueue_mbox_message_from_device_to_nb_api_c(
-                                        self.group_id,
-                                        kafka_msg,
-                                        CGWKafkaProducerTopic::State,
-                                    )?;
+                                if let Ok(resp) = cgw_construct_infra_state_event_message(
+                                    event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                ) {
+                                    self.cgw_server
+                                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                                            self.group_id,
+                                            resp,
+                                            CGWKafkaProducerTopic::State,
+                                        )?;
+                                } else {
+                                    error!("Failed to construct infra_state_event message!");
+                                }
                             }
                             CGWUCentralEventType::Reply(content) => {
                                 if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
@@ -396,7 +416,7 @@ impl CGWConnectionProcessor {
                                         CGWKafkaProducerTopic::CnCRes,
                                     );
                                 } else {
-                                    error!("Failed to construct rebalance_group message!");
+                                    error!("Failed to construct infra_request_result message!");
                                 }
                             }
                             CGWUCentralEventType::RealtimeEvent(_) => {
@@ -415,14 +435,23 @@ impl CGWConnectionProcessor {
                                         self.cgw_server.clone(),
                                     );
                                 }
-                                self.cgw_server
-                                    .enqueue_mbox_message_from_device_to_nb_api_c(
-                                        self.group_id,
-                                        kafka_msg,
-                                        CGWKafkaProducerTopic::InfraRealtime,
-                                    )?;
+
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                ) {
+                                    self.cgw_server
+                                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                                            self.group_id,
+                                            resp,
+                                            CGWKafkaProducerTopic::InfraRealtime,
+                                        )?;
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
+                                }
                             }
-                            CGWUCentralEventType::Connect(_cgwucentral_event_connect) => {
+                            CGWUCentralEventType::Connect(_) => {
                                 error!("Expected to receive Connect event as one of the first message from infra during connection procedure!");
                             }
                             CGWUCentralEventType::Log
@@ -436,11 +465,19 @@ impl CGWConnectionProcessor {
                             | CGWUCentralEventType::CfgPending
                             | CGWUCentralEventType::DeviceUpdate
                             | CGWUCentralEventType::Recovery => {
-                                self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    self.group_id,
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    event_type_str,
                                     kafka_msg,
-                                    CGWKafkaProducerTopic::InfraRealtime,
-                                )
+                                    self.cgw_server.get_local_id(),
+                                ) {
+                                    self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                        self.group_id,
+                                        resp,
+                                        CGWKafkaProducerTopic::InfraRealtime,
+                                    )
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
+                                }
                             }
                             CGWUCentralEventType::Unknown => {
                                 error!("Received unknown event type! Message payload: {kafka_msg}");

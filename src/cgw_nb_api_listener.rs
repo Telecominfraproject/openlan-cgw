@@ -214,6 +214,52 @@ pub struct InfraLeaveMessage {
     pub reporter_shard_id: i32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraStateEventMessage {
+    pub r#type: &'static str,
+    pub event_type: String,
+    pub payload: String,
+    pub reporter_shard_id: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraRealtimeEventMessage {
+    pub r#type: &'static str,
+    pub event_type: String,
+    pub payload: String,
+    pub reporter_shard_id: i32,
+}
+
+pub fn cgw_construct_infra_state_event_message(
+    event_type: String,
+    payload: String,
+    reporter_shard_id: i32,
+) -> Result<String> {
+    let state_message = InfraStateEventMessage {
+        r#type: "infrastructure_state_event_message",
+        event_type,
+        payload,
+        reporter_shard_id,
+    };
+
+    Ok(serde_json::to_string(&state_message)?)
+}
+
+pub fn cgw_construct_infra_realtime_event_message(
+    event_type: String,
+    payload: String,
+    reporter_shard_id: i32,
+) -> Result<String> {
+    let realtime_message = InfraRealtimeEventMessage {
+        r#type: "infrastructure_realtime_event_message",
+        event_type,
+        payload,
+        reporter_shard_id,
+    };
+
+    Ok(serde_json::to_string(&realtime_message)?)
+}
+
 pub fn cgw_construct_infra_group_create_response(
     infra_group_id: i32,
     reporter_shard_id: i32,

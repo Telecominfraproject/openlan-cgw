@@ -330,94 +330,121 @@ impl CGWConnectionProcessor {
                         timestamp.timestamp(),
                     ) {
                         kafka_msg.clone_from(&payload);
-                        if let CGWUCentralEventType::State(_) = evt.evt_type {
-                            if let Some(decompressed) = evt.decompressed.clone() {
-                                kafka_msg = decompressed;
-                            }
-                            if self.feature_topomap_enabled {
-                                let topomap = CGWUCentralTopologyMap::get_ref();
+                        match evt.evt_type {
+                            CGWUCentralEventType::State(_) => {
+                                if let Some(decompressed) = evt.decompressed.clone() {
+                                    kafka_msg = decompressed;
+                                }
+                                if self.feature_topomap_enabled {
+                                    let topomap = CGWUCentralTopologyMap::get_ref();
 
-                                // TODO: remove this Arc clone:
-                                // Dirty hack for now: pass Arc ref of srv to topomap;
-                                // Future rework and refactoring would require to separate
-                                // NB api from being an internal obj of conn_server to be a
-                                // standalone (singleton?) object.
-                                topomap.enqueue_event(
-                                    evt,
-                                    self.device_type,
-                                    self.serial,
-                                    self.group_id,
-                                    self.cgw_server.clone(),
-                                );
+                                    // TODO: remove this Arc clone:
+                                    // Dirty hack for now: pass Arc ref of srv to topomap;
+                                    // Future rework and refactoring would require to separate
+                                    // NB api from being an internal obj of conn_server to be a
+                                    // standalone (singleton?) object.
+                                    topomap.enqueue_event(
+                                        evt,
+                                        self.device_type,
+                                        self.serial,
+                                        self.group_id,
+                                        self.cgw_server.clone(),
+                                    );
+                                }
+                                self.cgw_server
+                                    .enqueue_mbox_message_from_device_to_nb_api_c(
+                                        self.group_id,
+                                        kafka_msg,
+                                        CGWKafkaProducerTopic::State,
+                                    )?;
                             }
-                            self.cgw_server
-                                .enqueue_mbox_message_from_device_to_nb_api_c(
-                                    self.group_id,
-                                    kafka_msg,
-                                    CGWKafkaProducerTopic::State,
-                                )?;
-                        } else if let CGWUCentralEventType::Reply(content) = evt.evt_type {
-                            if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
-                                error!(
-                                    "Unexpected FSM state: {}! Expected: ResultPending",
-                                    *fsm_state
-                                );
+                            CGWUCentralEventType::Healthcheck => {
+                                self.cgw_server
+                                    .enqueue_mbox_message_from_device_to_nb_api_c(
+                                        self.group_id,
+                                        kafka_msg,
+                                        CGWKafkaProducerTopic::State,
+                                    )?;
                             }
+                            CGWUCentralEventType::Reply(content) => {
+                                if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
+                                    error!(
+                                        "Unexpected FSM state: {}! Expected: ResultPending",
+                                        *fsm_state
+                                    );
+                                }
 
-                            if content.id != pending_req_id {
-                                error!(
-                                    "Pending request ID {} is not equal received reply ID {}!",
-                                    pending_req_id, content.id
-                                );
-                            }
+                                if content.id != pending_req_id {
+                                    error!(
+                                        "Pending request ID {} is not equal received reply ID {}!",
+                                        pending_req_id, content.id
+                                    );
+                                }
 
-                            *fsm_state = CGWUCentralMessageProcessorState::Idle;
-                            debug!("Got reply event for pending request id: {pending_req_id}");
-                            if let Ok(resp) = cgw_construct_infra_request_result_msg(
-                                self.cgw_server.get_local_id(),
-                                pending_req_uuid,
-                                pending_req_id,
-                                true,
-                                None,
-                            ) {
+                                *fsm_state = CGWUCentralMessageProcessorState::Idle;
+                                debug!("Got reply event for pending request id: {pending_req_id}");
+                                if let Ok(resp) = cgw_construct_infra_request_result_msg(
+                                    self.cgw_server.get_local_id(),
+                                    pending_req_uuid,
+                                    pending_req_id,
+                                    true,
+                                    None,
+                                ) {
+                                    self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                        self.group_id,
+                                        resp,
+                                        CGWKafkaProducerTopic::CnCRes,
+                                    );
+                                } else {
+                                    error!("Failed to construct rebalance_group message!");
+                                }
+                            }
+                            CGWUCentralEventType::RealtimeEvent(_) => {
+                                if self.feature_topomap_enabled {
+                                    let topomap = CGWUCentralTopologyMap::get_ref();
+                                    // TODO: remove this Arc clone:
+                                    // Dirty hack for now: pass Arc ref of srv to topomap;
+                                    // Future rework and refactoring would require to separate
+                                    // NB api from being an internal obj of conn_server to be a
+                                    // standalone (singleton?) object.
+                                    topomap.enqueue_event(
+                                        evt,
+                                        self.device_type,
+                                        self.serial,
+                                        self.group_id,
+                                        self.cgw_server.clone(),
+                                    );
+                                }
+                                self.cgw_server
+                                    .enqueue_mbox_message_from_device_to_nb_api_c(
+                                        self.group_id,
+                                        kafka_msg,
+                                        CGWKafkaProducerTopic::InfraRealtime,
+                                    )?;
+                            }
+                            CGWUCentralEventType::Connect(_cgwucentral_event_connect) => {
+                                error!("Expected to receive Connect event as one of the first message from infra during connection procedure!");
+                            }
+                            CGWUCentralEventType::Log
+                            | CGWUCentralEventType::Event
+                            | CGWUCentralEventType::Alarm
+                            | CGWUCentralEventType::WifiScan
+                            | CGWUCentralEventType::CrashLog
+                            | CGWUCentralEventType::RebootLog
+                            | CGWUCentralEventType::Ping
+                            | CGWUCentralEventType::VenueBroadcast
+                            | CGWUCentralEventType::CfgPending
+                            | CGWUCentralEventType::DeviceUpdate
+                            | CGWUCentralEventType::Recovery => {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
-                                    self.group_id,
-                                    resp,
-                                    CGWKafkaProducerTopic::CnCRes,
-                                );
-                            } else {
-                                error!("Failed to construct rebalance_group message!");
-                            }
-                        } else if let CGWUCentralEventType::RealtimeEvent(_) = evt.evt_type {
-                            if self.feature_topomap_enabled {
-                                let topomap = CGWUCentralTopologyMap::get_ref();
-                                // TODO: remove this Arc clone:
-                                // Dirty hack for now: pass Arc ref of srv to topomap;
-                                // Future rework and refactoring would require to separate
-                                // NB api from being an internal obj of conn_server to be a
-                                // standalone (singleton?) object.
-                                topomap.enqueue_event(
-                                    evt,
-                                    self.device_type,
-                                    self.serial,
-                                    self.group_id,
-                                    self.cgw_server.clone(),
-                                );
-                            }
-                            self.cgw_server
-                                .enqueue_mbox_message_from_device_to_nb_api_c(
                                     self.group_id,
                                     kafka_msg,
                                     CGWKafkaProducerTopic::InfraRealtime,
-                                )?;
-                        } else {
-                            // Send all other events to CnC_Res
-                            self.cgw_server
-                                .enqueue_mbox_message_from_device_to_nb_api_c(
-                                    self.group_id,
-                                    kafka_msg,
-                                    CGWKafkaProducerTopic::CnCRes,
-                                )?;
+                                )
+                            }
+                            CGWUCentralEventType::Unknown => {
+                                error!("Received unknown event type! Message payload: {kafka_msg}");
+                            }
                         }
                     }
 

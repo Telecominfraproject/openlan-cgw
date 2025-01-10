@@ -231,7 +231,7 @@ pub enum CGWUCentralEventType {
     Connect(CGWUCentralEventConnect),
     State(CGWUCentralEventState),
     Healthcheck,
-    Log(CGWUCentralEventLog),
+    Log,
     Event,
     Alarm,
     WifiScan,
@@ -244,6 +244,7 @@ pub enum CGWUCentralEventType {
     VenueBroadcast,
     RealtimeEvent(CGWUCentralEventRealtimeEvent),
     Reply(CGWUCentralEventReply),
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

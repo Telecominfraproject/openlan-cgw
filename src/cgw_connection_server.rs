@@ -2238,7 +2238,7 @@ mod tests {
         let event: CGWUCentralEvent = cgw_ucentral_ap_parse_message(false, msg, 0)?;
 
         match event.evt_type {
-            CGWUCentralEventType::Log(_) => {
+            CGWUCentralEventType::Log => {
                 debug!("Assertion passed")
             }
             _ => {

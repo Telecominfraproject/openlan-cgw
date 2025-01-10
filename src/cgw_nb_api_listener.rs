@@ -997,8 +997,6 @@ impl CGWNBApiClient {
         payload: String,
         topic: CGWKafkaProducerTopic,
     ) {
-        // Currently - pre-defined CnC_Res topic to be used
-
         if let Some(producer) = self.producers.get(topic) {
             let produce_future = producer.send(key, payload);
 

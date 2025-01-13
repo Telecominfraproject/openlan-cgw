@@ -1780,7 +1780,7 @@ impl CGWConnectionServer {
                             .get_infra_group_owner_id(device_group_id)
                             .await
                         {
-                            foreign_infra_join = self.local_cgw_id == group_owner_id;
+                            foreign_infra_join = self.local_cgw_id != group_owner_id;
                             group_owner_shard_id = group_owner_id;
                         }
 

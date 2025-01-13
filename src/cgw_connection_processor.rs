@@ -166,13 +166,10 @@ impl CGWConnectionProcessor {
 
         debug!("Parse Connect Event");
         let evt = match cgw_ucentral_parse_connect_event(message.clone()) {
-            Ok(e) => {
-                debug!("Some: {:?}", e);
-                e
-            }
-            Err(_e) => {
+            Ok(event) => event,
+            Err(e) => {
                 error!(
-                    "Failed to receive connect message from: {}! Closing connection!",
+                    "Failed to parse connect message from: {}! Error: {e}",
                     self.addr
                 );
                 return Err(Error::ConnectionProcessor(
@@ -209,7 +206,6 @@ impl CGWConnectionProcessor {
         match evt.evt_type {
             CGWUCentralEventType::Connect(c) => {
                 caps.firmware = c.firmware;
-                caps.uuid = c.uuid;
                 caps.compatible = c.capabilities.compatible;
                 caps.model = c.capabilities.model;
                 caps.platform = c.capabilities.platform;

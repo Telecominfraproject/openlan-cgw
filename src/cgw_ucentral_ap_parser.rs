@@ -846,7 +846,12 @@ pub fn cgw_ucentral_ap_parse_message(
                 .as_str()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse firmware from params"))?
                 .to_string();
-            let caps: CGWUCentralEventConnectParamsCaps =
+
+            let uuid = params["uuid"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse uuid from params"))?;
+
+            let capabilities: CGWUCentralEventConnectParamsCaps =
                 serde_json::from_value(params["capabilities"].clone())?;
 
             let connect_event = CGWUCentralEvent {
@@ -854,8 +859,8 @@ pub fn cgw_ucentral_ap_parse_message(
                 evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
                     serial,
                     firmware,
-                    uuid: 1,
-                    capabilities: caps,
+                    uuid,
+                    capabilities,
                 }),
                 decompressed: None,
             };

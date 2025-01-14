@@ -106,6 +106,26 @@ class Consumer:
                     return message
         return None
 
+    def get_msg_by_type(self, msg_type: str, timeout_ms: int = 12000):
+        assert self.is_connected(), \
+            f"consumer: Cannot get Kafka result msg, Not connected!"
+
+        while True:
+            # We explicitly use get_single_msg instead of <get_msgs>
+            # to make sure we return as soon as we find result,
+            # without waiting for potential T/O
+            message = self.get_single_msg(timeout_ms=timeout_ms)
+            if message is None:
+                break
+
+            logger.debug("Flushed kafka msg: %s key=%s value=%s ts=%s" %
+                         (message.topic, message.key, message.value, message.timestamp))
+
+            if message.value['type'] == msg_type:
+                return message
+
+        return None
+
     def get_result_msg(self, uuid_val: int, timeout_ms: int = 12000):
         res_uuid = str(uuid.UUID(int=uuid_val))
 

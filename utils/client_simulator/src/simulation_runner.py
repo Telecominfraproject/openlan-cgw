@@ -37,6 +37,26 @@ class Message:
         self.log = json.dumps(self.log).replace("MAC", mac)
         self.join = json.dumps(self.templates["join"]).replace("MAC", mac)
         self.leave = json.dumps(self.templates["leave"]).replace("MAC", mac)
+        self.healthcheck = json.dumps(
+            self.templates["healthcheck"]).replace("MAC", mac)
+        self.alarm = json.dumps(
+            self.templates["alarm"]).replace("MAC", mac)
+        self.wifiscan = json.dumps(
+            self.templates["wifiscan"]).replace("MAC", mac)
+        self.crashlog = json.dumps(
+            self.templates["crashlog"]).replace("MAC", mac)
+        self.rebootLog = json.dumps(
+            self.templates["rebootLog"]).replace("MAC", mac)
+        self.cfgpending = json.dumps(
+            self.templates["cfgpending"]).replace("MAC", mac)
+        self.deviceupdate = json.dumps(
+            self.templates["deviceupdate"]).replace("MAC", mac)
+        self.ping = json.dumps(
+            self.templates["ping"]).replace("MAC", mac)
+        self.recovery = json.dumps(
+            self.templates["recovery"]).replace("MAC", mac)
+        self.venue_broadcast = json.dumps(
+            self.templates["venue_broadcast"]).replace("MAC", mac)
 
     @staticmethod
     def to_json(msg) -> str:
@@ -78,10 +98,10 @@ class Device:
         logger.debug(self.messages.connect)
         socket.send(self.messages.connect)
 
-    def send_log(self, socket: client.ClientConnection):
+    def send_log_event(self, socket: client.ClientConnection):
         socket.send(self.messages.log)
 
-    def send_state(self, socket: client.ClientConnection):
+    def send_state_event(self, socket: client.ClientConnection):
         socket.send(self.messages.state)
 
     def send_join(self, socket: client.ClientConnection):
@@ -89,6 +109,36 @@ class Device:
 
     def send_leave(self, socket: client.ClientConnection):
         socket.send(self.messages.leave)
+
+    def send_healthcheck_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.healthcheck)
+
+    def send_alarm_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.alarm)
+
+    def send_wifiscan_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.wifiscan)
+
+    def send_crashlog_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.crashlog)
+
+    def send_rebootlog_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.rebootLog)
+
+    def send_cfgpending_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.cfgpending)
+
+    def send_deviceupdate_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.deviceupdate)
+
+    def send_ping_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.ping)
+
+    def send_recovery_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.recovery)
+
+    def send_venue_broadcast_event(self, socket: client.ClientConnection):
+        socket.send(self.messages.venue_broadcast)
 
     def get_single_message(self, socket: client.ClientConnection):
         try:
@@ -129,7 +179,7 @@ class Device:
 
     def connect(self):
         if self._socket is None:
-            # 20 seconds is more then enough to establish conne and exchange
+            # 20 seconds is more then enough to establish connection and exchange
             # them handshakes.
             self._socket = client.connect(
                 self.server_addr, ssl=self.ssl_context, open_timeout=20, close_timeout=20)
@@ -153,8 +203,8 @@ class Device:
                     self.connect()
                 if time.time() - start > self.interval:
                     logger.info(f"Device sim heartbeat")
-                    self.send_state(self._socket)
-                    self.send_log(self._socket)
+                    self.send_state_event(self._socket)
+                    self.send_log_event(self._socket)
                     start = time.time()
                 self.handle_messages(self._socket)
         finally:
@@ -178,8 +228,8 @@ class Device:
                     self.connect()
                 if time.time() - start > self.interval:
                     logger.info(f"Device sim heartbeat")
-                    self.send_state(self._socket)
-                    self.send_log(self._socket)
+                    self.send_state_event(self._socket)
+                    self.send_log_event(self._socket)
                     start = time.time()
                 self.handle_messages(self._socket)
         finally:
@@ -187,7 +237,7 @@ class Device:
         logger.debug("simulation done")
 
 
-def get_avail_mac_addrs(path, mask="XX:XX:XX:XX:XX:XX"):
+def get_available_mac_address(path, mask="XX:XX:XX:XX:XX:XX"):
     mask = mask.upper()
     _mask = "".join(("[0-9a-fA-F]" if c == "X" else c) for c in mask)
     macs = open(path + '/macs.txt', 'r').read().split()
@@ -216,7 +266,7 @@ def process(args: Args, mask: str, start_event: multiprocessing.Event, stop_even
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     threading.current_thread().name = mask
     logger.info(f"process started")
-    macs = get_avail_mac_addrs(args.cert_path, mask)
+    macs = get_available_mac_address(args.cert_path, mask)
     if len(macs) < args.number_of_connections:
         logger.warn(f"expected {args.number_of_connections} certificates, but only found {len(macs)} "
                     f"({mask = })")
@@ -235,7 +285,7 @@ def process(args: Args, mask: str, start_event: multiprocessing.Event, stop_even
 
 def verify_cert_availability(cert_path: str, masks: List[str], count: int):
     for mask in masks:
-        macs = get_avail_mac_addrs(cert_path, mask)
+        macs = get_available_mac_address(cert_path, mask)
         assert len(macs) >= count, \
             f"Simulation requires {count} certificates, but only found {len(macs)}"
 

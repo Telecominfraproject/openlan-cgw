@@ -734,6 +734,24 @@ impl CGWConnectionServer {
                         }
 
                         last_update_timestamp = current_timestamp;
+
+                        let mut infras_list: Vec<MacAddress> = Vec::new();
+                        let connmap_r_lock = self.connmap.map.read().await;
+
+                        for (infra_mac, _) in connmap_r_lock.iter() {
+                            if !self
+                                .devices_cache
+                                .read()
+                                .await
+                                .check_device_exists(infra_mac)
+                            {
+                                infras_list.push(*infra_mac);
+                            }
+                        }
+
+                        if !infras_list.is_empty() {
+                            self.clone().notify_devices_on_gid_change(infras_list, 0);
+                        }
                     }
                 }
 
@@ -979,16 +997,6 @@ impl CGWConnectionServer {
                         .await
                     {
                         Ok(()) => {
-                            // We successfully updated both SQL and REDIS
-                            // cache. In order to keep it in sync with local
-                            // one, we have to make sure we <save> latest
-                            // update timestamp locally, to prevent CGW
-                            // from trying to update it in next iteration
-                            // of the main loop, while this very own
-                            // local shard _is_ responsible for timestamp
-                            // update.
-                            last_update_timestamp = self.get_redis_last_update_timestamp().await;
-
                             // We try to help free topomap memory usage
                             // by notifying it whenever GID get's destroyed.
                             // However, for allocation we let topomap

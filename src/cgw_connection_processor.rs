@@ -4,7 +4,8 @@ use crate::{
     cgw_errors::{Error, Result},
     cgw_nb_api_listener::{
         cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
-        cgw_construct_infra_state_event_message, CGWKafkaProducerTopic,
+        cgw_construct_infra_state_event_message, cgw_construct_unassigned_infra_join_msg,
+        CGWKafkaProducerTopic,
     },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
@@ -524,6 +525,24 @@ impl CGWConnectionProcessor {
                         "Received GroupID change message: mac {} - old gid {} : new gid {}",
                         self.serial, self.group_id, new_group_id
                     );
+
+                    if new_group_id != self.group_id {
+                        if let Ok(unassigned_join) = cgw_construct_unassigned_infra_join_msg(
+                            self.serial,
+                            self.addr,
+                            self.cgw_server.get_local_id(),
+                            String::default(),
+                        ) {
+                            self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                new_group_id,
+                                unassigned_join,
+                                CGWKafkaProducerTopic::Connection,
+                            );
+                        } else {
+                            error!("Failed to construct unassigned_infra_join message!");
+                        }
+                    }
+
                     self.group_id = new_group_id;
                 }
                 _ => {

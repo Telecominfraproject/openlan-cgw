@@ -15,7 +15,7 @@ services:
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@docker-broker-1:9093
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_NODE_ID=1
-      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
       - BITNAMI_DEBUG=yes
       - KAFKA_CFG_NUM_PARTITIONS=2
     healthcheck:
@@ -52,27 +52,6 @@ services:
       - "6379:6379"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
-    networks:
-      - cgw_multi_instances_network
-  init-broker-container:
-    image: docker.io/bitnami/kafka:latest
-    depends_on:
-      - broker
-    entrypoint: [ '/bin/sh', '-c' ]
-    command: |
-      "
-      # rather than giving sleep 15 use this
-      # to block init container to wait for Kafka broker to be ready
-      kafka-topics --bootstrap-server broker:9092 --list
-
-      # create CnC, CnC_Res, Connection, State, Infra_Realtime and Topology topics
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions {{ cgw_instances_num }} --topic CnC
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic CnC_Res
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Connection
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic State
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Infra_Realtime
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic Topology
-      "
     networks:
       - cgw_multi_instances_network
 
@@ -124,11 +103,21 @@ services:
     depends_on:
       broker:
         condition: service_healthy
+      {% if i != 0 %}
+      cgw_instance_{{ i - 1 }}:
+        condition: service_healthy
+      {% endif %}
     volumes:
       - {{ default_certs_path }}:{{ container_certs_volume }}
       - {{ default_certs_path }}:{{ container_nb_infra_certs_volume }}
     networks:
       - cgw_multi_instances_network
+    healthcheck:
+      test: ["CMD-SHELL", "ps -aux | grep cgw_instance_{{ i }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
 {% endfor %}
 
 networks:

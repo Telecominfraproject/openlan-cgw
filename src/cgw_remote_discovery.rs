@@ -157,7 +157,7 @@ pub struct CGWRemoteDiscovery {
     local_shard_id: i32,
 }
 
-async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
+pub async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
     let redis_client_info = ConnectionInfo {
         addr: match redis_args.redis_tls {
             true => redis::ConnectionAddr::TcpTls {

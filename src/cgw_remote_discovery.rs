@@ -157,7 +157,7 @@ pub struct CGWRemoteDiscovery {
     local_shard_id: i32,
 }
 
-async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
+pub async fn cgw_create_redis_client(redis_args: &CGWRedisArgs) -> Result<Client> {
     let redis_client_info = ConnectionInfo {
         addr: match redis_args.redis_tls {
             true => redis::ConnectionAddr::TcpTls {
@@ -549,7 +549,7 @@ impl CGWRemoteDiscovery {
                         + ":"
                         + &shard.server_port.to_string();
                     let cgw_iface = CGWRemoteIface {
-                        shard: shard,
+                        shard,
                         client: CGWRemoteClient::new(endpoint_str)?,
                     };
                     lock.insert(cgw_iface.shard.id, cgw_iface);
@@ -916,7 +916,7 @@ impl CGWRemoteDiscovery {
                 if device.get_device_state() == CGWDeviceState::CGWDeviceConnected {
                     device.set_device_remains_in_db(false);
                     device.set_device_group_id(0);
-                    devices_to_update.push((key.clone(), device.clone()));
+                    devices_to_update.push((*key, device.clone()));
                 } else {
                     devices_to_remove.push(*key);
                 }
@@ -1447,7 +1447,7 @@ impl CGWRemoteDiscovery {
                 }
             };
 
-            let mut splitted_key = key.split_terminator("|");
+            let mut splitted_key = key.split_terminator('|');
             let _shard_id = splitted_key.next();
             let device_mac = match splitted_key.next() {
                 Some(mac) => match MacAddress::from_str(mac) {
@@ -1526,13 +1526,12 @@ impl CGWRemoteDiscovery {
             }
 
             for key in redis_keys {
-                let res: RedisResult<()> = redis::cmd("DEL").arg(&key).query_async(&mut con).await;
-                if res.is_err() {
-                    warn!(
-                        "Failed to delete cache entry {}! Error: {}",
-                        key,
-                        res.err().unwrap()
-                    );
+                if let Err(res) = redis::cmd("DEL")
+                    .arg(&key)
+                    .query_async::<redis::aio::MultiplexedConnection, ()>(&mut con)
+                    .await
+                {
+                    warn!("Failed to delete cache entry {}! Error: {}", key, res);
                 }
             }
         }

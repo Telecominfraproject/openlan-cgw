@@ -44,7 +44,7 @@
             "data": {
                 "event": [
                     1716801245,
-                        {
+                    {
                         "type": "client.join",
                         "payload": {
                             "client": "38:ba:f8:11:25:38",
@@ -97,6 +97,1753 @@
             }
         }
     },
-    "state": {"jsonrpc":"2.0","method":"state","params":{"serial":"MAC","state":{"serial":"MAC","interfaces":[{"counters":{"collisions":6,"multicast":649,"rx_bytes":11731812,"rx_dropped":11,"rx_errors":15,"rx_packets":9938,"tx_bytes":13585045,"tx_dropped":6,"tx_errors":19,"tx_packets":12135},"name":"up0v0","ssids":[{"associations":[{"ack_signal":-54,"ack_signal_avg":-52,"bssid":"53:49:4d:01:10:b1","connected":2684,"inactive":2984,"ipaddr_v4":"158.136.112.167","rssi":-58,"rx_bytes":5589601,"rx_duration":9742,"rx_packets":7621,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"10:fa:00:73:81:d5","tx_bytes":1551269,"tx_duration":12500,"tx_failed":9400,"tx_packets":2019,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":18},{"ack_signal":-52,"ack_signal_avg":-48,"bssid":"53:49:4d:01:10:b1","connected":2882,"inactive":2257,"ipaddr_v4":"221.0.192.150","rssi":-46,"rx_bytes":10064957,"rx_duration":10262,"rx_packets":13110,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"7c:9c:8e:2d:cb:f3","tx_bytes":1383674,"tx_duration":8582,"tx_failed":18716,"tx_packets":2016,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":9},{"ack_signal":-50,"ack_signal_avg":-54,"bssid":"53:49:4d:01:10:b1","connected":2451,"inactive":2059,"ipaddr_v4":"227.239.60.27","rssi":-52,"rx_bytes":9627292,"rx_duration":12802,"rx_packets":12499,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"a8:bb:f9:93:a8:57","tx_bytes":1366023,"tx_duration":10335,"tx_failed":12842,"tx_packets":1812,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":12},{"ack_signal":-47,"ack_signal_avg":-46,"bssid":"53:49:4d:01:10:b1","connected":2401,"inactive":3189,"ipaddr_v4":"246.140.147.135","rssi":-84,"rx_bytes":5965402,"rx_duration":10511,"rx_packets":8720,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"54:b3:f9:6b:cc:85","tx_bytes":1616171,"tx_duration":9908,"tx_failed":10717,"tx_packets":1895,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":11},{"ack_signal":-48,"ack_signal_avg":-46,"bssid":"53:49:4d:01:10:b1","connected":2375,"inactive":3252,"ipaddr_v4":"129.0.5.214","rssi":-67,"rx_bytes":7032879,"rx_duration":12317,"rx_packets":9960,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"7d:62:0b:94:55:d8","tx_bytes":1147001,"tx_duration":11423,"tx_failed":17132,"tx_packets":1686,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":14},{"ack_signal":-41,"ack_signal_avg":-42,"bssid":"53:49:4d:01:10:b1","connected":2996,"inactive":2533,"ipaddr_v4":"7.53.125.147","rssi":-44,"rx_bytes":5672084,"rx_duration":9137,"rx_packets":8103,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"c6:6f:5f:6d:78:dc","tx_bytes":1593251,"tx_duration":10493,"tx_failed":11153,"tx_packets":2110,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":20},{"ack_signal":-54,"ack_signal_avg":-55,"bssid":"53:49:4d:01:10:b1","connected":2229,"inactive":2928,"ipaddr_v4":"156.195.124.175","rssi":-46,"rx_bytes":9754994,"rx_duration":11168,"rx_packets":12367,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"10:0c:68:18:4a:fd","tx_bytes":1435959,"tx_duration":10337,"tx_failed":13551,"tx_packets":1952,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":22},{"ack_signal":-49,"ack_signal_avg":-52,"bssid":"53:49:4d:01:10:b1","connected":3497,"inactive":2485,"ipaddr_v4":"139.174.21.11","rssi":-86,"rx_bytes":9952624,"rx_duration":11988,"rx_packets":12446,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"c3:53:93:52:5c:ce","tx_bytes":1547519,"tx_duration":10429,"tx_failed":10624,"tx_packets":1969,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":16},{"ack_signal":-48,"ack_signal_avg":-43,"bssid":"53:49:4d:01:10:b1","connected":3043,"inactive":3131,"ipaddr_v4":"196.64.95.194","rssi":-83,"rx_bytes":7407670,"rx_duration":9666,"rx_packets":10438,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"95:d7:94:32:c7:85","tx_bytes":1492670,"tx_duration":9357,"tx_failed":11643,"tx_packets":2198,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":14},{"ack_signal":-46,"ack_signal_avg":-49,"bssid":"53:49:4d:01:10:b1","connected":3463,"inactive":2774,"ipaddr_v4":"94.15.157.229","rssi":-83,"rx_bytes":8531713,"rx_duration":11760,"rx_packets":10810,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"1b:a4:d8:7b:53:9c","tx_bytes":1686882,"tx_duration":10391,"tx_failed":19925,"tx_packets":2176,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":19},{"ack_signal":-51,"ack_signal_avg":-52,"bssid":"53:49:4d:01:10:b1","connected":3081,"inactive":2882,"ipaddr_v4":"157.229.209.55","rssi":-77,"rx_bytes":8943663,"rx_duration":11956,"rx_packets":12362,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"0e:f4:a5:ef:f2:53","tx_bytes":1512199,"tx_duration":12646,"tx_failed":16607,"tx_packets":2157,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":18},{"ack_signal":-50,"ack_signal_avg":-55,"bssid":"53:49:4d:01:10:b1","connected":3205,"inactive":3267,"ipaddr_v4":"160.214.198.209","rssi":-61,"rx_bytes":7906873,"rx_duration":10711,"rx_packets":10330,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"34:79:f7:5c:a2:c7","tx_bytes":1440133,"tx_duration":10401,"tx_failed":15131,"tx_packets":1985,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":16},{"ack_signal":-36,"ack_signal_avg":-40,"bssid":"53:49:4d:01:10:b1","connected":3330,"inactive":3466,"ipaddr_v4":"2.105.55.62","rssi":-47,"rx_bytes":9222300,"rx_duration":9271,"rx_packets":12688,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"2a:4d:df:9f:b8:d8","tx_bytes":1506577,"tx_duration":10637,"tx_failed":14098,"tx_packets":1930,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":18},{"ack_signal":-50,"ack_signal_avg":-55,"bssid":"53:49:4d:01:10:b1","connected":3597,"inactive":2563,"ipaddr_v4":"13.79.198.161","rssi":-47,"rx_bytes":8655128,"rx_duration":12529,"rx_packets":11457,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"81:99:0a:05:14:80","tx_bytes":1435123,"tx_duration":11477,"tx_failed":18398,"tx_packets":2127,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":15}],"band":"5G","bssid":"53:49:4d:01:10:b1","counters":{"collisions":6,"multicast":649,"rx_bytes":11731812,"rx_dropped":11,"rx_errors":15,"rx_packets":9938,"tx_bytes":13585045,"tx_dropped":6,"tx_errors":19,"tx_packets":12135},"frequency":[5180,5260],"iface":"eth0","location":"/interfaces/0/ssids/0","mode":"ap","name":"up0v0","phy":"platform/soc/c000000.wifi+1","radio":{"$ref":"#/radios/1"},"ssid":"OpenWifi-test5"}]},{"clients":[{"ipv4_addresses":["239.95.16.229"],"ipv6_addresses":["2a5b:80bd:0652:d339:acb9:c2f9:894d:a396"],"mac":"6e:af:b0:a3:39:28","ports":["eth1"]},{"ipv4_addresses":["73.122.81.23"],"ipv6_addresses":["31d0:664c:54c3:75ce:ee6b:b92d:5b76:3845"],"mac":"09:57:cb:72:c8:2a","ports":["eth1"]},{"ipv4_addresses":["226.38.233.160"],"ipv6_addresses":["af3c:def0:35b6:7dc3:f540:1e55:de6f:486e"],"mac":"74:07:8e:06:76:6f","ports":["eth1"]},{"ipv4_addresses":["190.133.147.76"],"ipv6_addresses":["703c:384f:378f:7f4b:d68d:37ca:c0b2:48d3"],"mac":"ed:d5:a8:82:94:de","ports":["eth1"]},{"ipv4_addresses":["21.35.45.33"],"ipv6_addresses":["ecf6:2803:507c:1315:cb11:d7cc:4e5f:af17"],"mac":"73:b2:a4:a5:66:e0","ports":["eth1"]},{"ipv4_addresses":["29.90.235.125"],"ipv6_addresses":["e6c0:ecb2:0403:dd2f:99f5:9bc8:3848:f250"],"mac":"20:ad:27:9f:dd:31","ports":["eth1"]},{"ipv4_addresses":["142.216.212.44"],"ipv6_addresses":["ef69:df4b:25b6:253c:d699:2101:bc55:b4ac"],"mac":"9a:fd:99:e2:48:6b","ports":["eth1"]},{"ipv4_addresses":["158.142.109.105"],"ipv6_addresses":["b694:1a6a:89f6:0323:704d:0b91:a6e6:f961"],"mac":"b9:a0:9a:d4:ac:07","ports":["eth1"]},{"ipv4_addresses":["220.112.212.237"],"ipv6_addresses":["41a2:2799:0ce1:5710:73cf:54c5:a106:5e83"],"mac":"f5:c5:4a:7e:b8:b4","ports":["eth1"]},{"ipv4_addresses":["122.8.242.157"],"ipv6_addresses":["02e1:a6e4:c03f:d18f:66d5:f0bd:7183:365e"],"mac":"e7:74:ed:aa:42:c5","ports":["eth1"]},{"ipv4_addresses":["20.14.89.131"],"ipv6_addresses":["90b0:ef86:8b75:f7aa:9d59:3a89:b263:cddd"],"mac":"d1:c8:5a:19:0b:4b","ports":["eth1"]},{"ipv4_addresses":["254.126.232.106"],"ipv6_addresses":["d293:456c:4f52:df54:3715:265d:6e6c:1c35"],"last_seen":0,"mac":"bc:7e:4c:00:c1:73","ports":["wlan0"]},{"ipv4_addresses":["104.195.23.213"],"ipv6_addresses":["cd59:f149:76ef:da29:2a34:42e2:8704:c266"],"last_seen":0,"mac":"7e:54:9f:a7:e5:85","ports":["wlan0"]},{"ipv4_addresses":["74.191.165.53"],"ipv6_addresses":["4c26:b1b0:1a91:01ab:b40f:4f2b:4239:07cb"],"last_seen":0,"mac":"2c:91:8d:d1:ee:5f","ports":["wlan0"]},{"ipv4_addresses":["179.131.71.19"],"ipv6_addresses":["43f0:66d1:1317:25f9:b31c:0a7b:cc47:6cdd"],"last_seen":0,"mac":"51:50:2e:73:aa:ef","ports":["wlan0"]},{"ipv4_addresses":["89.170.21.171"],"ipv6_addresses":["43c9:2686:7a69:9e18:d699:9479:7a7a:7ecd"],"last_seen":0,"mac":"cf:12:cb:4e:db:2b","ports":["wlan0"]},{"ipv4_addresses":["191.145.135.130"],"ipv6_addresses":["3df6:99c4:6149:66fc:8292:bd6b:d485:7d87"],"last_seen":0,"mac":"5a:06:ca:00:38:dc","ports":["wlan0"]},{"ipv4_addresses":["249.216.233.16"],"ipv6_addresses":["8e00:16a6:f5b1:3fb6:f42e:abdf:8350:3fca"],"last_seen":0,"mac":"c0:d9:d9:96:e5:98","ports":["wlan0"]},{"ipv4_addresses":["123.247.151.99"],"ipv6_addresses":["2972:30c4:7c5e:41ea:689b:4006:48fe:b104"],"last_seen":0,"mac":"98:42:45:8a:cd:fc","ports":["wlan0"]},{"ipv4_addresses":["200.236.88.54"],"ipv6_addresses":["bea5:7218:1cfc:b999:6a8a:3593:edca:6b8e"],"last_seen":0,"mac":"3a:61:47:67:55:1e","ports":["wlan0"]},{"ipv4_addresses":["29.79.207.182"],"ipv6_addresses":["a52a:2708:92c2:1f53:6b12:30e6:2d78:cc2e"],"last_seen":0,"mac":"14:1c:ba:1f:06:a6","ports":["wlan0"]},{"ipv4_addresses":["194.224.148.122"],"ipv6_addresses":["ed60:c6ee:08c9:ff0f:b7fd:e35b:0030:de38"],"last_seen":0,"mac":"21:be:37:50:7c:8d","ports":["wlan0"]},{"ipv4_addresses":["248.18.202.62"],"ipv6_addresses":["2f9c:03b0:f56b:6c57:063e:128f:2190:ba5e"],"last_seen":0,"mac":"ab:dc:e1:75:c9:c1","ports":["wlan0"]},{"ipv4_addresses":["176.73.79.37"],"ipv6_addresses":["77f4:df1c:70db:9f29:d8af:f744:9c25:1c09"],"last_seen":0,"mac":"f7:f2:ce:ea:6c:d2","ports":["wlan0"]},{"ipv4_addresses":["21.43.226.17"],"ipv6_addresses":["bd81:7507:3a54:b4cf:c521:c097:c1fe:ca51"],"last_seen":0,"mac":"3f:42:15:82:8c:15","ports":["wlan0"]},{"ipv4_addresses":["116.143.69.120"],"ipv6_addresses":["9486:6f6f:f083:5ce9:41ce:36e2:781e:14f3"],"last_seen":0,"mac":"21:77:5c:18:8b:2e","ports":["wlan0"]},{"ipv4_addresses":["122.57.158.178"],"ipv6_addresses":["4a0e:d500:f4d4:8b89:8172:2304:ad5e:4cc1"],"last_seen":0,"mac":"b8:d8:a2:a9:b3:ec","ports":["wlan0"]},{"ipv4_addresses":["114.219.181.48"],"ipv6_addresses":["32a2:a31a:a2c8:fd03:62d8:b9dc:9ebb:4bd3"],"last_seen":0,"mac":"8a:d2:5b:83:4b:96","ports":["wlan0"]},{"ipv4_addresses":["211.16.112.65"],"ipv6_addresses":["db11:a1db:68cd:4e63:350a:1d95:ff8e:a392"],"last_seen":0,"mac":"a9:cc:69:81:22:0e","ports":["wlan0"]}],"counters":{"collisions":6,"multicast":513,"rx_bytes":14501248,"rx_dropped":8,"rx_errors":18,"rx_packets":12250,"tx_bytes":13167426,"tx_dropped":8,"tx_errors":17,"tx_packets":11450},"name":"down0v0","ssids":[{"associations":[{"ack_signal":-43,"ack_signal_avg":-42,"bssid":"53:49:4d:01:10:b2","connected":2506,"inactive":3349,"ipaddr_v4":"254.126.232.106","rssi":-58,"rx_bytes":7441827,"rx_duration":10391,"rx_packets":10301,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"bc:7e:4c:00:c1:73","tx_bytes":1429848,"tx_duration":12148,"tx_failed":17189,"tx_packets":2243,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":20},{"ack_signal":-54,"ack_signal_avg":-51,"bssid":"53:49:4d:01:10:b2","connected":2845,"inactive":2915,"ipaddr_v4":"104.195.23.213","rssi":-75,"rx_bytes":7766221,"rx_duration":9772,"rx_packets":8987,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"7e:54:9f:a7:e5:85","tx_bytes":1442311,"tx_duration":11076,"tx_failed":17714,"tx_packets":1869,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":18},{"ack_signal":-36,"ack_signal_avg":-40,"bssid":"53:49:4d:01:10:b2","connected":2959,"inactive":2335,"ipaddr_v4":"74.191.165.53","rssi":-51,"rx_bytes":8356941,"rx_duration":14067,"rx_packets":11553,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"2c:91:8d:d1:ee:5f","tx_bytes":1169808,"tx_duration":12023,"tx_failed":14581,"tx_packets":1642,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":16},{"ack_signal":-49,"ack_signal_avg":-46,"bssid":"53:49:4d:01:10:b2","connected":3364,"inactive":3283,"ipaddr_v4":"179.131.71.19","rssi":-76,"rx_bytes":7880344,"rx_duration":10294,"rx_packets":9896,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"51:50:2e:73:aa:ef","tx_bytes":1640048,"tx_duration":11983,"tx_failed":18469,"tx_packets":2072,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":13},{"ack_signal":-56,"ack_signal_avg":-55,"bssid":"53:49:4d:01:10:b2","connected":2830,"inactive":3233,"ipaddr_v4":"89.170.21.171","rssi":-88,"rx_bytes":10409522,"rx_duration":10710,"rx_packets":13210,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"cf:12:cb:4e:db:2b","tx_bytes":1430414,"tx_duration":10178,"tx_failed":13294,"tx_packets":2102,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":11},{"ack_signal":-54,"ack_signal_avg":-50,"bssid":"53:49:4d:01:10:b2","connected":2390,"inactive":2893,"ipaddr_v4":"191.145.135.130","rssi":-83,"rx_bytes":9129050,"rx_duration":10668,"rx_packets":11259,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"5a:06:ca:00:38:dc","tx_bytes":1402006,"tx_duration":8175,"tx_failed":15807,"tx_packets":1843,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":18},{"ack_signal":-49,"ack_signal_avg":-52,"bssid":"53:49:4d:01:10:b2","connected":2831,"inactive":2552,"ipaddr_v4":"249.216.233.16","rssi":-82,"rx_bytes":9350442,"rx_duration":11336,"rx_packets":11815,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"c0:d9:d9:96:e5:98","tx_bytes":1586105,"tx_duration":12075,"tx_failed":17631,"tx_packets":2107,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":13},{"ack_signal":-49,"ack_signal_avg":-44,"bssid":"53:49:4d:01:10:b2","connected":3411,"inactive":3368,"ipaddr_v4":"123.247.151.99","rssi":-88,"rx_bytes":10037327,"rx_duration":13889,"rx_packets":12016,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"98:42:45:8a:cd:fc","tx_bytes":1369675,"tx_duration":9078,"tx_failed":22409,"tx_packets":2129,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":17},{"ack_signal":-49,"ack_signal_avg":-53,"bssid":"53:49:4d:01:10:b2","connected":3120,"inactive":2495,"ipaddr_v4":"200.236.88.54","rssi":-48,"rx_bytes":6781758,"rx_duration":10932,"rx_packets":9979,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"3a:61:47:67:55:1e","tx_bytes":1605006,"tx_duration":10187,"tx_failed":14891,"tx_packets":2036,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":9},{"ack_signal":-49,"ack_signal_avg":-49,"bssid":"53:49:4d:01:10:b2","connected":2824,"inactive":2311,"ipaddr_v4":"29.79.207.182","rssi":-57,"rx_bytes":9920330,"rx_duration":11135,"rx_packets":13610,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"14:1c:ba:1f:06:a6","tx_bytes":1487516,"tx_duration":10616,"tx_failed":18205,"tx_packets":2082,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":14},{"ack_signal":-56,"ack_signal_avg":-51,"bssid":"53:49:4d:01:10:b2","connected":3620,"inactive":3135,"ipaddr_v4":"194.224.148.122","rssi":-79,"rx_bytes":8711145,"rx_duration":11817,"rx_packets":13496,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"21:be:37:50:7c:8d","tx_bytes":1492336,"tx_duration":9205,"tx_failed":13520,"tx_packets":1956,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":15}],"band":"2G","bssid":"53:49:4d:01:10:b2","counters":{"collisions":6,"multicast":513,"rx_bytes":14501248,"rx_dropped":8,"rx_errors":18,"rx_packets":12250,"tx_bytes":13167426,"tx_dropped":8,"tx_errors":17,"tx_packets":11450},"frequency":[2401,2423],"iface":"eth1","location":"/interfaces/0/ssids/0","mode":"ap","name":"down0v0","phy":"platform/soc/c000000.wifi","radio":{"$ref":"#/radios/0"},"ssid":"OpenWifi-test2"},{"associations":[{"ack_signal":-52,"ack_signal_avg":-48,"bssid":"53:49:4d:01:10:b3","connected":2939,"inactive":2710,"ipaddr_v4":"248.18.202.62","rssi":-60,"rx_bytes":8722031,"rx_duration":11747,"rx_packets":10995,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"ab:dc:e1:75:c9:c1","tx_bytes":1342264,"tx_duration":11585,"tx_failed":21055,"tx_packets":1836,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":13},{"ack_signal":-41,"ack_signal_avg":-40,"bssid":"53:49:4d:01:10:b3","connected":3155,"inactive":3030,"ipaddr_v4":"176.73.79.37","rssi":-56,"rx_bytes":8577501,"rx_duration":12375,"rx_packets":12133,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"f7:f2:ce:ea:6c:d2","tx_bytes":1738314,"tx_duration":12382,"tx_failed":17392,"tx_packets":2255,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":14},{"ack_signal":-60,"ack_signal_avg":-57,"bssid":"53:49:4d:01:10:b3","connected":2848,"inactive":2229,"ipaddr_v4":"21.43.226.17","rssi":-37,"rx_bytes":9336935,"rx_duration":11209,"rx_packets":11991,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"3f:42:15:82:8c:15","tx_bytes":1519775,"tx_duration":8118,"tx_failed":10278,"tx_packets":2015,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":19},{"ack_signal":-53,"ack_signal_avg":-52,"bssid":"53:49:4d:01:10:b3","connected":3375,"inactive":2893,"ipaddr_v4":"116.143.69.120","rssi":-76,"rx_bytes":9662448,"rx_duration":10661,"rx_packets":12961,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"21:77:5c:18:8b:2e","tx_bytes":1602040,"tx_duration":10461,"tx_failed":15715,"tx_packets":2089,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":20},{"ack_signal":-45,"ack_signal_avg":-44,"bssid":"53:49:4d:01:10:b3","connected":3407,"inactive":3291,"ipaddr_v4":"122.57.158.178","rssi":-40,"rx_bytes":9327445,"rx_duration":11662,"rx_packets":12254,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"b8:d8:a2:a9:b3:ec","tx_bytes":1384912,"tx_duration":9887,"tx_failed":11064,"tx_packets":1981,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":19},{"ack_signal":-49,"ack_signal_avg":-45,"bssid":"53:49:4d:01:10:b3","connected":3035,"inactive":2970,"ipaddr_v4":"114.219.181.48","rssi":-82,"rx_bytes":7910744,"rx_duration":10614,"rx_packets":9743,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"8a:d2:5b:83:4b:96","tx_bytes":1549043,"tx_duration":10498,"tx_failed":14219,"tx_packets":1929,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":14},{"ack_signal":-44,"ack_signal_avg":-40,"bssid":"53:49:4d:01:10:b3","connected":3193,"inactive":2271,"ipaddr_v4":"211.16.112.65","rssi":-60,"rx_bytes":7965726,"rx_duration":10481,"rx_packets":10096,"rx_rate":{"bitrate":200000,"chwidth":40,"mcs":9,"nss":9,"sgi":true,"vht":true},"station":"a9:cc:69:81:22:0e","tx_bytes":1288470,"tx_duration":10518,"tx_failed":10258,"tx_packets":1854,"tx_rate":{"bitrate":200000,"chwidth":40,"ht":true,"mcs":9,"sgi":true},"tx_retries":17}],"band":"5G","bssid":"53:49:4d:01:10:b3","counters":{"collisions":6,"multicast":513,"rx_bytes":14501248,"rx_dropped":8,"rx_errors":18,"rx_packets":12250,"tx_bytes":13167426,"tx_dropped":8,"tx_errors":17,"tx_packets":11450},"frequency":[5180,5260],"iface":"eth1","location":"/interfaces/0/ssids/1","mode":"ap","name":"down0v0","phy":"platform/soc/c000000.wifi+1","radio":{"$ref":"#/radios/1"},"ssid":"OpenWifi-test2"}]}],"link-state":{"downstream":{"eth1":{"carrier":1,"duplex":"full","speed":1000}},"upstream":{"eth0":{"carrier":1,"duplex":"full","speed":1000}}},"radios":[{"active_ms":14274,"band":["2G"],"busy_ms":12274,"channel":1,"channel_width":20,"channels":[1],"frequency":[2401,2423],"noise":-97,"phy":"platform/soc/c000000.wifi","receive_ms":10092,"temperature":48,"transmit_ms":1526,"tx_power":23},{"active_ms":10208,"band":["5G"],"busy_ms":17360,"channel":44,"channel_width":80,"channels":[44,50],"frequency":[5180,5260],"noise":-98,"phy":"platform/soc/c000000.wifi+1","receive_ms":11722,"temperature":50,"transmit_ms":1446,"tx_power":23}],"unit":{"load":[1.1156589147286822,1.1373643410852714,0.4951937984496124],"localtime":1726828161,"memory":{"buffered":53182510,"cached":89456440,"free":815413706,"total":973131776},"temperature":[57,48],"uptime":360},"version":1},"uuid":1726827801}},
-    "state_obf": {"jsonrpc":"2.0","method":"state", "params":{"compress_64": "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"}}
+    "state": {
+        "jsonrpc": "2.0",
+        "method": "state",
+        "params": {
+            "serial": "MAC",
+            "state": {
+                "serial": "MAC",
+                "interfaces": [
+                    {
+                        "counters": {
+                            "collisions": 6,
+                            "multicast": 649,
+                            "rx_bytes": 11731812,
+                            "rx_dropped": 11,
+                            "rx_errors": 15,
+                            "rx_packets": 9938,
+                            "tx_bytes": 13585045,
+                            "tx_dropped": 6,
+                            "tx_errors": 19,
+                            "tx_packets": 12135
+                        },
+                        "name": "up0v0",
+                        "ssids": [
+                            {
+                                "associations": [
+                                    {
+                                        "ack_signal": -54,
+                                        "ack_signal_avg": -52,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2684,
+                                        "inactive": 2984,
+                                        "ipaddr_v4": "158.136.112.167",
+                                        "rssi": -58,
+                                        "rx_bytes": 5589601,
+                                        "rx_duration": 9742,
+                                        "rx_packets": 7621,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "10:fa:00:73:81:d5",
+                                        "tx_bytes": 1551269,
+                                        "tx_duration": 12500,
+                                        "tx_failed": 9400,
+                                        "tx_packets": 2019,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 18
+                                    },
+                                    {
+                                        "ack_signal": -52,
+                                        "ack_signal_avg": -48,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2882,
+                                        "inactive": 2257,
+                                        "ipaddr_v4": "221.0.192.150",
+                                        "rssi": -46,
+                                        "rx_bytes": 10064957,
+                                        "rx_duration": 10262,
+                                        "rx_packets": 13110,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "7c:9c:8e:2d:cb:f3",
+                                        "tx_bytes": 1383674,
+                                        "tx_duration": 8582,
+                                        "tx_failed": 18716,
+                                        "tx_packets": 2016,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 9
+                                    },
+                                    {
+                                        "ack_signal": -50,
+                                        "ack_signal_avg": -54,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2451,
+                                        "inactive": 2059,
+                                        "ipaddr_v4": "227.239.60.27",
+                                        "rssi": -52,
+                                        "rx_bytes": 9627292,
+                                        "rx_duration": 12802,
+                                        "rx_packets": 12499,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "a8:bb:f9:93:a8:57",
+                                        "tx_bytes": 1366023,
+                                        "tx_duration": 10335,
+                                        "tx_failed": 12842,
+                                        "tx_packets": 1812,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 12
+                                    },
+                                    {
+                                        "ack_signal": -47,
+                                        "ack_signal_avg": -46,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2401,
+                                        "inactive": 3189,
+                                        "ipaddr_v4": "246.140.147.135",
+                                        "rssi": -84,
+                                        "rx_bytes": 5965402,
+                                        "rx_duration": 10511,
+                                        "rx_packets": 8720,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "54:b3:f9:6b:cc:85",
+                                        "tx_bytes": 1616171,
+                                        "tx_duration": 9908,
+                                        "tx_failed": 10717,
+                                        "tx_packets": 1895,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 11
+                                    },
+                                    {
+                                        "ack_signal": -48,
+                                        "ack_signal_avg": -46,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2375,
+                                        "inactive": 3252,
+                                        "ipaddr_v4": "129.0.5.214",
+                                        "rssi": -67,
+                                        "rx_bytes": 7032879,
+                                        "rx_duration": 12317,
+                                        "rx_packets": 9960,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "7d:62:0b:94:55:d8",
+                                        "tx_bytes": 1147001,
+                                        "tx_duration": 11423,
+                                        "tx_failed": 17132,
+                                        "tx_packets": 1686,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 14
+                                    },
+                                    {
+                                        "ack_signal": -41,
+                                        "ack_signal_avg": -42,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2996,
+                                        "inactive": 2533,
+                                        "ipaddr_v4": "7.53.125.147",
+                                        "rssi": -44,
+                                        "rx_bytes": 5672084,
+                                        "rx_duration": 9137,
+                                        "rx_packets": 8103,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "c6:6f:5f:6d:78:dc",
+                                        "tx_bytes": 1593251,
+                                        "tx_duration": 10493,
+                                        "tx_failed": 11153,
+                                        "tx_packets": 2110,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 20
+                                    },
+                                    {
+                                        "ack_signal": -54,
+                                        "ack_signal_avg": -55,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 2229,
+                                        "inactive": 2928,
+                                        "ipaddr_v4": "156.195.124.175",
+                                        "rssi": -46,
+                                        "rx_bytes": 9754994,
+                                        "rx_duration": 11168,
+                                        "rx_packets": 12367,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "10:0c:68:18:4a:fd",
+                                        "tx_bytes": 1435959,
+                                        "tx_duration": 10337,
+                                        "tx_failed": 13551,
+                                        "tx_packets": 1952,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 22
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -52,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3497,
+                                        "inactive": 2485,
+                                        "ipaddr_v4": "139.174.21.11",
+                                        "rssi": -86,
+                                        "rx_bytes": 9952624,
+                                        "rx_duration": 11988,
+                                        "rx_packets": 12446,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "c3:53:93:52:5c:ce",
+                                        "tx_bytes": 1547519,
+                                        "tx_duration": 10429,
+                                        "tx_failed": 10624,
+                                        "tx_packets": 1969,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 16
+                                    },
+                                    {
+                                        "ack_signal": -48,
+                                        "ack_signal_avg": -43,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3043,
+                                        "inactive": 3131,
+                                        "ipaddr_v4": "196.64.95.194",
+                                        "rssi": -83,
+                                        "rx_bytes": 7407670,
+                                        "rx_duration": 9666,
+                                        "rx_packets": 10438,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "95:d7:94:32:c7:85",
+                                        "tx_bytes": 1492670,
+                                        "tx_duration": 9357,
+                                        "tx_failed": 11643,
+                                        "tx_packets": 2198,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 14
+                                    },
+                                    {
+                                        "ack_signal": -46,
+                                        "ack_signal_avg": -49,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3463,
+                                        "inactive": 2774,
+                                        "ipaddr_v4": "94.15.157.229",
+                                        "rssi": -83,
+                                        "rx_bytes": 8531713,
+                                        "rx_duration": 11760,
+                                        "rx_packets": 10810,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "1b:a4:d8:7b:53:9c",
+                                        "tx_bytes": 1686882,
+                                        "tx_duration": 10391,
+                                        "tx_failed": 19925,
+                                        "tx_packets": 2176,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 19
+                                    },
+                                    {
+                                        "ack_signal": -51,
+                                        "ack_signal_avg": -52,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3081,
+                                        "inactive": 2882,
+                                        "ipaddr_v4": "157.229.209.55",
+                                        "rssi": -77,
+                                        "rx_bytes": 8943663,
+                                        "rx_duration": 11956,
+                                        "rx_packets": 12362,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "0e:f4:a5:ef:f2:53",
+                                        "tx_bytes": 1512199,
+                                        "tx_duration": 12646,
+                                        "tx_failed": 16607,
+                                        "tx_packets": 2157,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 18
+                                    },
+                                    {
+                                        "ack_signal": -50,
+                                        "ack_signal_avg": -55,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3205,
+                                        "inactive": 3267,
+                                        "ipaddr_v4": "160.214.198.209",
+                                        "rssi": -61,
+                                        "rx_bytes": 7906873,
+                                        "rx_duration": 10711,
+                                        "rx_packets": 10330,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "34:79:f7:5c:a2:c7",
+                                        "tx_bytes": 1440133,
+                                        "tx_duration": 10401,
+                                        "tx_failed": 15131,
+                                        "tx_packets": 1985,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 16
+                                    },
+                                    {
+                                        "ack_signal": -36,
+                                        "ack_signal_avg": -40,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3330,
+                                        "inactive": 3466,
+                                        "ipaddr_v4": "2.105.55.62",
+                                        "rssi": -47,
+                                        "rx_bytes": 9222300,
+                                        "rx_duration": 9271,
+                                        "rx_packets": 12688,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "2a:4d:df:9f:b8:d8",
+                                        "tx_bytes": 1506577,
+                                        "tx_duration": 10637,
+                                        "tx_failed": 14098,
+                                        "tx_packets": 1930,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 18
+                                    },
+                                    {
+                                        "ack_signal": -50,
+                                        "ack_signal_avg": -55,
+                                        "bssid": "53:49:4d:01:10:b1",
+                                        "connected": 3597,
+                                        "inactive": 2563,
+                                        "ipaddr_v4": "13.79.198.161",
+                                        "rssi": -47,
+                                        "rx_bytes": 8655128,
+                                        "rx_duration": 12529,
+                                        "rx_packets": 11457,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "81:99:0a:05:14:80",
+                                        "tx_bytes": 1435123,
+                                        "tx_duration": 11477,
+                                        "tx_failed": 18398,
+                                        "tx_packets": 2127,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 15
+                                    }
+                                ],
+                                "band": "5G",
+                                "bssid": "53:49:4d:01:10:b1",
+                                "counters": {
+                                    "collisions": 6,
+                                    "multicast": 649,
+                                    "rx_bytes": 11731812,
+                                    "rx_dropped": 11,
+                                    "rx_errors": 15,
+                                    "rx_packets": 9938,
+                                    "tx_bytes": 13585045,
+                                    "tx_dropped": 6,
+                                    "tx_errors": 19,
+                                    "tx_packets": 12135
+                                },
+                                "frequency": [
+                                    5180,
+                                    5260
+                                ],
+                                "iface": "eth0",
+                                "location": "/interfaces/0/ssids/0",
+                                "mode": "ap",
+                                "name": "up0v0",
+                                "phy": "platform/soc/c000000.wifi+1",
+                                "radio": {
+                                    "$ref": "#/radios/1"
+                                },
+                                "ssid": "OpenWifi-test5"
+                            }
+                        ]
+                    },
+                    {
+                        "clients": [
+                            {
+                                "ipv4_addresses": [
+                                    "239.95.16.229"
+                                ],
+                                "ipv6_addresses": [
+                                    "2a5b:80bd:0652:d339:acb9:c2f9:894d:a396"
+                                ],
+                                "mac": "6e:af:b0:a3:39:28",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "73.122.81.23"
+                                ],
+                                "ipv6_addresses": [
+                                    "31d0:664c:54c3:75ce:ee6b:b92d:5b76:3845"
+                                ],
+                                "mac": "09:57:cb:72:c8:2a",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "226.38.233.160"
+                                ],
+                                "ipv6_addresses": [
+                                    "af3c:def0:35b6:7dc3:f540:1e55:de6f:486e"
+                                ],
+                                "mac": "74:07:8e:06:76:6f",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "190.133.147.76"
+                                ],
+                                "ipv6_addresses": [
+                                    "703c:384f:378f:7f4b:d68d:37ca:c0b2:48d3"
+                                ],
+                                "mac": "ed:d5:a8:82:94:de",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "21.35.45.33"
+                                ],
+                                "ipv6_addresses": [
+                                    "ecf6:2803:507c:1315:cb11:d7cc:4e5f:af17"
+                                ],
+                                "mac": "73:b2:a4:a5:66:e0",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "29.90.235.125"
+                                ],
+                                "ipv6_addresses": [
+                                    "e6c0:ecb2:0403:dd2f:99f5:9bc8:3848:f250"
+                                ],
+                                "mac": "20:ad:27:9f:dd:31",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "142.216.212.44"
+                                ],
+                                "ipv6_addresses": [
+                                    "ef69:df4b:25b6:253c:d699:2101:bc55:b4ac"
+                                ],
+                                "mac": "9a:fd:99:e2:48:6b",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "158.142.109.105"
+                                ],
+                                "ipv6_addresses": [
+                                    "b694:1a6a:89f6:0323:704d:0b91:a6e6:f961"
+                                ],
+                                "mac": "b9:a0:9a:d4:ac:07",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "220.112.212.237"
+                                ],
+                                "ipv6_addresses": [
+                                    "41a2:2799:0ce1:5710:73cf:54c5:a106:5e83"
+                                ],
+                                "mac": "f5:c5:4a:7e:b8:b4",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "122.8.242.157"
+                                ],
+                                "ipv6_addresses": [
+                                    "02e1:a6e4:c03f:d18f:66d5:f0bd:7183:365e"
+                                ],
+                                "mac": "e7:74:ed:aa:42:c5",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "20.14.89.131"
+                                ],
+                                "ipv6_addresses": [
+                                    "90b0:ef86:8b75:f7aa:9d59:3a89:b263:cddd"
+                                ],
+                                "mac": "d1:c8:5a:19:0b:4b",
+                                "ports": [
+                                    "eth1"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "254.126.232.106"
+                                ],
+                                "ipv6_addresses": [
+                                    "d293:456c:4f52:df54:3715:265d:6e6c:1c35"
+                                ],
+                                "last_seen": 0,
+                                "mac": "bc:7e:4c:00:c1:73",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "104.195.23.213"
+                                ],
+                                "ipv6_addresses": [
+                                    "cd59:f149:76ef:da29:2a34:42e2:8704:c266"
+                                ],
+                                "last_seen": 0,
+                                "mac": "7e:54:9f:a7:e5:85",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "74.191.165.53"
+                                ],
+                                "ipv6_addresses": [
+                                    "4c26:b1b0:1a91:01ab:b40f:4f2b:4239:07cb"
+                                ],
+                                "last_seen": 0,
+                                "mac": "2c:91:8d:d1:ee:5f",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "179.131.71.19"
+                                ],
+                                "ipv6_addresses": [
+                                    "43f0:66d1:1317:25f9:b31c:0a7b:cc47:6cdd"
+                                ],
+                                "last_seen": 0,
+                                "mac": "51:50:2e:73:aa:ef",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "89.170.21.171"
+                                ],
+                                "ipv6_addresses": [
+                                    "43c9:2686:7a69:9e18:d699:9479:7a7a:7ecd"
+                                ],
+                                "last_seen": 0,
+                                "mac": "cf:12:cb:4e:db:2b",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "191.145.135.130"
+                                ],
+                                "ipv6_addresses": [
+                                    "3df6:99c4:6149:66fc:8292:bd6b:d485:7d87"
+                                ],
+                                "last_seen": 0,
+                                "mac": "5a:06:ca:00:38:dc",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "249.216.233.16"
+                                ],
+                                "ipv6_addresses": [
+                                    "8e00:16a6:f5b1:3fb6:f42e:abdf:8350:3fca"
+                                ],
+                                "last_seen": 0,
+                                "mac": "c0:d9:d9:96:e5:98",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "123.247.151.99"
+                                ],
+                                "ipv6_addresses": [
+                                    "2972:30c4:7c5e:41ea:689b:4006:48fe:b104"
+                                ],
+                                "last_seen": 0,
+                                "mac": "98:42:45:8a:cd:fc",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "200.236.88.54"
+                                ],
+                                "ipv6_addresses": [
+                                    "bea5:7218:1cfc:b999:6a8a:3593:edca:6b8e"
+                                ],
+                                "last_seen": 0,
+                                "mac": "3a:61:47:67:55:1e",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "29.79.207.182"
+                                ],
+                                "ipv6_addresses": [
+                                    "a52a:2708:92c2:1f53:6b12:30e6:2d78:cc2e"
+                                ],
+                                "last_seen": 0,
+                                "mac": "14:1c:ba:1f:06:a6",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "194.224.148.122"
+                                ],
+                                "ipv6_addresses": [
+                                    "ed60:c6ee:08c9:ff0f:b7fd:e35b:0030:de38"
+                                ],
+                                "last_seen": 0,
+                                "mac": "21:be:37:50:7c:8d",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "248.18.202.62"
+                                ],
+                                "ipv6_addresses": [
+                                    "2f9c:03b0:f56b:6c57:063e:128f:2190:ba5e"
+                                ],
+                                "last_seen": 0,
+                                "mac": "ab:dc:e1:75:c9:c1",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "176.73.79.37"
+                                ],
+                                "ipv6_addresses": [
+                                    "77f4:df1c:70db:9f29:d8af:f744:9c25:1c09"
+                                ],
+                                "last_seen": 0,
+                                "mac": "f7:f2:ce:ea:6c:d2",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "21.43.226.17"
+                                ],
+                                "ipv6_addresses": [
+                                    "bd81:7507:3a54:b4cf:c521:c097:c1fe:ca51"
+                                ],
+                                "last_seen": 0,
+                                "mac": "3f:42:15:82:8c:15",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "116.143.69.120"
+                                ],
+                                "ipv6_addresses": [
+                                    "9486:6f6f:f083:5ce9:41ce:36e2:781e:14f3"
+                                ],
+                                "last_seen": 0,
+                                "mac": "21:77:5c:18:8b:2e",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "122.57.158.178"
+                                ],
+                                "ipv6_addresses": [
+                                    "4a0e:d500:f4d4:8b89:8172:2304:ad5e:4cc1"
+                                ],
+                                "last_seen": 0,
+                                "mac": "b8:d8:a2:a9:b3:ec",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "114.219.181.48"
+                                ],
+                                "ipv6_addresses": [
+                                    "32a2:a31a:a2c8:fd03:62d8:b9dc:9ebb:4bd3"
+                                ],
+                                "last_seen": 0,
+                                "mac": "8a:d2:5b:83:4b:96",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            },
+                            {
+                                "ipv4_addresses": [
+                                    "211.16.112.65"
+                                ],
+                                "ipv6_addresses": [
+                                    "db11:a1db:68cd:4e63:350a:1d95:ff8e:a392"
+                                ],
+                                "last_seen": 0,
+                                "mac": "a9:cc:69:81:22:0e",
+                                "ports": [
+                                    "wlan0"
+                                ]
+                            }
+                        ],
+                        "counters": {
+                            "collisions": 6,
+                            "multicast": 513,
+                            "rx_bytes": 14501248,
+                            "rx_dropped": 8,
+                            "rx_errors": 18,
+                            "rx_packets": 12250,
+                            "tx_bytes": 13167426,
+                            "tx_dropped": 8,
+                            "tx_errors": 17,
+                            "tx_packets": 11450
+                        },
+                        "name": "down0v0",
+                        "ssids": [
+                            {
+                                "associations": [
+                                    {
+                                        "ack_signal": -43,
+                                        "ack_signal_avg": -42,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2506,
+                                        "inactive": 3349,
+                                        "ipaddr_v4": "254.126.232.106",
+                                        "rssi": -58,
+                                        "rx_bytes": 7441827,
+                                        "rx_duration": 10391,
+                                        "rx_packets": 10301,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "bc:7e:4c:00:c1:73",
+                                        "tx_bytes": 1429848,
+                                        "tx_duration": 12148,
+                                        "tx_failed": 17189,
+                                        "tx_packets": 2243,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 20
+                                    },
+                                    {
+                                        "ack_signal": -54,
+                                        "ack_signal_avg": -51,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2845,
+                                        "inactive": 2915,
+                                        "ipaddr_v4": "104.195.23.213",
+                                        "rssi": -75,
+                                        "rx_bytes": 7766221,
+                                        "rx_duration": 9772,
+                                        "rx_packets": 8987,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "7e:54:9f:a7:e5:85",
+                                        "tx_bytes": 1442311,
+                                        "tx_duration": 11076,
+                                        "tx_failed": 17714,
+                                        "tx_packets": 1869,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 18
+                                    },
+                                    {
+                                        "ack_signal": -36,
+                                        "ack_signal_avg": -40,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2959,
+                                        "inactive": 2335,
+                                        "ipaddr_v4": "74.191.165.53",
+                                        "rssi": -51,
+                                        "rx_bytes": 8356941,
+                                        "rx_duration": 14067,
+                                        "rx_packets": 11553,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "2c:91:8d:d1:ee:5f",
+                                        "tx_bytes": 1169808,
+                                        "tx_duration": 12023,
+                                        "tx_failed": 14581,
+                                        "tx_packets": 1642,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 16
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -46,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 3364,
+                                        "inactive": 3283,
+                                        "ipaddr_v4": "179.131.71.19",
+                                        "rssi": -76,
+                                        "rx_bytes": 7880344,
+                                        "rx_duration": 10294,
+                                        "rx_packets": 9896,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "51:50:2e:73:aa:ef",
+                                        "tx_bytes": 1640048,
+                                        "tx_duration": 11983,
+                                        "tx_failed": 18469,
+                                        "tx_packets": 2072,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 13
+                                    },
+                                    {
+                                        "ack_signal": -56,
+                                        "ack_signal_avg": -55,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2830,
+                                        "inactive": 3233,
+                                        "ipaddr_v4": "89.170.21.171",
+                                        "rssi": -88,
+                                        "rx_bytes": 10409522,
+                                        "rx_duration": 10710,
+                                        "rx_packets": 13210,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "cf:12:cb:4e:db:2b",
+                                        "tx_bytes": 1430414,
+                                        "tx_duration": 10178,
+                                        "tx_failed": 13294,
+                                        "tx_packets": 2102,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 11
+                                    },
+                                    {
+                                        "ack_signal": -54,
+                                        "ack_signal_avg": -50,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2390,
+                                        "inactive": 2893,
+                                        "ipaddr_v4": "191.145.135.130",
+                                        "rssi": -83,
+                                        "rx_bytes": 9129050,
+                                        "rx_duration": 10668,
+                                        "rx_packets": 11259,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "5a:06:ca:00:38:dc",
+                                        "tx_bytes": 1402006,
+                                        "tx_duration": 8175,
+                                        "tx_failed": 15807,
+                                        "tx_packets": 1843,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 18
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -52,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2831,
+                                        "inactive": 2552,
+                                        "ipaddr_v4": "249.216.233.16",
+                                        "rssi": -82,
+                                        "rx_bytes": 9350442,
+                                        "rx_duration": 11336,
+                                        "rx_packets": 11815,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "c0:d9:d9:96:e5:98",
+                                        "tx_bytes": 1586105,
+                                        "tx_duration": 12075,
+                                        "tx_failed": 17631,
+                                        "tx_packets": 2107,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 13
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -44,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 3411,
+                                        "inactive": 3368,
+                                        "ipaddr_v4": "123.247.151.99",
+                                        "rssi": -88,
+                                        "rx_bytes": 10037327,
+                                        "rx_duration": 13889,
+                                        "rx_packets": 12016,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "98:42:45:8a:cd:fc",
+                                        "tx_bytes": 1369675,
+                                        "tx_duration": 9078,
+                                        "tx_failed": 22409,
+                                        "tx_packets": 2129,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 17
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -53,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 3120,
+                                        "inactive": 2495,
+                                        "ipaddr_v4": "200.236.88.54",
+                                        "rssi": -48,
+                                        "rx_bytes": 6781758,
+                                        "rx_duration": 10932,
+                                        "rx_packets": 9979,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "3a:61:47:67:55:1e",
+                                        "tx_bytes": 1605006,
+                                        "tx_duration": 10187,
+                                        "tx_failed": 14891,
+                                        "tx_packets": 2036,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 9
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -49,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 2824,
+                                        "inactive": 2311,
+                                        "ipaddr_v4": "29.79.207.182",
+                                        "rssi": -57,
+                                        "rx_bytes": 9920330,
+                                        "rx_duration": 11135,
+                                        "rx_packets": 13610,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "14:1c:ba:1f:06:a6",
+                                        "tx_bytes": 1487516,
+                                        "tx_duration": 10616,
+                                        "tx_failed": 18205,
+                                        "tx_packets": 2082,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 14
+                                    },
+                                    {
+                                        "ack_signal": -56,
+                                        "ack_signal_avg": -51,
+                                        "bssid": "53:49:4d:01:10:b2",
+                                        "connected": 3620,
+                                        "inactive": 3135,
+                                        "ipaddr_v4": "194.224.148.122",
+                                        "rssi": -79,
+                                        "rx_bytes": 8711145,
+                                        "rx_duration": 11817,
+                                        "rx_packets": 13496,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "21:be:37:50:7c:8d",
+                                        "tx_bytes": 1492336,
+                                        "tx_duration": 9205,
+                                        "tx_failed": 13520,
+                                        "tx_packets": 1956,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 15
+                                    }
+                                ],
+                                "band": "2G",
+                                "bssid": "53:49:4d:01:10:b2",
+                                "counters": {
+                                    "collisions": 6,
+                                    "multicast": 513,
+                                    "rx_bytes": 14501248,
+                                    "rx_dropped": 8,
+                                    "rx_errors": 18,
+                                    "rx_packets": 12250,
+                                    "tx_bytes": 13167426,
+                                    "tx_dropped": 8,
+                                    "tx_errors": 17,
+                                    "tx_packets": 11450
+                                },
+                                "frequency": [
+                                    2401,
+                                    2423
+                                ],
+                                "iface": "eth1",
+                                "location": "/interfaces/0/ssids/0",
+                                "mode": "ap",
+                                "name": "down0v0",
+                                "phy": "platform/soc/c000000.wifi",
+                                "radio": {
+                                    "$ref": "#/radios/0"
+                                },
+                                "ssid": "OpenWifi-test2"
+                            },
+                            {
+                                "associations": [
+                                    {
+                                        "ack_signal": -52,
+                                        "ack_signal_avg": -48,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 2939,
+                                        "inactive": 2710,
+                                        "ipaddr_v4": "248.18.202.62",
+                                        "rssi": -60,
+                                        "rx_bytes": 8722031,
+                                        "rx_duration": 11747,
+                                        "rx_packets": 10995,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "ab:dc:e1:75:c9:c1",
+                                        "tx_bytes": 1342264,
+                                        "tx_duration": 11585,
+                                        "tx_failed": 21055,
+                                        "tx_packets": 1836,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 13
+                                    },
+                                    {
+                                        "ack_signal": -41,
+                                        "ack_signal_avg": -40,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 3155,
+                                        "inactive": 3030,
+                                        "ipaddr_v4": "176.73.79.37",
+                                        "rssi": -56,
+                                        "rx_bytes": 8577501,
+                                        "rx_duration": 12375,
+                                        "rx_packets": 12133,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "f7:f2:ce:ea:6c:d2",
+                                        "tx_bytes": 1738314,
+                                        "tx_duration": 12382,
+                                        "tx_failed": 17392,
+                                        "tx_packets": 2255,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 14
+                                    },
+                                    {
+                                        "ack_signal": -60,
+                                        "ack_signal_avg": -57,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 2848,
+                                        "inactive": 2229,
+                                        "ipaddr_v4": "21.43.226.17",
+                                        "rssi": -37,
+                                        "rx_bytes": 9336935,
+                                        "rx_duration": 11209,
+                                        "rx_packets": 11991,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "3f:42:15:82:8c:15",
+                                        "tx_bytes": 1519775,
+                                        "tx_duration": 8118,
+                                        "tx_failed": 10278,
+                                        "tx_packets": 2015,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 19
+                                    },
+                                    {
+                                        "ack_signal": -53,
+                                        "ack_signal_avg": -52,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 3375,
+                                        "inactive": 2893,
+                                        "ipaddr_v4": "116.143.69.120",
+                                        "rssi": -76,
+                                        "rx_bytes": 9662448,
+                                        "rx_duration": 10661,
+                                        "rx_packets": 12961,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "21:77:5c:18:8b:2e",
+                                        "tx_bytes": 1602040,
+                                        "tx_duration": 10461,
+                                        "tx_failed": 15715,
+                                        "tx_packets": 2089,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 20
+                                    },
+                                    {
+                                        "ack_signal": -45,
+                                        "ack_signal_avg": -44,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 3407,
+                                        "inactive": 3291,
+                                        "ipaddr_v4": "122.57.158.178",
+                                        "rssi": -40,
+                                        "rx_bytes": 9327445,
+                                        "rx_duration": 11662,
+                                        "rx_packets": 12254,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "b8:d8:a2:a9:b3:ec",
+                                        "tx_bytes": 1384912,
+                                        "tx_duration": 9887,
+                                        "tx_failed": 11064,
+                                        "tx_packets": 1981,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 19
+                                    },
+                                    {
+                                        "ack_signal": -49,
+                                        "ack_signal_avg": -45,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 3035,
+                                        "inactive": 2970,
+                                        "ipaddr_v4": "114.219.181.48",
+                                        "rssi": -82,
+                                        "rx_bytes": 7910744,
+                                        "rx_duration": 10614,
+                                        "rx_packets": 9743,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "8a:d2:5b:83:4b:96",
+                                        "tx_bytes": 1549043,
+                                        "tx_duration": 10498,
+                                        "tx_failed": 14219,
+                                        "tx_packets": 1929,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 14
+                                    },
+                                    {
+                                        "ack_signal": -44,
+                                        "ack_signal_avg": -40,
+                                        "bssid": "53:49:4d:01:10:b3",
+                                        "connected": 3193,
+                                        "inactive": 2271,
+                                        "ipaddr_v4": "211.16.112.65",
+                                        "rssi": -60,
+                                        "rx_bytes": 7965726,
+                                        "rx_duration": 10481,
+                                        "rx_packets": 10096,
+                                        "rx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "mcs": 9,
+                                            "nss": 9,
+                                            "sgi": true,
+                                            "vht": true
+                                        },
+                                        "station": "a9:cc:69:81:22:0e",
+                                        "tx_bytes": 1288470,
+                                        "tx_duration": 10518,
+                                        "tx_failed": 10258,
+                                        "tx_packets": 1854,
+                                        "tx_rate": {
+                                            "bitrate": 200000,
+                                            "chwidth": 40,
+                                            "ht": true,
+                                            "mcs": 9,
+                                            "sgi": true
+                                        },
+                                        "tx_retries": 17
+                                    }
+                                ],
+                                "band": "5G",
+                                "bssid": "53:49:4d:01:10:b3",
+                                "counters": {
+                                    "collisions": 6,
+                                    "multicast": 513,
+                                    "rx_bytes": 14501248,
+                                    "rx_dropped": 8,
+                                    "rx_errors": 18,
+                                    "rx_packets": 12250,
+                                    "tx_bytes": 13167426,
+                                    "tx_dropped": 8,
+                                    "tx_errors": 17,
+                                    "tx_packets": 11450
+                                },
+                                "frequency": [
+                                    5180,
+                                    5260
+                                ],
+                                "iface": "eth1",
+                                "location": "/interfaces/0/ssids/1",
+                                "mode": "ap",
+                                "name": "down0v0",
+                                "phy": "platform/soc/c000000.wifi+1",
+                                "radio": {
+                                    "$ref": "#/radios/1"
+                                },
+                                "ssid": "OpenWifi-test2"
+                            }
+                        ]
+                    }
+                ],
+                "link-state": {
+                    "downstream": {
+                        "eth1": {
+                            "carrier": 1,
+                            "duplex": "full",
+                            "speed": 1000
+                        }
+                    },
+                    "upstream": {
+                        "eth0": {
+                            "carrier": 1,
+                            "duplex": "full",
+                            "speed": 1000
+                        }
+                    }
+                },
+                "radios": [
+                    {
+                        "active_ms": 14274,
+                        "band": [
+                            "2G"
+                        ],
+                        "busy_ms": 12274,
+                        "channel": 1,
+                        "channel_width": 20,
+                        "channels": [
+                            1
+                        ],
+                        "frequency": [
+                            2401,
+                            2423
+                        ],
+                        "noise": -97,
+                        "phy": "platform/soc/c000000.wifi",
+                        "receive_ms": 10092,
+                        "temperature": 48,
+                        "transmit_ms": 1526,
+                        "tx_power": 23
+                    },
+                    {
+                        "active_ms": 10208,
+                        "band": [
+                            "5G"
+                        ],
+                        "busy_ms": 17360,
+                        "channel": 44,
+                        "channel_width": 80,
+                        "channels": [
+                            44,
+                            50
+                        ],
+                        "frequency": [
+                            5180,
+                            5260
+                        ],
+                        "noise": -98,
+                        "phy": "platform/soc/c000000.wifi+1",
+                        "receive_ms": 11722,
+                        "temperature": 50,
+                        "transmit_ms": 1446,
+                        "tx_power": 23
+                    }
+                ],
+                "unit": {
+                    "load": [
+                        1.1156589147286822,
+                        1.1373643410852714,
+                        0.4951937984496124
+                    ],
+                    "localtime": 1726828161,
+                    "memory": {
+                        "buffered": 53182510,
+                        "cached": 89456440,
+                        "free": 815413706,
+                        "total": 973131776
+                    },
+                    "temperature": [
+                        57,
+                        48
+                    ],
+                    "uptime": 360
+                },
+                "version": 1
+            },
+            "uuid": 1726827801
+        }
+    },
+    "state_obf": {
+        "jsonrpc": "2.0",
+        "method": "state",
+        "params": {
+            "compress_64": "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"
+        }
+    },
+    "healthcheck": {
+        "jsonrpc": "2.0",
+        "method": "healthcheck",
+        "params": {
+            "serial": "MAC",
+            "uuid": 100401,
+            "request_uuid": 0,
+            "sanity": 100,
+            "data": ""
+        }
+    },
+    "alarm": {
+        "jsonrpc": "2.0",
+        "method": "alarm",
+        "params": {
+            "serial": "MAC",
+            "data": ""
+        }
+    },
+    "wifiscan": {
+        "jsonrpc": "2.0",
+        "method": "wifiscan",
+        "params": {
+            "serial": "MAC",
+            "data": ""
+        }
+    },
+    "crashlog": {
+        "jsonrpc": "2.0",
+        "method": "crashlog",
+        "params": {
+            "serial": "MAC",
+            "uuid": 100402,
+            "loglines": []
+        }
+    },
+    "rebootLog": {
+        "jsonrpc": "2.0",
+        "method": "rebootLog",
+        "params": {
+            "serial": "MAC",
+            "uuid": 100403,
+            "date": 1736758447.2709587,
+            "type": "Dummy",
+            "info": [
+                "info 1",
+                "info 2"
+            ]
+        }
+    },
+    "cfgpending": {
+        "jsonrpc": "2.0",
+        "method": "cfgpending",
+        "params": {
+            "serial": "MAC",
+            "active": 112233860,
+            "uuid": 100404
+        }
+    },
+    "deviceupdate": {
+        "jsonrpc": "2.0",
+        "method": "deviceupdate",
+        "params": {
+            "serial": "MAC",
+            "currentPassword": "mynewpassword"
+        }
+    },
+    "ping": {
+        "jsonrpc": "2.0",
+        "method": "ping",
+        "params": {
+            "serial": "MAC",
+            "uuid": 100405
+        }
+    },
+    "recovery": {
+        "jsonrpc": "2.0",
+        "method": "recovery",
+        "params": {
+            "serial": "MAC",
+            "uuid": 100406,
+            "firmware": "Rel 1.6 build 1",
+            "reboot": false,
+            "loglines": []
+        }
+    },
+    "venue_broadcast": {
+        "jsonrpc": "2.0",
+        "method": "venue_broadcast",
+        "params": {
+            "serial": "MAC",
+            "timestamp": 1736758447.2709587,
+            "data": ""
+        }
+    }
 }

@@ -39,7 +39,6 @@ pub struct OldNew {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct CGWDeviceCapabilities {
     pub firmware: String,
-    pub uuid: u64,
     pub compatible: String,
     pub model: String,
     pub platform: String,
@@ -49,7 +48,6 @@ pub struct CGWDeviceCapabilities {
 impl CGWDeviceCapabilities {
     pub fn update_device_capabilities(&mut self, new_capabilities: &CGWDeviceCapabilities) {
         self.firmware.clone_from(&new_capabilities.firmware);
-        self.uuid = new_capabilities.uuid;
         self.compatible.clone_from(&new_capabilities.compatible);
         self.model.clone_from(&new_capabilities.model);
         self.platform.clone_from(&new_capabilities.platform);
@@ -142,15 +140,6 @@ pub fn cgw_detect_device_changes(
         );
     }
 
-    if cur_capabilities.uuid != new_capabilities.uuid {
-        diff.insert(
-            "uuid".to_string(),
-            OldNew {
-                old_value: cur_capabilities.uuid.to_string(),
-                new_value: new_capabilities.uuid.to_string(),
-            },
-        );
-    }
     if cur_capabilities.compatible != new_capabilities.compatible {
         diff.insert(
             "compatible".to_string(),
@@ -160,6 +149,7 @@ pub fn cgw_detect_device_changes(
             },
         );
     }
+
     if cur_capabilities.model != new_capabilities.model {
         diff.insert(
             "model".to_string(),
@@ -169,6 +159,7 @@ pub fn cgw_detect_device_changes(
             },
         );
     }
+
     if cur_capabilities.platform != new_capabilities.platform {
         diff.insert(
             "platform".to_string(),

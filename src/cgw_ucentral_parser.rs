@@ -231,7 +231,7 @@ pub enum CGWUCentralEventType {
     Connect(CGWUCentralEventConnect),
     State(CGWUCentralEventState),
     Healthcheck,
-    Log(CGWUCentralEventLog),
+    Log,
     Event,
     Alarm,
     WifiScan,
@@ -244,6 +244,33 @@ pub enum CGWUCentralEventType {
     VenueBroadcast,
     RealtimeEvent(CGWUCentralEventRealtimeEvent),
     Reply(CGWUCentralEventReply),
+    Unknown,
+}
+
+impl std::fmt::Display for CGWUCentralEventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CGWUCentralEventType::Connect(_) => write!(f, "connect"),
+            CGWUCentralEventType::State(_) => write!(f, "state"),
+            CGWUCentralEventType::Healthcheck => write!(f, "healthcheck"),
+            CGWUCentralEventType::Log => write!(f, "log"),
+            CGWUCentralEventType::Event => write!(f, "event"),
+            CGWUCentralEventType::Alarm => write!(f, "alarm"),
+            CGWUCentralEventType::WifiScan => write!(f, "wifiscan"),
+            CGWUCentralEventType::CrashLog => write!(f, "crashlog"),
+            CGWUCentralEventType::RebootLog => write!(f, "rebootLog"),
+            CGWUCentralEventType::CfgPending => write!(f, "cfgpending"),
+            CGWUCentralEventType::DeviceUpdate => write!(f, "deviceupdate"),
+            CGWUCentralEventType::Ping => write!(f, "ping"),
+            CGWUCentralEventType::Recovery => write!(f, "recovery"),
+            CGWUCentralEventType::VenueBroadcast => write!(f, "venue_broadcast"),
+            CGWUCentralEventType::RealtimeEvent(_) => {
+                write!(f, "realtime_event")
+            }
+            CGWUCentralEventType::Reply(_) => write!(f, "reply"),
+            CGWUCentralEventType::Unknown => write!(f, "unknown"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -352,11 +379,17 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
             .as_str()
             .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
     )?;
+
     let firmware = params["firmware"]
         .as_str()
         .ok_or_else(|| Error::UCentralParser("Failed to parse firmware from params"))?
         .to_string();
-    let caps: CGWUCentralEventConnectParamsCaps =
+
+    let uuid = params["uuid"]
+        .as_u64()
+        .ok_or_else(|| Error::UCentralParser("Failed to parse uuid from params"))?;
+
+    let capabilities: CGWUCentralEventConnectParamsCaps =
         serde_json::from_value(params["capabilities"].clone())?;
 
     let event: CGWUCentralEvent = CGWUCentralEvent {
@@ -364,8 +397,8 @@ pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralE
         evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
             serial,
             firmware,
-            uuid: 1,
-            capabilities: caps,
+            uuid,
+            capabilities,
         }),
         decompressed: None,
     };

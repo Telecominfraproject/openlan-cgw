@@ -16,6 +16,7 @@ use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
 use rdkafka::{
     consumer::{stream_consumer::StreamConsumer, Consumer, ConsumerContext, Rebalance},
+    producer::future_producer::OwnedDeliveryResult,
     producer::{FutureProducer, FutureRecord},
 };
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
 use std::sync::Arc;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::UnboundedSender,
@@ -31,8 +34,29 @@ use tokio::{
 use uuid::Uuid;
 
 type CGWConnectionServerMboxTx = UnboundedSender<CGWConnectionNBAPIReqMsg>;
-type CGWCNCConsumerType = StreamConsumer<CustomContext>;
-type CGWCNCProducerType = FutureProducer;
+type CGWKafkaConsumerType = StreamConsumer<CustomContext>;
+type CGWKafkaProducerType = FutureProducer;
+
+#[derive(EnumIter, Eq, Hash, PartialEq)]
+pub enum CGWKafkaProducerTopic {
+    CnCRes,
+    Connection,
+    State,
+    InfraRealtime,
+    Topology,
+}
+
+impl std::fmt::Display for CGWKafkaProducerTopic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            CGWKafkaProducerTopic::CnCRes => write!(f, "CnC_Res"),
+            CGWKafkaProducerTopic::Connection => write!(f, "Connection"),
+            CGWKafkaProducerTopic::State => write!(f, "State"),
+            CGWKafkaProducerTopic::InfraRealtime => write!(f, "Infra_Realtime"),
+            CGWKafkaProducerTopic::Topology => write!(f, "Topology"),
+        }
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct InfraGroupCreateResponse {
@@ -188,6 +212,52 @@ pub struct InfraLeaveMessage {
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraStateEventMessage {
+    pub r#type: &'static str,
+    pub event_type: String,
+    pub payload: String,
+    pub reporter_shard_id: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InfraRealtimeEventMessage {
+    pub r#type: &'static str,
+    pub event_type: String,
+    pub payload: String,
+    pub reporter_shard_id: i32,
+}
+
+pub fn cgw_construct_infra_state_event_message(
+    event_type: String,
+    payload: String,
+    reporter_shard_id: i32,
+) -> Result<String> {
+    let state_message = InfraStateEventMessage {
+        r#type: "infrastructure_state_event_message",
+        event_type,
+        payload,
+        reporter_shard_id,
+    };
+
+    Ok(serde_json::to_string(&state_message)?)
+}
+
+pub fn cgw_construct_infra_realtime_event_message(
+    event_type: String,
+    payload: String,
+    reporter_shard_id: i32,
+) -> Result<String> {
+    let realtime_message = InfraRealtimeEventMessage {
+        r#type: "infrastructure_realtime_event_message",
+        event_type,
+        payload,
+        reporter_shard_id,
+    };
+
+    Ok(serde_json::to_string(&realtime_message)?)
 }
 
 pub fn cgw_construct_infra_group_create_response(
@@ -524,7 +594,7 @@ struct CGWConsumerContextData {
     // A bit ugly, but we need a way to get
     // consumer (to retrieve partition num) whenever
     // client->context rebalance callback is being called.
-    consumer_client: Option<Arc<CGWCNCConsumerType>>,
+    consumer_client: Option<Arc<CGWKafkaConsumerType>>,
 }
 
 struct CustomContext {
@@ -561,10 +631,10 @@ impl CGWConsumerContextData {
             let hash_res = murmur2(key_bytes, DEFAULT_HASH_SEED) & 0x7fffffff;
             let part_idx = hash_res.rem_euclid(partition_num as u32);
 
-            if !key_map.contains_key(&part_idx) {
+            key_map.entry(part_idx).or_insert_with(|| {
                 debug!("Inserted key '{key_str}' for '{part_idx}' partition");
-                key_map.insert(part_idx, key_str);
-            }
+                key_str
+            });
         }
 
         info!(
@@ -710,24 +780,33 @@ impl ConsumerContext for CustomContext {
 }
 
 static GROUP_ID: &str = "CGW";
-const CONSUMER_TOPICS: [&str; 1] = ["CnC"];
-const PRODUCER_TOPICS: &str = "CnC_Res";
+const CONSUMER_TOPICS: &[&str] = &["CnC"];
 
-struct CGWCNCProducer {
-    p: CGWCNCProducerType,
+struct CGWKafkaConsumer {
+    consumer: Arc<CGWKafkaConsumerType>,
 }
 
-struct CGWCNCConsumer {
-    c: Arc<CGWCNCConsumerType>,
-}
+impl CGWKafkaConsumer {
+    pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs, topics: &[&str]) -> Result<Self> {
+        // let topics_str = topics.join(", ");
 
-impl CGWCNCConsumer {
-    pub fn new(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Self> {
-        let consumer = Self::create_consumer(cgw_id, kafka_args)?;
-        Ok(CGWCNCConsumer { c: consumer })
+        let consumer = Self::create_consumer(cgw_id, kafka_args, topics)?;
+
+        debug!(
+            "(consumer) Created lazy connection to kafka broker ({}:{}). Topics: {}",
+            kafka_args.kafka_host,
+            kafka_args.kafka_port,
+            topics.join(", ")
+        );
+
+        Ok(CGWKafkaConsumer { consumer })
     }
 
-    fn create_consumer(cgw_id: i32, kafka_args: &CGWKafkaArgs) -> Result<Arc<CGWCNCConsumerType>> {
+    fn create_consumer(
+        cgw_id: i32,
+        kafka_args: &CGWKafkaArgs,
+        topics: &[&str],
+    ) -> Result<Arc<CGWKafkaConsumerType>> {
         let context = CustomContext {
             ctx_data: std::sync::RwLock::new(CGWConsumerContextData {
                 partition_mapping: HashMap::new(),
@@ -738,7 +817,7 @@ impl CGWCNCConsumer {
             }),
         };
 
-        let consumer: CGWCNCConsumerType = match ClientConfig::new()
+        let consumer: CGWKafkaConsumerType = match ClientConfig::new()
             .set("group.id", GROUP_ID)
             .set("client.id", GROUP_ID.to_string() + &cgw_id.to_string())
             .set("group.instance.id", cgw_id.to_string())
@@ -765,12 +844,7 @@ impl CGWCNCConsumer {
         // Need to set this guy for context
         let consumer_clone = consumer.clone();
 
-        debug!(
-            "(consumer) Created lazy connection to kafka broker ({}:{})...",
-            kafka_args.kafka_host, kafka_args.kafka_port,
-        );
-
-        if let Err(e) = consumer.subscribe(&CONSUMER_TOPICS) {
+        if let Err(e) = consumer.subscribe(topics) {
             error!(
                 "Kafka consumer was unable to subscribe to {:?}! Error: {e}",
                 CONSUMER_TOPICS
@@ -786,13 +860,24 @@ impl CGWCNCConsumer {
     }
 }
 
-impl CGWCNCProducer {
-    pub fn new(kafka_args: &CGWKafkaArgs) -> Result<Self> {
-        let prod: CGWCNCProducerType = Self::create_producer(kafka_args)?;
-        Ok(CGWCNCProducer { p: prod })
+struct CGWKafkaProducer {
+    producer: CGWKafkaProducerType,
+    topic: String,
+}
+
+impl CGWKafkaProducer {
+    fn new(kafka_args: &CGWKafkaArgs, topic: String) -> Result<Self> {
+        let producer: CGWKafkaProducerType = Self::create_producer(kafka_args)?;
+
+        debug!(
+            "(producer) Created lazy connection to kafka broker ({}:{}). Topic: {topic}",
+            kafka_args.kafka_host, kafka_args.kafka_port,
+        );
+
+        Ok(CGWKafkaProducer { producer, topic })
     }
 
-    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWCNCProducerType> {
+    fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWKafkaProducerType> {
         let producer: FutureProducer = match ClientConfig::new()
             .set(
                 "bootstrap.servers",
@@ -808,20 +893,52 @@ impl CGWCNCProducer {
             }
         };
 
-        debug!(
-            "(producer) Created lazy connection to kafka broker ({}:{})...",
-            kafka_args.kafka_host, kafka_args.kafka_port,
-        );
-
         Ok(producer)
+    }
+
+    async fn send(&self, key: String, payload: String) -> OwnedDeliveryResult {
+        self.producer
+            .send(
+                FutureRecord::to(&self.topic).key(&key).payload(&payload),
+                Duration::from_secs(0),
+            )
+            .await
+    }
+}
+
+struct CGWKafkaProducersMap {
+    kafka_producer_map: HashMap<CGWKafkaProducerTopic, CGWKafkaProducer>,
+}
+
+impl CGWKafkaProducersMap {
+    fn new(kafka_args: &CGWKafkaArgs) -> Result<CGWKafkaProducersMap> {
+        let mut map: HashMap<CGWKafkaProducerTopic, CGWKafkaProducer> = HashMap::new();
+
+        for topic in CGWKafkaProducerTopic::iter() {
+            match CGWKafkaProducer::new(kafka_args, topic.to_string()) {
+                Ok(producer) => map.insert(topic, producer),
+                Err(e) => {
+                    error!("Failed to create Kafka producer for topic: {topic}. Error: {e}");
+                    return Err(e);
+                }
+            };
+        }
+
+        Ok(CGWKafkaProducersMap {
+            kafka_producer_map: map,
+        })
+    }
+
+    fn get(&self, key: CGWKafkaProducerTopic) -> Option<&CGWKafkaProducer> {
+        self.kafka_producer_map.get(&key)
     }
 }
 
 pub struct CGWNBApiClient {
     working_runtime_handle: Runtime,
     cgw_server_tx_mbox: CGWConnectionServerMboxTx,
-    prod: CGWCNCProducer,
-    consumer: Arc<CGWCNCConsumer>,
+    producers: CGWKafkaProducersMap,
+    consumer: Arc<CGWKafkaConsumer>,
     // TBD: split different implementations through a defined trait,
     // that implements async R W operations?
 }
@@ -839,12 +956,14 @@ impl CGWNBApiClient {
             .enable_all()
             .build()?;
 
-        let consumer: Arc<CGWCNCConsumer> = Arc::new(CGWCNCConsumer::new(cgw_id, kafka_args)?);
+        let producers = CGWKafkaProducersMap::new(kafka_args)?;
+        let consumer: Arc<CGWKafkaConsumer> =
+            Arc::new(CGWKafkaConsumer::new(cgw_id, kafka_args, CONSUMER_TOPICS)?);
         let consumer_clone = consumer.clone();
         let cl = Arc::new(CGWNBApiClient {
             working_runtime_handle: working_runtime_h,
             cgw_server_tx_mbox: cgw_tx.clone(),
-            prod: CGWCNCProducer::new(kafka_args)?,
+            producers,
             consumer: consumer_clone,
         });
 
@@ -852,41 +971,42 @@ impl CGWNBApiClient {
         cl.working_runtime_handle.spawn(async move {
             loop {
                 let cl_clone = cl_clone.clone();
-                let stream_processor = consumer.c.stream().try_for_each(|borrowed_message| {
-                    let cl_clone = cl_clone.clone();
-                    async move {
-                        // Process each message
-                        // Borrowed messages can't outlive the consumer they are received from, so they need to
-                        // be owned in order to be sent to a separate thread.
-                        //record_owned_message_receipt(&owned_message).await;
-                        let owned = borrowed_message.detach();
+                let stream_processor =
+                    consumer.consumer.stream().try_for_each(|borrowed_message| {
+                        let cl_clone = cl_clone.clone();
+                        async move {
+                            // Process each message
+                            // Borrowed messages can't outlive the consumer they are received from, so they need to
+                            // be owned in order to be sent to a separate thread.
+                            //record_owned_message_receipt(&owned_message).await;
+                            let owned = borrowed_message.detach();
 
-                        let key = match owned.key_view::<str>() {
-                            None => "",
-                            Some(Ok(s)) => s,
-                            Some(Err(e)) => {
-                                warn!("Error while deserializing message payload! Error: {e}");
-                                ""
-                            }
-                        };
+                            let key = match owned.key_view::<str>() {
+                                None => "",
+                                Some(Ok(s)) => s,
+                                Some(Err(e)) => {
+                                    warn!("Error while deserializing message payload! Error: {e}");
+                                    ""
+                                }
+                            };
 
-                        let payload = match owned.payload_view::<str>() {
-                            None => "",
-                            Some(Ok(s)) => s,
-                            Some(Err(e)) => {
-                                warn!("Deserializing message payload failed! Error: {e}");
-                                ""
-                            }
-                        };
-                        cl_clone
-                            .enqueue_mbox_message_to_cgw_server(
-                                key.to_string(),
-                                payload.to_string(),
-                            )
-                            .await;
-                        Ok(())
-                    }
-                });
+                            let payload = match owned.payload_view::<str>() {
+                                None => "",
+                                Some(Ok(s)) => s,
+                                Some(Err(e)) => {
+                                    warn!("Deserializing message payload failed! Error: {e}");
+                                    ""
+                                }
+                            };
+                            cl_clone
+                                .enqueue_mbox_message_to_cgw_server(
+                                    key.to_string(),
+                                    payload.to_string(),
+                                )
+                                .await;
+                            Ok(())
+                        }
+                    });
 
                 if let Err(e) = stream_processor.await {
                     error!("Failed to create NB API Client! Error: {e}");
@@ -899,7 +1019,7 @@ impl CGWNBApiClient {
 
     pub fn get_partition_to_local_shard_mapping(&self) -> Vec<(u32, String)> {
         let mut return_vec: Vec<(u32, String)> = Vec::new();
-        if let Ok(mut ctx) = self.consumer.c.context().ctx_data.write() {
+        if let Ok(mut ctx) = self.consumer.consumer.context().ctx_data.write() {
             let (assigned_partition_list, mut partition_mapping) = ctx.get_partition_info();
 
             if !partition_mapping.is_empty()
@@ -917,16 +1037,23 @@ impl CGWNBApiClient {
         return_vec
     }
 
-    pub async fn enqueue_mbox_message_from_cgw_server(&self, key: String, payload: String) {
-        let produce_future = self.prod.p.send(
-            FutureRecord::to(PRODUCER_TOPICS)
-                .key(&key)
-                .payload(&payload),
-            Duration::from_secs(0),
-        );
+    pub async fn enqueue_mbox_message_from_cgw_server(
+        &self,
+        key: String,
+        payload: String,
+        topic: CGWKafkaProducerTopic,
+    ) {
+        if let Some(producer) = self.producers.get(topic) {
+            let produce_future = producer.send(key, payload);
 
-        if let Err((e, _)) = produce_future.await {
-            error!("{e}")
+            if let Err((e, _)) = produce_future.await {
+                error!("{e}")
+            }
+        } else {
+            error!(
+                "Failed to get kafka producer for {} topic!",
+                CGWKafkaProducerTopic::CnCRes
+            );
         }
     }
 

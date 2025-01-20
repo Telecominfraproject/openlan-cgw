@@ -8,7 +8,7 @@ import uuid
 class MacRange:
     """
     Return an object that produces a sequence of MAC addresses from
-    START (inclusive) to END (inclusive). START and END are exctracted
+    START (inclusive) to END (inclusive). START and END are extracted
     from the input string if it is in the format
     "11:22:AA:BB:00:00-11:22:AA:BB:00:05" (where START=11:22:AA:BB:00:00,
     END=11:22:AA:BB:00:05, and the total amount of MACs in the range is 6).

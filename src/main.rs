@@ -6,6 +6,7 @@ mod cgw_db_accessor;
 mod cgw_device;
 mod cgw_devices_cache;
 mod cgw_errors;
+mod cgw_kafka_init;
 mod cgw_metrics;
 mod cgw_nb_api_listener;
 mod cgw_remote_client;
@@ -26,6 +27,7 @@ extern crate log;
 extern crate lazy_static;
 
 use cgw_app_args::AppArgs;
+use cgw_kafka_init::cgw_init_kafka_topics;
 use cgw_runtime::cgw_initialize_runtimes;
 
 use nix::sys::socket::{setsockopt, sockopt};
@@ -355,6 +357,12 @@ async fn main() -> Result<()> {
 
     // Configure logger
     setup_logger(args.log_level);
+
+    // Initialize Kafka topics
+    if let Err(e) = cgw_init_kafka_topics(&args.kafka_args, &args.redis_args).await {
+        error!("Failed to initialize kafka topics! Error: {e}");
+        return Err(e);
+    }
 
     // Initialize runtimes
     if let Err(e) = cgw_initialize_runtimes(args.wss_args.wss_t_num) {

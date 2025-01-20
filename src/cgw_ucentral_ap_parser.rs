@@ -9,7 +9,7 @@ use crate::cgw_errors::{Error, Result};
 
 use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
-    CGWUCentralEventLog, CGWUCentralEventRealtimeEvent, CGWUCentralEventRealtimeEventType,
+    CGWUCentralEventRealtimeEvent, CGWUCentralEventRealtimeEventType,
     CGWUCentralEventRealtimeEventWClientJoin, CGWUCentralEventRealtimeEventWClientLeave,
     CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
     CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
@@ -832,29 +832,8 @@ pub fn cgw_ucentral_ap_parse_message(
             warn!("Received malformed JSONRPC msg!");
             Error::UCentralParser("JSONRPC field is missing in message")
         })?;
-        if method == "log" {
-            let params = map.get("params").ok_or_else(|| {
-                warn!("Received JRPC <method> without params!");
-                Error::UCentralParser("Received JRPC <method> without params")
-            })?;
-            let serial = MacAddress::from_str(
-                params["serial"]
-                    .as_str()
-                    .ok_or_else(|| Error::UCentralParser("Failed to parse serial from params"))?,
-            )?;
-
-            let log_event = CGWUCentralEvent {
-                serial,
-                evt_type: CGWUCentralEventType::Log(CGWUCentralEventLog {
-                    serial,
-                    log: params["log"].to_string(),
-                    severity: serde_json::from_value(params["severity"].clone())?,
-                }),
-                decompressed: None,
-            };
-
-            return Ok(log_event);
-        } else if method == "connect" {
+        let mut event_type: CGWUCentralEventType = CGWUCentralEventType::Unknown;
+        if method == "connect" {
             let params = map
                 .get("params")
                 .ok_or_else(|| Error::UCentralParser("Params are missing"))?;
@@ -867,7 +846,12 @@ pub fn cgw_ucentral_ap_parse_message(
                 .as_str()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse firmware from params"))?
                 .to_string();
-            let caps: CGWUCentralEventConnectParamsCaps =
+
+            let uuid = params["uuid"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse uuid from params"))?;
+
+            let capabilities: CGWUCentralEventConnectParamsCaps =
                 serde_json::from_value(params["capabilities"].clone())?;
 
             let connect_event = CGWUCentralEvent {
@@ -875,8 +859,8 @@ pub fn cgw_ucentral_ap_parse_message(
                 evt_type: CGWUCentralEventType::Connect(CGWUCentralEventConnect {
                     serial,
                     firmware,
-                    uuid: 1,
-                    capabilities: caps,
+                    uuid,
+                    capabilities,
                 }),
                 decompressed: None,
             };
@@ -892,7 +876,35 @@ pub fn cgw_ucentral_ap_parse_message(
                     "Received unexpected event while topomap feature is disabled",
                 ));
             }
+        } else if method == "log" {
+            event_type = CGWUCentralEventType::Log;
+        } else if method == "healthcheck" {
+            event_type = CGWUCentralEventType::Healthcheck;
+        } else if method == "alarm" {
+            event_type = CGWUCentralEventType::Alarm;
+        } else if method == "wifiscan" {
+            event_type = CGWUCentralEventType::WifiScan;
+        } else if method == "crashlog" {
+            event_type = CGWUCentralEventType::CrashLog;
+        } else if method == "rebootLog" {
+            event_type = CGWUCentralEventType::RebootLog;
+        } else if method == "cfgpending" {
+            event_type = CGWUCentralEventType::CfgPending;
+        } else if method == "deviceupdate" {
+            event_type = CGWUCentralEventType::DeviceUpdate;
+        } else if method == "ping" {
+            event_type = CGWUCentralEventType::Ping;
+        } else if method == "recovery" {
+            event_type = CGWUCentralEventType::Recovery;
+        } else if method == "venue_broadcast" {
+            event_type = CGWUCentralEventType::VenueBroadcast;
         }
+
+        return Ok(CGWUCentralEvent {
+            serial: MacAddress::default(),
+            evt_type: event_type,
+            decompressed: None,
+        });
     } else if map.contains_key("result") {
         if let Value::Object(result) = &map["result"] {
             if !result.contains_key("id") {

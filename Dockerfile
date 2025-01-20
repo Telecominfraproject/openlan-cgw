@@ -57,7 +57,7 @@ RUN adduser cgw_runner && addgroup cgw_users_group
 RUN usermod -a -G cgw_users_group cgw_runner
 
 # CGW create log file under /var directory
-# It is required to change direcory owner
+# It is required to change directory owner
 RUN chown cgw_runner:cgw_users_group "/var"
 
 # Switch to non-root user

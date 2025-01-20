@@ -38,10 +38,10 @@ def parse_args():
                         help="delete an existing group")
     parser.add_argument("-d", "--assign-to-group", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
-                        help="add a range of mac addrs to a group")
+                        help="add a range of mac address to a group")
     parser.add_argument("-D", "--remove-from-group", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
-                        help="remove mac addrs from a group")
+                        help="remove mac address from a group")
     parser.add_argument("-T", "--topic", default="CnC",
                         help="kafka topic (default: \"CnC\")")
     parser.add_argument("-s", "--bootstrap-server", metavar="ADDRESS", default="127.0.0.1:9092",
@@ -57,7 +57,7 @@ def parse_args():
                         help="time between messages (default: \"1.0s\")")
     parser.add_argument("-p", "--send-to-group", metavar="GROUP-ID", type=str)
     parser.add_argument("-r", "--send-to-mac", metavar="MAC-RANGE", type=MacRange,
-                        help="range of mac addrs that will be receiving the messages")
+                        help="range of mac address that will be receiving the messages")
 
     parsed_args = parser.parse_args()
 

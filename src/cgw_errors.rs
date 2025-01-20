@@ -32,6 +32,8 @@ pub enum Error {
 
     Runtime(String),
 
+    KafkaInit(String),
+
     // -- Externals
     #[from]
     Io(std::io::Error),
@@ -89,6 +91,7 @@ impl std::fmt::Display for Error {
             | Error::Tls(message)
             | Error::ConnectionServer(message)
             | Error::Runtime(message)
+            | Error::KafkaInit(message)
             | Error::Redis(message)
             | Error::Tcp(message)
             | Error::UCentralMessagesQueue(message)

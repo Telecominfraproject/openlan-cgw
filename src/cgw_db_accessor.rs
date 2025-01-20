@@ -328,4 +328,30 @@ impl CGWDBAccessor {
             }
         }
     }
+
+    pub async fn get_infra(&self, mac: MacAddress) -> Option<CGWDBInfra> {
+        match self
+            .cl
+            .prepare("SELECT * from infras WHERE mac = $1")
+            .await
+        {
+            Ok(q) => {
+                let row = self.cl.query_one(&q, &[&mac]).await;
+
+                match row {
+                    Ok(r) => {
+                        return Some(CGWDBInfra::from(r));
+                    },
+                    Err(e) => {
+                        error!("Query infra {mac} failed! Error: {e}");
+                        return None;
+                    },
+                };
+            }
+            Err(e) => {
+                error!("Failed to prepare statement! Error: {e}");
+                return None;
+            },
+        }
+    }
 }

@@ -51,6 +51,7 @@ pub struct CGWREDISDBShard {
     id: i32,
     server_host: String,
     server_port: u16,
+    wss_port: u16,
     assigned_groups_num: i32,
     capacity: i32,
     threshold: i32,
@@ -72,28 +73,33 @@ impl From<Vec<String>> for CGWREDISDBShard {
         } else if values[4] != "server_port" {
             error!("redis.res[4] != server_port, unexpected.");
             return CGWREDISDBShard::default();
-        } else if values[6] != "assigned_groups_num" {
-            error!("redis.res[6] != assigned_groups_num, unexpected.");
+        } else if values[6] != "wss_port" {
+            error!("redis.res[6] != wss_port, unexpected.");
             return CGWREDISDBShard::default();
-        } else if values[8] != "capacity" {
-            error!("redis.res[8] != capacity, unexpected.");
+        } else if values[8] != "assigned_groups_num" {
+            error!("redis.res[8] != assigned_groups_num, unexpected.");
             return CGWREDISDBShard::default();
-        } else if values[10] != "threshold" {
-            error!("redis.res[10] != threshold, unexpected.");
+        } else if values[10] != "capacity" {
+            error!("redis.res[10] != capacity, unexpected.");
+            return CGWREDISDBShard::default();
+        } else if values[12] != "threshold" {
+            error!("redis.res[12] != threshold, unexpected.");
             return CGWREDISDBShard::default();
         }
 
         let id = values[1].parse::<i32>().unwrap_or_default();
         let server_host = values[3].clone();
         let server_port = values[5].parse::<u16>().unwrap_or_default();
-        let assigned_groups_num = values[7].parse::<i32>().unwrap_or_default();
-        let capacity = values[9].parse::<i32>().unwrap_or_default();
-        let threshold = values[11].parse::<i32>().unwrap_or_default();
+        let wss_port =  values[7].parse::<u16>().unwrap_or_default();
+        let assigned_groups_num = values[9].parse::<i32>().unwrap_or_default();
+        let capacity = values[11].parse::<i32>().unwrap_or_default();
+        let threshold = values[13].parse::<i32>().unwrap_or_default();
 
         CGWREDISDBShard {
             id,
             server_host,
             server_port,
+            wss_port,
             assigned_groups_num,
             capacity,
             threshold,
@@ -110,6 +116,8 @@ impl From<CGWREDISDBShard> for Vec<String> {
             val.server_host,
             "server_port".to_string(),
             val.server_port.to_string(),
+            "wss_port".to_string(),
+            val.wss_port.to_string(),
             "assigned_groups_num".to_string(),
             val.assigned_groups_num.to_string(),
             "capacity".to_string(),
@@ -338,6 +346,7 @@ impl CGWRemoteDiscovery {
             id: app_args.cgw_id,
             server_host: app_args.grpc_args.grpc_public_host.clone(),
             server_port: app_args.grpc_args.grpc_public_port,
+            wss_port: app_args.wss_args.wss_port,
             assigned_groups_num,
             capacity: app_args.cgw_groups_capacity,
             threshold: app_args.cgw_groups_threshold,
@@ -745,6 +754,26 @@ impl CGWRemoteDiscovery {
         Err(Error::RemoteDiscovery(
             "Unexpected: Failed to find the least loaded CGW shard",
         ))
+    }
+
+    pub async fn get_shard_host_and_wss_port(&self, shard_id: i32) -> Result<(String, u16)> {
+        if let Err(_e) = self.sync_remote_cgw_map().await {
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
+            ));
+        }
+
+        let lock = self.remote_cgws_map.read().await;
+
+        match lock.get(&shard_id) {
+            Some(instance) => Ok((
+                instance.shard.server_host.clone(),
+                instance.shard.wss_port,
+            )),
+            None => Err(Error::RemoteDiscovery(
+                "Unexpected: Failed to find CGW shard",
+            )),
+        }
     }
 
     async fn validate_infra_group_cgw_assignee(&self, shard_id: i32) -> Result<i32> {
@@ -1597,5 +1626,10 @@ impl CGWRemoteDiscovery {
                 )
                 .await;
         });
+    }
+
+    pub async fn get_infra_from_db(&self, mac: MacAddress)-> Option<CGWDBInfra>
+    {
+        self.db_accessor.clone().get_infra(mac).await
     }
 }

@@ -24,6 +24,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+use serde::Serialize;
 use uuid::Uuid;
 
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
@@ -39,6 +40,29 @@ use tungstenite::Message::{Close, Ping, Text};
 type SStream = SplitStream<WebSocketStream<TlsStream<TcpStream>>>;
 type SSink = SplitSink<WebSocketStream<TlsStream<TcpStream>>, Message>;
 
+#[derive(Debug, Serialize)]
+pub struct ForeignConnection {
+    pub r#type: &'static str,
+    pub infra_group_infra: MacAddress,
+    pub destination_shard_host: String,
+    pub destination_wss_port: u16,
+}
+
+fn cgw_construct_foreign_connection_msg(
+    infra_group_infra: MacAddress,
+    destination_shard_host: String,
+    destination_wss_port: u16,
+) -> Result<String> {
+    let unassigned_infra_msg = ForeignConnection {
+        r#type: "foreign_connection",
+        infra_group_infra,
+        destination_shard_host,
+        destination_wss_port,
+    };
+
+    Ok(serde_json::to_string(&unassigned_infra_msg)?)
+}
+
 #[derive(Debug, Clone)]
 pub enum CGWConnectionProcessorReqMsg {
     // We got green light from server to process this connection on
@@ -47,6 +71,7 @@ pub enum CGWConnectionProcessorReqMsg {
     // GID (used as kafka key).
     AddNewConnectionAck(i32),
     AddNewConnectionShouldClose,
+    ForeignConnection((String, u16)),
     SinkRequestToDevice(CGWUCentralMessagesQueueItem),
     // Conn Server can request this specific Processor to change
     // it's internal GID value (infra list created - new gid,
@@ -519,6 +544,18 @@ impl CGWConnectionProcessor {
                         payload.message.clone(),
                     );
                     sink.send(Message::text(payload.message)).await.ok();
+                }
+                CGWConnectionProcessorReqMsg::ForeignConnection((destination_shard_host, destination_wss_port)) => {
+                    if let Ok(resp) =
+                        cgw_construct_foreign_connection_msg(processor_mac, destination_shard_host, destination_wss_port)
+                    {
+                        debug!("process_sink_mbox_rx_msg: ForeignConnection, processor (mac: {processor_mac}) payload: {}",
+                        resp.clone()
+                    );
+                        sink.send(Message::text(resp)).await.ok();
+                    } else {
+                        error!("Failed to construct foreign_connection message!");
+                    }
                 }
                 CGWConnectionProcessorReqMsg::GroupIdChanged(new_group_id) => {
                     debug!(

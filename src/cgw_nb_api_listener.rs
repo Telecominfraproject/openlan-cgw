@@ -5,6 +5,7 @@ use crate::cgw_ucentral_parser::CGWDeviceChange;
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 use crate::cgw_errors::{Error, Result};
 use crate::cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus};
+use crate::cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH;
 
 use eui48::MacAddress;
 use futures::stream::TryStreamExt;
@@ -817,7 +818,8 @@ impl CGWKafkaConsumer {
             }),
         };
 
-        let consumer: CGWKafkaConsumerType = match ClientConfig::new()
+        let mut consumer_config = ClientConfig::new();
+        consumer_config
             .set("group.id", GROUP_ID)
             .set("client.id", GROUP_ID.to_string() + &cgw_id.to_string())
             .set("group.instance.id", cgw_id.to_string())
@@ -828,11 +830,17 @@ impl CGWKafkaConsumer {
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-            //.set("statistics.interval.ms", "30000")
-            //.set("auto.offset.reset", "smallest")
-            .set_log_level(RDKafkaLogLevel::Debug)
-            .create_with_context(context)
-        {
+            .set_log_level(RDKafkaLogLevel::Debug);
+
+        if kafka_args.kafka_tls {
+            let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+            consumer_config
+                .set("security.protocol", "SSL")
+                .set("ssl.ca.location", &cert_path)
+                .set("ssl.endpoint.identification.algorithm", "none");
+        }
+
+        let consumer: CGWKafkaConsumerType = match consumer_config.create_with_context(context) {
             Ok(c) => c,
             Err(e) => {
                 error!("Failed to create kafka consumer from config! Error: {e}");
@@ -878,14 +886,23 @@ impl CGWKafkaProducer {
     }
 
     fn create_producer(kafka_args: &CGWKafkaArgs) -> Result<CGWKafkaProducerType> {
-        let producer: FutureProducer = match ClientConfig::new()
+        let mut producer_config = ClientConfig::new();
+        producer_config
             .set(
                 "bootstrap.servers",
                 kafka_args.kafka_host.clone() + ":" + &kafka_args.kafka_port.to_string(),
             )
-            .set("message.timeout.ms", "5000")
-            .create()
-        {
+            .set("message.timeout.ms", "5000");
+
+        if kafka_args.kafka_tls {
+            let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+            producer_config
+                .set("security.protocol", "SSL")
+                .set("ssl.ca.location", &cert_path)
+                .set("ssl.endpoint.identification.algorithm", "none");
+        }
+
+        let producer: FutureProducer = match producer_config.create() {
             Ok(p) => p,
             Err(e) => {
                 error!("Failed to create Kafka producer!");

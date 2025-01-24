@@ -29,6 +29,8 @@ DEFAULT_KAFKA_HOST="docker-broker-1"
 DEFAULT_KAFKA_PORT=9092
 DEFAULT_KAFKA_CONSUME_TOPIC="CnC"
 DEFAULT_KAFKA_PRODUCE_TOPIC="CnC_Res"
+DEFAULT_KAFKA_TLS="no"
+DEFAULT_KAFKA_CERT="kafka.truststore.pem"
 
 DEFAULT_DB_HOST="docker-postgresql-1"
 DEFAULT_DB_PORT=5432
@@ -71,6 +73,8 @@ export CGW_KAFKA_HOST="${CGW_KAFKA_HOST:-$DEFAULT_KAFKA_HOST}"
 export CGW_KAFKA_PORT="${CGW_KAFKA_PORT:-$DEFAULT_KAFKA_PORT}"
 export CGW_KAFKA_CONSUME_TOPIC="${CGW_KAFKA_CONSUME_TOPIC:-$DEFAULT_KAFKA_CONSUME_TOPIC}"
 export CGW_KAFKA_PRODUCE_TOPIC="${CGW_KAFKA_PRODUCE_TOPIC:-$DEFAULT_KAFKA_PRODUCE_TOPIC}"
+export CGW_KAFKA_TLS="${CGW_KAFKA_TLS:-$DEFAULT_KAFKA_TLS}"
+export CGW_KAFKA_CERT="${CGW_KAFKA_CERT:-$DEFAULT_KAFKA_CERT}"
 export CGW_DB_HOST="${CGW_DB_HOST:-$DEFAULT_DB_HOST}"
 export CGW_DB_PORT="${CGW_DB_PORT:-$DEFAULT_DB_PORT}"
 export CGW_DB_NAME="${CGW_DB_NAME:-$DEFAULT_DB_NAME}"
@@ -100,6 +104,7 @@ fi
 if	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] ||
 	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_KEY ] ||
 	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CAS ] ||
+	[ ! -f $CGW_CERTS_PATH/$CGW_KAFKA_CERT] ||
 	[ ! -f $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_CERT ] ||
 	[ ! -f $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_KEY ]; then
 	echo "WARNING: at specified path $CGW_CERTS_PATH either CAS, CERT or KEY is missing!"
@@ -109,6 +114,7 @@ if	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] ||
 	export CGW_WSS_CERT="$DEFAULT_WSS_CERT"
 	export CGW_WSS_KEY="$DEFAULT_WSS_KEY"
 	export CGW_NB_INFRA_CERTS_PATH="$DEFAULT_CERTS_PATH"
+	export CGW_KAFKA_CERT="$DEFAULT_KAFKA_CERT"
 
 	cd ./utils/cert_generator/ && \
 		rm ./certs/ca/*crt 2>&1 >/dev/null; \
@@ -121,10 +127,12 @@ if	[ ! -f $CGW_CERTS_PATH/$CGW_WSS_CERT ] ||
 		./generate_certs.sh -s && \
 		./generate_certs.sh -c 1 -m 02:00:00:00:00:00 && \
 		cp ./certs/ca/ca.crt $DEFAULT_CERTS_PATH/$DEFAULT_WSS_CAS && \
-		cp ./certs/server/gw.crt $DEFAULT_CERTS_PATH/cert.pem && \
-		cp ./certs/server/gw.key $DEFAULT_CERTS_PATH/key.pem && \
+		cp ./certs/ca/ca.crt $DEFAULT_CERTS_PATH/$DEFAULT_KAFKA_CERT && \
+		cp ./certs/server/gw.crt $DEFAULT_CERTS_PATH/$DEFAULT_WSS_CERT && \
+		cp ./certs/server/gw.key $DEFAULT_CERTS_PATH/$DEFAULT_WSS_KEY && \
 		cp ./certs/client/*crt $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_CERT && \
 		cp ./certs/client/*key $DEFAULT_CLIENT_CERTS_PATH/$DEFAULT_CLIENT_KEY && \
+		chmod 644 $DEFAULT_CERTS_PATH/$DEFAULT_KAFKA_CERT && \
 		echo "Generating self-signed certificates done!"
 fi
 
@@ -142,6 +150,8 @@ echo "CGW GRPC PUBLIC HOST/PORT         : $CGW_GRPC_PUBLIC_HOST:$CGW_GRPC_PUBLIC
 echo "CGW GRPC LISTENING IP/PORT        : $CGW_GRPC_LISTENING_IP:$CGW_GRPC_LISTENING_PORT"
 echo "CGW KAFKA HOST/PORT               : $CGW_KAFKA_HOST:$CGW_KAFKA_PORT"
 echo "CGW KAFKA TOPIC                   : $CGW_KAFKA_CONSUME_TOPIC:$CGW_KAFKA_PRODUCE_TOPIC"
+echo "CGW KAFKA TLS                     : $CGW_KAFKA_TLS"
+echo "CGW KAFKA CERT                    : $CGW_KAFKA_CERT"
 echo "CGW DB NAME                       : $CGW_DB_NAME"
 echo "CGW DB HOST/PORT                  : $CGW_DB_HOST:$CGW_DB_PORT"
 echo "CGW DB TLS                        : $CGW_DB_TLS"
@@ -181,6 +191,8 @@ docker run \
 	-e CGW_KAFKA_PORT                    \
 	-e CGW_KAFKA_CONSUME_TOPIC           \
 	-e CGW_KAFKA_PRODUCE_TOPIC           \
+	-e CGW_KAFKA_TLS                     \
+	-e CGW_KAFKA_CERT                    \
 	-e CGW_DB_NAME                       \
 	-e CGW_DB_HOST                       \
 	-e CGW_DB_PORT                       \

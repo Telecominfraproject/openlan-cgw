@@ -29,6 +29,8 @@ const CGW_DEFAULT_GRPC_PUBLIC_HOST: &str = "localhost";
 const CGW_DEFAULT_GRPC_PUBLIC_PORT: u16 = 50051;
 const CGW_DEFAULT_KAFKA_HOST: &str = "localhost";
 const CGW_DEFAULT_KAFKA_PORT: u16 = 9092;
+const CGW_DEFAULT_KAFKA_TLS: &str = "no";
+const CGW_DEFAULT_KAFKA_CERT: &str = "kafka.truststore.pem";
 const CGW_DEFAULT_KAFKA_CONSUME_TOPIC: &str = "CnC";
 const CGW_DEFAULT_KAFKA_PRODUCE_TOPIC: &str = "CnC_Res";
 const CGW_DEFAULT_DB_HOST: &str = "localhost";
@@ -205,6 +207,10 @@ pub struct CGWKafkaArgs {
     /// KAFKA topic where to produce messages
     #[allow(unused)]
     pub kafka_produce_topic: String,
+    /// Utilize TLS connection with Kafka broker
+    pub kafka_tls: bool,
+    /// Certificate name to validate Kafka broker
+    pub kafka_cert: String,
 }
 
 impl CGWKafkaArgs {
@@ -240,11 +246,19 @@ impl CGWKafkaArgs {
         let kafka_produce_topic: String = env::var("CGW_KAFKA_PRODUCER_TOPIC")
             .unwrap_or(CGW_DEFAULT_KAFKA_PRODUCE_TOPIC.to_string());
 
+        let kafka_tls_var: String =
+            env::var("CGW_KAFKA_TLS").unwrap_or(CGW_DEFAULT_KAFKA_TLS.to_string());
+        let kafka_tls = kafka_tls_var == "yes";
+        let kafka_cert: String =
+            env::var("CGW_KAFKA_CERT").unwrap_or(CGW_DEFAULT_KAFKA_CERT.to_string());
+
         Ok(CGWKafkaArgs {
             kafka_host,
             kafka_port,
             kafka_consume_topic,
             kafka_produce_topic,
+            kafka_tls,
+            kafka_cert,
         })
     }
 }
@@ -622,7 +636,7 @@ impl AppArgs {
 
         let wss_args = CGWWSSArgs::parse()?;
         let grpc_args = CGWGRPCArgs::parse()?;
-        let kafka_args = CGWKafkaArgs::parse()?;
+        let mut kafka_args = CGWKafkaArgs::parse()?;
         let mut db_args = CGWDBArgs::parse()?;
         let mut redis_args = CGWRedisArgs::parse()?;
         let metrics_args = CGWMetricsArgs::parse()?;
@@ -631,6 +645,7 @@ impl AppArgs {
         if nb_infra_tls {
             redis_args.redis_tls = nb_infra_tls;
             db_args.db_tls = nb_infra_tls;
+            kafka_args.kafka_tls = nb_infra_tls;
         }
 
         Ok(AppArgs {

@@ -8,24 +8,36 @@ services:
       - KAFKA_ENABLE_KRAFT=yes
       - KAFKA_CFG_PROCESS_ROLES=broker,controller
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://docker-broker-1:9092,EXTERNAL://kafka_b:9094
+      - KAFKA_CFG_LISTENERS={% if cgw_kafka_tls == 'yes' %}SSL{% else %}PLAINTEXT{% endif %}://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP={% if cgw_kafka_tls == 'yes' %}SSL:SSL{% else %}PLAINTEXT:PLAINTEXT{% endif %},CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_ADVERTISED_LISTENERS={% if cgw_kafka_tls == 'yes' %}SSL{% else %}PLAINTEXT{% endif %}://docker-broker-1:9092,EXTERNAL://kafka_b:9094
       - KAFKA_BROKER_ID=1
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@docker-broker-1:9093
-      - ALLOW_PLAINTEXT_LISTENER=yes
+      - ALLOW_PLAINTEXT_LISTENER={% if cgw_kafka_tls == 'yes' %}no{% else %}yes{% endif %}
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
       - BITNAMI_DEBUG=yes
       - KAFKA_CFG_NUM_PARTITIONS=2
+      {% if cgw_kafka_tls == 'yes' %}
+      - KAFKA_TLS_TYPE=PEM
+      - KAFKA_CFG_SSL_CLIENT_AUTH=none
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SSL
+      {% endif %}
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list{% if cgw_kafka_tls == 'yes' %} --command-config /opt/bitnami/kafka/config/client.properties{% endif %}"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 5s
     networks:
       - cgw_multi_instances_network
+    {% if cgw_kafka_tls == 'yes' %}
+    volumes:
+      - {{ default_certs_path }}/{{ broker_server_cert }}:{{ broker_certs_path }}/{{ broker_server_cert }}
+      - {{ default_certs_path }}/{{ broker_server_key }}:{{ broker_certs_path }}/{{ broker_server_key }}
+      - {{ default_certs_path }}/{{ broker_client_cert }}:{{ broker_certs_path }}/{{ broker_client_cert }}
+      - ./{{ client_properties_file }}:{{ broker_config_path }}/{{ client_properties_file }}
+    {% endif %}
 
   postgresql:
     image: "postgres:latest"
@@ -79,6 +91,8 @@ services:
       - CGW_KAFKA_PORT={{ cgw_kafka_port }}
       - CGW_KAFKA_CONSUME_TOPIC={{ cgw_kafka_consumer_topic }}
       - CGW_KAFKA_PRODUCE_TOPIC={{ cgw_kafka_producer_topic }}
+      - CGW_KAFKA_TLS={{ cgw_kafka_tls }}
+      - CGW_KAFKA_CERT={{ cgw_kafka_cert }}
       - CGW_LOG_LEVEL={{ cgw_log_level }}
       - CGW_REDIS_HOST={{ cgw_redis_host }}
       - CGW_REDIS_PORT={{ cgw_redis_port }}

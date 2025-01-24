@@ -20,7 +20,7 @@ use tokio_rustls::{
 use x509_parser::parse_x509_certificate;
 
 const CGW_TLS_CERTIFICATES_PATH: &str = "/etc/cgw/certs";
-const CGW_TLS_NB_INFRA_CERTS_PATH: &str = "/etc/cgw/nb_infra/certs";
+pub const CGW_TLS_NB_INFRA_CERTS_PATH: &str = "/etc/cgw/nb_infra/certs";
 
 async fn cgw_tls_read_file(file_path: &str) -> Result<Vec<u8>> {
     let mut file = match File::open(file_path) {

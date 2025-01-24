@@ -1,0 +1,16 @@
+# list of brokers used for bootstrapping knowledge about the rest of the cluster
+# format: host1:port1,host2:port2 ...
+bootstrap.servers={{ cgw_kafka_host }}:{{ cgw_kafka_port }}
+
+# consumer group id
+group.id=test-consumer-group
+
+# What to do when there is no initial offset in Kafka or if the current
+# offset does not exist any more on the server: latest, earliest, none
+#auto.offset.reset=
+
+security.protocol=SSL
+
+ssl.endpoint.identification.algorithm=
+ssl.truststore.type=PEM
+ssl.truststore.location={{ broker_certs_path }}/{{ broker_client_cert }}

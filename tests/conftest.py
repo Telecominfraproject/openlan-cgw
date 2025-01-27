@@ -20,8 +20,8 @@ class TestContext:
         return "02-00-00-00-00-00"
 
     @staticmethod
-    def default_kafka_group() -> str:
-        return '9999'
+    def default_kafka_group() -> int:
+        return 9999
 
     @staticmethod
     def default_shard_id() -> int:
@@ -94,7 +94,7 @@ def test_context():
             # 3. Iterate over groups
             for group in groups_list:
                 # 4. Send group_del request
-                ctx.kafka_producer.handle_single_group_delete(str(group[0]))
+                ctx.kafka_producer.handle_single_group_delete(group[0])
 
     # We have to clear any messages after done working with kafka
     if ctx.kafka_consumer.is_connected():
@@ -216,20 +216,20 @@ def kafka_default_infra_group(test_context):
         raise Exception('Default infra group creation failed!')
 
     group_info = test_context.psql_client.get_infrastructure_group(
-        int(default_group))
+        default_group)
     if not group_info:
         print(f'Failed to get group {default_group} from PSQL!')
         raise Exception('Default infra group creation failed!')
 
-    assert group_info[0] == int(default_group)
+    assert group_info[0] == default_group
 
     group_info = test_context.redis_client.get_infrastructure_group(
-        int(default_group))
+        default_group)
     if not group_info:
         print(f'Failed to get group {default_group} from Redis!')
         raise Exception('Default infra group creation failed!')
 
-    assert group_info.get('gid') == default_group
+    assert int(group_info.get('gid')) == default_group
 
 
 @pytest.fixture(scope='function')
@@ -272,4 +272,4 @@ def kafka_default_infra(test_context):
         print(f'Failed to get infra {default_infra_mac} from Redis!')
         raise Exception('Default infra assign failed!')
 
-    assert infra_info.get('group_id') == int(default_group)
+    assert infra_info.get('group_id') == default_group

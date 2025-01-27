@@ -159,56 +159,56 @@ class Message:
 
         return str(uuid.UUID(int=uuid_val))
 
-    def group_create(self, id: str, uuid_val: int = None) -> bytes:
+    def group_create(self, id: int, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def group_create_to_shard(self, id: str, shard_id: int, uuid_val: int = None) -> bytes:
+    def group_create_to_shard(self, id: int, shard_id: int, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_ADD_TO_SHARD])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.SHARD_ID] = shard_id
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def group_delete(self, id: str, uuid_val: int = None) -> bytes:
+    def group_delete(self, id: int, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.GROUP_DEL])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def add_dev_to_group(self, id: str, mac_range: MacRange, uuid_val: int = None) -> bytes:
+    def add_dev_to_group(self, id: int, mac_range: MacRange, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_TO_GROUP])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.DEV_LIST] = list(mac_range)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def remove_dev_from_group(self, id: str, mac_range: MacRange, uuid_val: int = None) -> bytes:
+    def remove_dev_from_group(self, id: int, mac_range: MacRange, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.DEV_LIST] = list(mac_range)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def add_devices_to_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+    def add_devices_to_group(self, id: int, mac_list: list, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_TO_GROUP])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.DEV_LIST] = mac_list
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def remove_devices_from_group(self, id: str, mac_list: list, uuid_val: int = None) -> bytes:
+    def remove_devices_from_group(self, id: int, mac_list: list, uuid_val: int = None) -> bytes:
         msg = copy.copy(self.templates[self.DEV_FROM_GROUP])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.DEV_LIST] = mac_list
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
-    def to_device(self, id: str, mac: str, data, sequence: int = 0, uuid_val: int = None):
+    def to_device(self, id: int, mac: str, data, sequence: int = 0, uuid_val: int = None):
         msg = copy.copy(self.templates[self.TO_DEVICE])
-        msg[self.GROUP_ID] = id
+        msg[self.GROUP_ID] = int(id)
         msg[self.MAC] = mac
         if type(data) is dict:
             msg[self.DATA] = data

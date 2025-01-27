@@ -38,7 +38,7 @@ class TestCgwInfraGroup:
 
         # Create single group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, default_shard_id)
+            group_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -48,7 +48,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -87,7 +87,7 @@ class TestCgwInfraGroup:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.handle_single_group_delete(
-            str(group_id), uuid_val.int)
+            group_id, uuid_val.int)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -97,7 +97,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -158,7 +158,7 @@ class TestCgwInfraGroup:
 
             # Create single group
             test_context.kafka_producer.handle_single_group_create(
-                str(group_id), uuid_val.int, default_shard_id)
+                group_id, uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' +
@@ -168,7 +168,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_create_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:
@@ -213,7 +213,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             test_context.kafka_producer.handle_single_group_delete(
-                str(group_id), uuid_val.int)
+                group_id, uuid_val.int)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive delete group result, was expecting ' +
@@ -223,7 +223,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_delete_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:
@@ -286,7 +286,7 @@ class TestCgwInfraGroup:
 
         # Create single group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, default_shard_id)
+            group_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -296,7 +296,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -333,7 +333,7 @@ class TestCgwInfraGroup:
 
         # Try to create the same group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, default_shard_id)
+            group_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -343,7 +343,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         # Expected request to be failed
@@ -365,7 +365,7 @@ class TestCgwInfraGroup:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.handle_single_group_delete(
-            str(group_id), uuid_val.int)
+            group_id, uuid_val.int)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -375,7 +375,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -432,7 +432,7 @@ class TestCgwInfraGroup:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.handle_single_group_delete(
-            str(group_id), uuid_val.int)
+            group_id, uuid_val.int)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -442,7 +442,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is True:
@@ -490,7 +490,7 @@ class TestCgwInfraGroup:
 
         # Create single group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, default_shard_id)
+            group_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -500,7 +500,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -539,7 +539,7 @@ class TestCgwInfraGroup:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.handle_single_group_delete(
-            str(group_id), uuid_val.int)
+            group_id, uuid_val.int)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -549,7 +549,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -610,7 +610,7 @@ class TestCgwInfraGroup:
 
             # Create single group
             test_context.kafka_producer.handle_single_group_create(
-                str(group_id), uuid_val.int, default_shard_id)
+                group_id, uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' +
@@ -620,7 +620,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_create_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:
@@ -666,7 +666,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             test_context.kafka_producer.handle_single_group_delete(
-                str(group_id), uuid_val.int)
+                group_id, uuid_val.int)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive delete group result, was expecting ' +
@@ -676,7 +676,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_delete_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:
@@ -740,7 +740,7 @@ class TestCgwInfraGroup:
 
         # Create single group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, shard_id)
+            group_id, uuid_val.int, shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -750,7 +750,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is True:
@@ -815,7 +815,7 @@ class TestCgwInfraGroup:
 
             # Create single group
             test_context.kafka_producer.handle_single_group_create(
-                str(group_id), uuid_val.int, default_shard_id)
+                group_id, uuid_val.int, default_shard_id)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive create group result, was expecting ' +
@@ -825,7 +825,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_create_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:
@@ -869,7 +869,7 @@ class TestCgwInfraGroup:
         group_to_fail_id = 2024
         uuid_val = uuid.uuid4()
         test_context.kafka_producer.handle_single_group_create(
-            str(group_to_fail_id), uuid_val.int, default_shard_id)
+            group_to_fail_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -879,7 +879,7 @@ class TestCgwInfraGroup:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_to_fail_id)
+        assert (ret_msg.value['infra_group_id'] == group_to_fail_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is True:
@@ -915,7 +915,7 @@ class TestCgwInfraGroup:
             group_id = (100 + group)
 
             test_context.kafka_producer.handle_single_group_delete(
-                str(group_id), uuid_val.int)
+                group_id, uuid_val.int)
             ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
             if not ret_msg:
                 print('Failed to receive delete group result, was expecting ' +
@@ -925,7 +925,7 @@ class TestCgwInfraGroup:
 
             assert (ret_msg.value['type'] ==
                     'infrastructure_group_delete_response')
-            assert (int(ret_msg.value['infra_group_id']) == group_id)
+            assert (ret_msg.value['infra_group_id'] == group_id)
             assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
             if ret_msg.value['success'] is False:

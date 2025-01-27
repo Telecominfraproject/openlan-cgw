@@ -86,6 +86,8 @@ CGW_WSS_CERT                      - Web socket server certificate file name
 CGW_WSS_KEY                       - Web socket server private key file name
 CGW_KAFKA_HOST                    - IP or hostname of remote KAFKA server to connect to (NB API)
 CGW_KAFKA_PORT                    - PORT of remote KAFKA server to connect to
+CGW_KAFKA_TLS                     - Utilize TLS connection with Kafka broker
+CGW_KAFKA_CERT                    - Client certificate to validate Kafka broker
 CGW_DB_HOST                       - IP or hostname of remote database server to connect to
 CGW_DB_PORT                       - PORT of remote database server to connect to
 CGW_DB_USER                       - PSQL DB username (credentials) to use upon connect to DB
@@ -125,6 +127,8 @@ declare -x CGW_GRPC_PUBLIC_PORT="50051"
 declare -x CGW_ID="0"
 declare -x CGW_KAFKA_HOST="localhost"
 declare -x CGW_KAFKA_PORT="9092"
+declare -x CGW_KAFKA_TLS="no"
+declare -x CGW_KAFKA_CERT="kafka.truststore.pem"
 declare -x CGW_LOG_LEVEL="debug"
 declare -x CGW_REDIS_HOST="localhost"
 declare -x CGW_REDIS_PORT="6379"

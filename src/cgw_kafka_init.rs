@@ -8,6 +8,8 @@ use rdkafka::config::ClientConfig;
 
 use std::time::Duration;
 
+use crate::cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH;
+
 const CGW_KAFKA_TOPICS_LIST: [&str; 6] = [
     "CnC",
     "CnC_Res",
@@ -59,13 +61,21 @@ async fn cgw_get_active_cgw_number(redis_args: &CGWRedisArgs) -> Result<usize> {
 }
 
 fn cgw_create_kafka_admin(kafka_args: &CGWKafkaArgs) -> Result<AdminClient<DefaultClientContext>> {
-    let admin_client: AdminClient<DefaultClientContext> = match ClientConfig::new()
-        .set(
-            "bootstrap.servers",
-            format!("{}:{}", kafka_args.kafka_host, kafka_args.kafka_port),
-        )
-        .create()
-    {
+    let mut admin_config: ClientConfig = ClientConfig::new();
+    admin_config.set(
+        "bootstrap.servers",
+        format!("{}:{}", kafka_args.kafka_host, kafka_args.kafka_port),
+    );
+
+    if kafka_args.kafka_tls {
+        let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+        admin_config
+            .set("security.protocol", "SSL")
+            .set("ssl.ca.location", &cert_path)
+            .set("ssl.endpoint.identification.algorithm", "none");
+    }
+
+    let admin_client = match admin_config.create() {
         Ok(client) => client,
         Err(e) => {
             return Err(Error::KafkaInit(format!(
@@ -193,7 +203,7 @@ pub async fn cgw_init_kafka_topics(
     let existing_topics: Vec<(String, usize)> = cgw_get_kafka_topics(&admin_client)?;
 
     if existing_topics.is_empty() {
-        error!("Creating kafka topics");
+        info!("Creating kafka topics");
         cgw_create_kafka_topics(&admin_client).await?;
     } else {
         // Find missing topics

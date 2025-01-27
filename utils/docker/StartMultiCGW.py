@@ -10,6 +10,15 @@ from jinja2 import Environment, FileSystemLoader
 DEFAULT_NUMBER_OF_CGW_INSTANCES: Final[int] = 1
 DOCKER_COMPOSE_TEMPLATE_FILE_NAME: Final[str] = "docker-compose-template.yml.j2"
 DOCKER_COMPOSE_MULTI_CGW_FILE_NAME: Final[str] = "docker-compose-multi-cgw.yml"
+BROKER_CLIENT_PROPERTIES_TEMPLATE_FILE_NAME: Final[str] = "client.properties.j2"
+BROKER_CLIENT_PROPERTIES_FILE_NAME: Final[str] = "client.properties"
+DEFAULT_BROKER_CERTS_PATH: Final[str] = "/bitnami/kafka/config/certs"
+DEFAULT_BROKER_CONFIG_PATH: Final[str] = "/opt/bitnami/kafka/config"
+# Kafka broker cert & private key
+DEFAULT_BROKER_SERVER_CERT: Final[str] = "kafka.keystore.pem"
+DEFAULT_BROKER_SERVER_KEY: Final[str] = "kafka.keystore.key"
+# Kafka broker cert to validate client certificates
+DEFAULT_BROKER_CLIENT_CERT: Final[str] = "kafka.truststore.pem"
 CGW_IMAGE_BASE_NAME: Final[str] = "openlan-cgw-img"
 CGW_CONTAINER_BASE_NAME: Final[str] = "openlan_cgw"
 
@@ -41,6 +50,8 @@ DEFAULT_KAFKA_HOST: Final[str] = "docker-broker-1"
 DEFAULT_KAFKA_PORT: Final[int] = 9092
 DEFAULT_KAFKA_CONSUME_TOPIC: Final[str] = "CnC"
 DEFAULT_KAFKA_PRODUCE_TOPIC: Final[str] = "CnC_Res"
+DEFAULT_KAFKA_TLS: Final[str] = "no"
+DEFAULT_KAFKA_CERT: Final[str] = "kafka.truststore.pem"
 
 # DB params
 DEFAULT_DB_HOST: Final[str] = "docker-postgresql-1"
@@ -99,7 +110,7 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
     """
     missing_files = any(
         not os.path.isfile(os.path.join(certs_path, file))
-        for file in [DEFAULT_WSS_CERT, DEFAULT_WSS_KEY, DEFAULT_WSS_CAS]
+        for file in [DEFAULT_WSS_CERT, DEFAULT_WSS_KEY, DEFAULT_WSS_CAS, DEFAULT_KAFKA_CERT, DEFAULT_BROKER_CLIENT_CERT, DEFAULT_BROKER_SERVER_CERT, DEFAULT_BROKER_SERVER_KEY]
     ) or any(
         not os.path.isfile(os.path.join(client_certs_path, file))
         for file in [DEFAULT_CLIENT_CERT, DEFAULT_CLIENT_KEY]
@@ -143,6 +154,18 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
                 DEFAULT_CERTS_PATH, DEFAULT_WSS_CERT))
             shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.key"), os.path.join(
                 DEFAULT_CERTS_PATH, DEFAULT_WSS_KEY))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "ca", "ca.crt"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_KAFKA_CERT))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "ca", "ca.crt"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_BROKER_CLIENT_CERT))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.crt"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_BROKER_SERVER_CERT))
+            shutil.copy(os.path.join(cert_gen_path, "certs", "server", "gw.key"), os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_BROKER_SERVER_KEY))
+
+            # Kafka needs key with -rw-r--r-- permission
+            os.chmod(os.path.join(
+                DEFAULT_CERTS_PATH, DEFAULT_BROKER_SERVER_KEY), int('644', base=8))
 
             for client_file in os.listdir(os.path.join(cert_gen_path, "certs", "client")):
                 if client_file.endswith(".crt"):
@@ -296,6 +319,8 @@ def generate_docker_compose_file(instances_num: int,
                              cgw_kafka_port=DEFAULT_KAFKA_PORT,
                              cgw_kafka_consumer_topic=DEFAULT_KAFKA_CONSUME_TOPIC,
                              cgw_kafka_producer_topic=DEFAULT_KAFKA_PRODUCE_TOPIC,
+                             cgw_kafka_tls=DEFAULT_KAFKA_TLS,
+                             cgw_kafka_cert=DEFAULT_KAFKA_CERT,
                              cgw_log_level=DEFAULT_LOG_LEVEL,
                              cgw_redis_host=DEFAULT_REDIS_HOST,
                              cgw_redis_port=DEFAULT_REDIS_PORT,
@@ -318,10 +343,58 @@ def generate_docker_compose_file(instances_num: int,
                              cgw_nb_infra_tls=DEFAULT_NB_INFRA_TLS,
                              container_certs_volume=CONTAINER_CERTS_VOLUME,
                              container_nb_infra_certs_volume=CONTAINER_NB_INFRA_CERTS_VOLUME,
-                             default_certs_path=certs_realpath)
+                             default_certs_path=certs_realpath,
+                             broker_certs_path=DEFAULT_BROKER_CERTS_PATH,
+                             broker_server_cert=DEFAULT_BROKER_SERVER_CERT,
+                             broker_server_key=DEFAULT_BROKER_SERVER_KEY,
+                             broker_client_cert=DEFAULT_BROKER_CLIENT_CERT,
+                             broker_config_path=DEFAULT_BROKER_CONFIG_PATH,
+                             client_properties_file=BROKER_CLIENT_PROPERTIES_FILE_NAME)
 
     # 6. Save the rendered template as docker-compose.yml
     with open(docker_compose_multi_cgw_file, "w") as f:
+        f.write(output)
+
+
+def remove_broker_client_properties_file(broker_client_properties_file: str = BROKER_CLIENT_PROPERTIES_FILE_NAME) -> int:
+    """
+    Remove "client.properties" file
+    """
+
+    if os.path.isfile(broker_client_properties_file):
+        try:
+            os.remove(broker_client_properties_file)
+        except Exception as e:
+            print(
+                f"Error: Filed to remove file {broker_client_properties_file}! Error: {e}")
+
+
+def generate_broker_client_properties_file(broker_client_properties_template_file: str = BROKER_CLIENT_PROPERTIES_TEMPLATE_FILE_NAME,
+                                           broker_client_properties_file: str = BROKER_CLIENT_PROPERTIES_FILE_NAME,
+                                           broker_certs_path: str = DEFAULT_BROKER_CERTS_PATH,
+                                           broker_client_cert: str = DEFAULT_KAFKA_CERT):
+    """
+    Generate broker client.properties file based on template
+    """
+
+    print(f'Generate broker client.properties file!')
+    print(f'\tKafka host        : {DEFAULT_KAFKA_HOST}')
+    print(f'\tKafka port        : {DEFAULT_KAFKA_PORT}')
+    print(f'\tBroker certs path : {broker_certs_path}')
+    print(f'\tBroker client cert: {broker_client_cert}')
+
+    # 1. Load the Jinja2 template
+    env = Environment(loader=FileSystemLoader(searchpath="."))
+    template = env.get_template(broker_client_properties_template_file)
+
+    # 2. Render the template with the variable
+    output = template.render(cgw_kafka_host=DEFAULT_KAFKA_HOST,
+                             cgw_kafka_port=DEFAULT_KAFKA_PORT,
+                             broker_certs_path=broker_certs_path,
+                             broker_client_cert=broker_client_cert)
+
+    # 3. Save the rendered template as docker-compose.yml
+    with open(broker_client_properties_file, "w") as f:
         f.write(output)
 
 
@@ -385,6 +458,8 @@ if __name__ == "__main__":
                         help="Stop all Docker Composes.")
     parser.add_argument("--generate-compose", action="store_true",
                         help="Generate new Docker Compose file.")
+    parser.add_argument("--generate-broker-client-properties", action="store_true",
+                        help="Generate new broker client.properties file.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -396,16 +471,26 @@ if __name__ == "__main__":
         # 2. Try to stop multi cgw docker compose
         docker_compose_down(DOCKER_COMPOSE_MULTI_CGW_FILE_NAME)
 
-    if args.start or args.generate_compose:
+    if args.start or args.generate_compose or args.generate_broker_client_properties:
         # 3. Remove old multi cgw docker compose file
-        remove_docker_compose_multi_cgw_file()
+        if args.start or args.generate_compose:
+            remove_docker_compose_multi_cgw_file()
 
-        # 4. Update Certificates
+        # 4. Remove old broker client.properties file
+        if args.start or args.generate_broker_client_properties:
+            remove_broker_client_properties_file()
+
+        # 5. Update Certificates
         certificates_update()
 
-        # 4. Generate new multi cgw docker compose file
-        generate_docker_compose_file(get_cgw_instances_num())
+        # 6. Generate new multi cgw docker compose file
+        if args.start or args.generate_compose:
+            generate_docker_compose_file(get_cgw_instances_num())
+
+        # 7. Generate new broker client.properties file
+        if args.start or args.generate_broker_client_properties:
+            generate_broker_client_properties_file()
 
     if args.start:
-        # 5. Try to start multi cgw docker compose
+        # 8. Try to start multi cgw docker compose
         docker_compose_up(DOCKER_COMPOSE_MULTI_CGW_FILE_NAME)

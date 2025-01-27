@@ -629,6 +629,35 @@ impl CGWConnectionServer {
         None
     }
 
+    fn notify_device_on_foreign_connection(self: Arc<Self>, mac: MacAddress, shard_id_owner: i32) {
+        tokio::spawn(async move {
+            let (destination_shard_host, destination_wss_port) = match self
+                .cgw_remote_discovery
+                .get_shard_host_and_wss_port(shard_id_owner)
+                .await
+            {
+                Ok((host, port)) => (host, port),
+                Err(e) => {
+                    error!("Failed to get shard {shard_id_owner} info! Error: {e}");
+                    return;
+                }
+            };
+
+            let connmap_r_lock = self.connmap.map.read().await;
+            let msg: CGWConnectionProcessorReqMsg =
+                CGWConnectionProcessorReqMsg::ForeignConnection((destination_shard_host.clone(), destination_wss_port));
+
+            if let Some(c) = connmap_r_lock.get(&mac) {
+                match c.send(msg.clone()) {
+                    Ok(_) => {
+                        debug!("Notified {mac} about foreign connection. Shard hostname: {destination_shard_host}, wss port: {destination_wss_port}")
+                    }
+                    Err(e) => warn!("Failed to send GID change notification! Error: {e}"),
+                }
+            }
+        });
+    }
+
     fn notify_devices_on_gid_change(self: Arc<Self>, infras_list: Vec<MacAddress>, new_gid: i32) {
         tokio::spawn(async move {
             // If we receive NB API add/del infra req,
@@ -1816,28 +1845,41 @@ impl CGWConnectionServer {
                         // Detect Capabilities changes as device exists in Cache
                         capability_changes = cgw_detect_device_changes(&current_device_caps, &caps);
                     } else {
-                        let device: CGWDevice = CGWDevice::new(
-                            device_type,
-                            CGWDeviceState::CGWDeviceConnected,
-                            device_group_id,
-                            false,
-                            caps,
-                        );
-                        devices_cache.add_device(&device_mac, &device);
-
-                        // Update Redis Cache
-                        match serde_json::to_string(&device) {
-                            Ok(device_json) => {
-                                if let Err(e) = self
-                                    .cgw_remote_discovery
-                                    .add_device_to_redis_cache(&device_mac, &device_json)
-                                    .await
-                                {
-                                    error!("{e}");
-                                }
+                        // Infra is not found in RAM Cache - try to get it frim PostgreSQL DB
+                        if let Some(infra) = self.cgw_remote_discovery.get_infra_from_db(device_mac).await {
+                            device_group_id = infra.infra_group_id;
+                            if let Some(group_owner_id) = self
+                                .cgw_remote_discovery
+                                .get_infra_group_owner_id(device_group_id)
+                                .await
+                            {
+                                foreign_infra_join = self.local_cgw_id != group_owner_id;
+                                group_owner_shard_id = group_owner_id;
                             }
-                            Err(e) => {
-                                error!("Failed to serialize device to json string! Error: {e}");
+                        } else {
+                            let device: CGWDevice = CGWDevice::new(
+                                device_type,
+                                CGWDeviceState::CGWDeviceConnected,
+                                device_group_id,
+                                false,
+                                caps,
+                            );
+                            devices_cache.add_device(&device_mac, &device);
+
+                            // Update Redis Cache
+                            match serde_json::to_string(&device) {
+                                Ok(device_json) => {
+                                    if let Err(e) = self
+                                        .cgw_remote_discovery
+                                        .add_device_to_redis_cache(&device_mac, &device_json)
+                                        .await
+                                    {
+                                        error!("{e}");
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to serialize device to json string! Error: {e}");
+                                }
                             }
                         }
                     }
@@ -1861,6 +1903,9 @@ impl CGWConnectionServer {
                         } else {
                             error!("Failed to construct foreign_infra_connection message!");
                         }
+
+                        self.clone()
+                            .notify_device_on_foreign_connection(device_mac, group_owner_shard_id);
                     }
 
                     // Send [un]assigned infra join message
@@ -1977,6 +2022,11 @@ impl CGWConnectionServer {
                                 error!("{e}");
                             }
                         }
+                    } else {
+                        // Infra is not found in RAM Cache - try to get it frim PostgreSQL DB
+                        if let Some(infra) = self.cgw_remote_discovery.get_infra_from_db(device_mac).await {
+                            device_group_id = infra.infra_group_id;
+                        }
                     }
 
                     // Insert device to disconnected device list
@@ -1994,9 +2044,9 @@ impl CGWConnectionServer {
                             .await;
                     }
 
-                    // Send [un]assigned infra join message
-                    let unassigned_infra_join: bool = device_group_id == 0;
-                    let leave_message = match unassigned_infra_join {
+                    // Send [un]assigned infra leave message
+                    let unassigned_infra_leave: bool = device_group_id == 0;
+                    let leave_message = match unassigned_infra_leave {
                         true => {
                             cgw_construct_unassigned_infra_leave_msg(device_mac, self.local_cgw_id)
                         }

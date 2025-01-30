@@ -3,9 +3,9 @@ use crate::{
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
     cgw_nb_api_listener::{
-        cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
-        cgw_construct_infra_state_event_message, cgw_construct_unassigned_infra_join_msg,
-        CGWKafkaProducerTopic,
+        cgw_construct_cloud_header, cgw_construct_infra_realtime_event_message,
+        cgw_construct_infra_request_result_msg, cgw_construct_infra_state_event_message,
+        cgw_construct_unassigned_infra_join_msg, CGWKafkaProducerTopic,
     },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
@@ -342,6 +342,16 @@ impl CGWConnectionProcessor {
         let timestamp = Local::now();
         let mut kafka_msg: String = String::new();
 
+        let group_cloud_header: Option<String> =
+            self.cgw_server.get_group_cloud_header(&self.group_id).await;
+        let infras_cloud_header: Option<String> = self
+            .cgw_server
+            .get_group_infra_cloud_header(self.group_id, &self.serial)
+            .await;
+
+        let cloud_header: Option<String> =
+            cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
         match msg {
             Ok(msg) => match msg {
                 Close(_t) => {
@@ -381,6 +391,7 @@ impl CGWConnectionProcessor {
                                     event_type_str,
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
+                                    cloud_header,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -397,6 +408,7 @@ impl CGWConnectionProcessor {
                                     event_type_str,
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
+                                    cloud_header,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -429,6 +441,7 @@ impl CGWConnectionProcessor {
                                     self.cgw_server.get_local_id(),
                                     pending_req_uuid,
                                     pending_req_id,
+                                    cloud_header,
                                     true,
                                     None,
                                 ) {
@@ -462,6 +475,7 @@ impl CGWConnectionProcessor {
                                     event_type_str,
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
+                                    cloud_header,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -491,6 +505,7 @@ impl CGWConnectionProcessor {
                                     event_type_str,
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
+                                    cloud_header,
                                 ) {
                                     self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                         self.group_id,
@@ -545,10 +560,15 @@ impl CGWConnectionProcessor {
                     );
                     sink.send(Message::text(payload.message)).await.ok();
                 }
-                CGWConnectionProcessorReqMsg::ForeignConnection((destination_shard_host, destination_wss_port)) => {
-                    if let Ok(resp) =
-                        cgw_construct_foreign_connection_msg(processor_mac, destination_shard_host, destination_wss_port)
-                    {
+                CGWConnectionProcessorReqMsg::ForeignConnection((
+                    destination_shard_host,
+                    destination_wss_port,
+                )) => {
+                    if let Ok(resp) = cgw_construct_foreign_connection_msg(
+                        processor_mac,
+                        destination_shard_host,
+                        destination_wss_port,
+                    ) {
                         debug!("process_sink_mbox_rx_msg: ForeignConnection, processor (mac: {processor_mac}) payload: {}",
                         resp.clone()
                     );
@@ -756,11 +776,22 @@ impl CGWConnectionProcessor {
                     let queue_lock = CGW_MESSAGES_QUEUE.read().await;
                     let flushed_requests = queue_lock.clear_device_message_queue(&device_mac).await;
 
+                    let group_cloud_header: Option<String> =
+                        self.cgw_server.get_group_cloud_header(&self.group_id).await;
+                    let infras_cloud_header: Option<String> = self
+                        .cgw_server
+                        .get_group_infra_cloud_header(self.group_id, &self.serial)
+                        .await;
+
+                    let cloud_header: Option<String> =
+                        cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                     for req in flushed_requests {
                         if let Ok(resp) = cgw_construct_infra_request_result_msg(
                             self.cgw_server.get_local_id(),
                             req.uuid,
                             req.command.id,
+                            cloud_header.clone(),
                             false,
                             Some(format!(
                                 "Request flushed from infra queue {device_mac} due to previous request timeout!"
@@ -787,6 +818,7 @@ impl CGWConnectionProcessor {
                         self.cgw_server.get_local_id(),
                         pending_req_uuid,
                         pending_req_id,
+                        cloud_header,
                         false,
                         Some("Request timed out".to_string()),
                     ) {

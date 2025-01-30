@@ -14,7 +14,7 @@ use crate::{
 };
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::{Ipv4Addr, SocketAddr},
     str::FromStr,
     sync::Arc,
@@ -28,6 +28,7 @@ use redis::{
 
 use eui48::MacAddress;
 
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use chrono::Utc;
@@ -43,6 +44,8 @@ static REDIS_KEY_GID_VALUE_GID: &str = "gid";
 static REDIS_KEY_GID_VALUE_SHARD_ID: &str = "shard_id";
 static REDIS_KEY_GID_VALUE_INFRAS_CAPACITY: &str = "infras_capacity";
 static REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED: &str = "infras_assigned";
+static REDIS_KEY_GID_GROUP_CLOUD_HEADER: &str = "group_cloud_header";
+static REDIS_KEY_GID_INFRA_CLOUD_HEADER: &str = "infra_cloud_header";
 
 const CGW_REDIS_DEVICES_CACHE_DB: u32 = 1;
 
@@ -90,7 +93,7 @@ impl From<Vec<String>> for CGWREDISDBShard {
         let id = values[1].parse::<i32>().unwrap_or_default();
         let server_host = values[3].clone();
         let server_port = values[5].parse::<u16>().unwrap_or_default();
-        let wss_port =  values[7].parse::<u16>().unwrap_or_default();
+        let wss_port = values[7].parse::<u16>().unwrap_or_default();
         let assigned_groups_num = values[9].parse::<i32>().unwrap_or_default();
         let capacity = values[11].parse::<i32>().unwrap_or_default();
         let threshold = values[13].parse::<i32>().unwrap_or_default();
@@ -155,6 +158,130 @@ pub struct CGWRemoteIface {
     client: CGWRemoteClient,
 }
 
+#[derive(Serialize)]
+struct CGWInfraGroupCloudHeaderMap {
+    map: HashMap<i32, String>,
+}
+
+impl CGWInfraGroupCloudHeaderMap {
+    pub fn new() -> CGWInfraGroupCloudHeaderMap {
+        CGWInfraGroupCloudHeaderMap {
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, group_id: i32, cloud_header: String) {
+        self.map.insert(group_id, cloud_header);
+    }
+
+    pub fn remove(&mut self, group_id: &i32) {
+        self.map.remove(group_id);
+    }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    pub fn get_group_cloud_header(&self, group_id: &i32) -> Option<&String> {
+        self.map.get(group_id)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct CGWInfraGroupInfrasCloudHeaderItem {
+    map: HashMap<String, HashSet<MacAddress>>,
+}
+
+impl CGWInfraGroupInfrasCloudHeaderItem {
+    pub fn new(header: String, infras: Vec<MacAddress>) -> CGWInfraGroupInfrasCloudHeaderItem {
+        let mut map: HashMap<String, HashSet<MacAddress>> = HashMap::new();
+        map.insert(header, HashSet::from_iter(infras));
+
+        CGWInfraGroupInfrasCloudHeaderItem { map }
+    }
+
+    pub fn add_infras(&mut self, header: String, infras: HashSet<MacAddress>) {
+        self.map.entry(header).or_default().extend(infras);
+    }
+
+    pub fn del_infras(&mut self, infras: HashSet<MacAddress>) {
+        for (_cloud_header, infras_list) in self.map.iter_mut() {
+            infras_list.retain(|v| !infras.contains(v));
+        }
+    }
+
+    pub fn remove_empty_entires(&mut self) {
+        self.map.retain(|_, v| !v.is_empty());
+    }
+
+    pub fn get_infra_cloud_header(&self, infra: &MacAddress) -> Option<&String> {
+        for (cloud_header, infras) in self.map.iter() {
+            if infras.contains(infra) {
+                return Some(cloud_header);
+            }
+        }
+
+        None
+    }
+}
+
+#[derive(Debug)]
+struct CGWInfraGroupInfrasCloudHeaderMap {
+    map: HashMap<i32, Arc<RwLock<CGWInfraGroupInfrasCloudHeaderItem>>>,
+}
+
+impl CGWInfraGroupInfrasCloudHeaderMap {
+    pub fn new() -> CGWInfraGroupInfrasCloudHeaderMap {
+        CGWInfraGroupInfrasCloudHeaderMap {
+            map: HashMap::<i32, Arc<RwLock<CGWInfraGroupInfrasCloudHeaderItem>>>::new(),
+        }
+    }
+
+    pub fn item_exist(&self, group_id: &i32) -> bool {
+        self.map.contains_key(group_id)
+    }
+
+    pub fn add_item(&mut self, group_id: i32, item: CGWInfraGroupInfrasCloudHeaderItem) {
+        self.map.insert(group_id, Arc::new(RwLock::new(item)));
+    }
+
+    pub async fn add_infras(&mut self, group_id: i32, header: String, infras: Vec<MacAddress>) {
+        if let Some(item) = self.map.get_mut(&group_id) {
+            let mut lock = item.write().await;
+            lock.add_infras(header, HashSet::from_iter(infras));
+        }
+    }
+
+    pub fn del_item(&mut self, group_id: i32) {
+        self.map.remove(&group_id);
+    }
+
+    pub async fn del_infras(&mut self, group_id: i32, infras: Vec<MacAddress>) {
+        if let Some(item) = self.map.get_mut(&group_id) {
+            let mut lock = item.write().await;
+            lock.del_infras(HashSet::from_iter(infras));
+        }
+    }
+
+    pub fn get_item(
+        &self,
+        group_id: &i32,
+    ) -> Option<&Arc<RwLock<CGWInfraGroupInfrasCloudHeaderItem>>> {
+        self.map.get(group_id)
+    }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    pub async fn remove_empty(&mut self) {
+        for (_group_id, item) in &self.map {
+            let mut lock = item.write().await;
+            lock.remove_empty_entires();
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CGWRemoteDiscovery {
     db_accessor: Arc<CGWDBAccessor>,
@@ -162,6 +289,8 @@ pub struct CGWRemoteDiscovery {
     redis_infra_cache_client: MultiplexedConnection,
     gid_to_cgw_cache: Arc<RwLock<HashMap<i32, i32>>>,
     remote_cgws_map: Arc<RwLock<HashMap<i32, CGWRemoteIface>>>,
+    group_to_header_map: Arc<RwLock<CGWInfraGroupCloudHeaderMap>>,
+    infras_to_header_map: Arc<RwLock<CGWInfraGroupInfrasCloudHeaderMap>>,
     local_shard_id: i32,
 }
 
@@ -313,6 +442,8 @@ impl CGWRemoteDiscovery {
             gid_to_cgw_cache: Arc::new(RwLock::new(HashMap::new())),
             local_shard_id: app_args.cgw_id,
             remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
+            group_to_header_map: Arc::new(RwLock::new(CGWInfraGroupCloudHeaderMap::new())),
+            infras_to_header_map: Arc::new(RwLock::new(CGWInfraGroupInfrasCloudHeaderMap::new())),
         };
 
         if let Err(e) = rc.set_redis_last_update_timestamp().await {
@@ -399,12 +530,31 @@ impl CGWRemoteDiscovery {
                 "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
             ));
         }
+
         if let Err(e) = rc.sync_remote_cgw_map().await {
             error!(
                 "Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}"
             );
             return Err(Error::RemoteDiscovery(
                 "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
+            ));
+        }
+
+        if let Err(e) = rc.sync_group_to_header_map().await {
+            error!(
+                "Can't create CGW Remote Discovery client! Failed to sync group to cloud header map! Error: {e}"
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_group_to_header_map) remote CGW info from REDIS",
+            ));
+        }
+
+        if let Err(e) = rc.sync_group_infras_to_header_map().await {
+            error!(
+                "Can't create CGW Remote Discovery client! Failed to sync group infras to cloud header map! Error: {e}"
+            );
+            return Err(Error::RemoteDiscovery(
+                "Failed to sync (sync_group_infras_to_header_map) remote CGW info from REDIS",
             ));
         }
 
@@ -766,10 +916,7 @@ impl CGWRemoteDiscovery {
         let lock = self.remote_cgws_map.read().await;
 
         match lock.get(&shard_id) {
-            Some(instance) => Ok((
-                instance.shard.server_host.clone(),
-                instance.shard.wss_port,
-            )),
+            Some(instance) => Ok((instance.shard.server_host.clone(), instance.shard.wss_port)),
             None => Err(Error::RemoteDiscovery(
                 "Unexpected: Failed to find CGW shard",
             )),
@@ -803,6 +950,7 @@ impl CGWRemoteDiscovery {
         shard_id: Option<i32>,
         infras_capacity: i32,
         infras_assigned: i32,
+        cloud_header: Option<String>,
     ) -> Result<i32> {
         // Delete key (if exists), recreate with new owner
         if let Err(e) = self.deassign_infra_group_to_cgw(gid).await {
@@ -825,9 +973,8 @@ impl CGWRemoteDiscovery {
             None => self.get_infra_group_cgw_assignee().await?,
         };
 
-        let mut con = self.redis_client.clone();
-        let res: RedisResult<()> = redis::cmd("HSET")
-            .arg(format!("{REDIS_KEY_GID}{gid}"))
+        let mut cmd = redis::cmd("HSET");
+        cmd.arg(format!("{REDIS_KEY_GID}{gid}"))
             .arg(REDIS_KEY_GID_VALUE_GID)
             .arg(gid.to_string())
             .arg(REDIS_KEY_GID_VALUE_SHARD_ID)
@@ -835,9 +982,15 @@ impl CGWRemoteDiscovery {
             .arg(REDIS_KEY_GID_VALUE_INFRAS_CAPACITY)
             .arg(infras_capacity.to_string())
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(infras_assigned.to_string())
-            .query_async(&mut con)
-            .await;
+            .arg(infras_assigned.to_string());
+
+        if let Some(group_header) = cloud_header {
+            cmd.arg(REDIS_KEY_GID_GROUP_CLOUD_HEADER)
+                .arg(group_header.clone());
+        }
+
+        let mut con = self.redis_client.clone();
+        let res: RedisResult<()> = cmd.query_async(&mut con).await;
 
         if let Err(e) = res {
             if e.is_io_error() {
@@ -889,7 +1042,13 @@ impl CGWRemoteDiscovery {
         self.db_accessor.insert_new_infra_group(g).await?;
 
         let shard_id: i32 = match self
-            .assign_infra_group_to_cgw(g.id, dest_shard_id, g.reserved_size, g.actual_size)
+            .assign_infra_group_to_cgw(
+                g.id,
+                dest_shard_id,
+                g.reserved_size,
+                g.actual_size,
+                g.cloud_header.clone(),
+            )
             .await
         {
             Ok(v) => v,
@@ -910,6 +1069,10 @@ impl CGWRemoteDiscovery {
 
         if let Err(e) = self.set_redis_last_update_timestamp().await {
             error!("create_infra_group: failed update Redis timestamp! Error: {e}");
+        }
+
+        if let Some(header) = g.cloud_header.clone() {
+            self.add_group_to_header_map(g.id, header).await;
         }
 
         Ok(shard_id)
@@ -972,7 +1135,96 @@ impl CGWRemoteDiscovery {
             }
         }
 
+        // Update local RAM cache
+        // Redis update is not needed - group record already removed
+        self.del_group_infras_header_map(gid).await;
+
+        self.remove_group_to_header_map(&gid).await;
+
         CGWMetrics::get_ref().delete_group_counter(gid).await;
+
+        Ok(())
+    }
+
+    async fn add_group_to_header_map(&self, group_id: i32, cloud_header: String) {
+        let mut rw_lock = self.group_to_header_map.write().await;
+        rw_lock.insert(group_id, cloud_header);
+    }
+
+    async fn remove_group_to_header_map(&self, group_id: &i32) {
+        let mut rw_lock = self.group_to_header_map.write().await;
+        rw_lock.remove(group_id);
+    }
+
+    pub async fn update_group_to_header_map(&self, group_id: &i32, cloud_header: Option<String>) {
+        match cloud_header {
+            Some(header) => {
+                self.add_group_to_header_map(*group_id, header).await;
+            }
+            None => {
+                self.remove_group_to_header_map(group_id).await;
+            }
+        }
+    }
+
+    pub async fn get_group_cloud_header(&self, group_id: &i32) -> Option<String> {
+        let lock = self.group_to_header_map.read().await;
+        lock.get_group_cloud_header(group_id).cloned()
+    }
+
+    pub async fn sync_group_to_header_map(&self) -> Result<()> {
+        let mut lock = self.group_to_header_map.write().await;
+
+        // Clear hashmap
+        lock.clear();
+        let mut con = self.redis_client.clone();
+
+        let redis_keys: Vec<String> = match redis::cmd("KEYS")
+            .arg(format!("{REDIS_KEY_GID}*"))
+            .query_async(&mut con)
+            .await
+        {
+            Err(e) => {
+                if e.is_io_error() {
+                    Self::set_redis_health_state_not_ready(e.to_string()).await;
+                }
+                error!("Failed to sync group to cloud header map! Error: {e}");
+                return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
+            }
+            Ok(keys) => keys,
+        };
+
+        for key in redis_keys {
+            let group_id: i32 = match redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_VALUE_GID)
+                .query_async(&mut con)
+                .await
+            {
+                Ok(gid) => gid,
+                Err(e) => {
+                    if e.is_io_error() {
+                        Self::set_redis_health_state_not_ready(e.to_string()).await;
+                    }
+                    warn!("Found proper key '{key}' entry, but failed to fetch GID from it! Error: {e}");
+                    continue;
+                }
+            };
+
+            if let Ok(cloud_header) = redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_GROUP_CLOUD_HEADER)
+                .query_async::<_, String>(&mut con)
+                .await
+            {
+                debug!(
+                    "Found group {key}, group id: {group_id}, cloud_header: {:?}",
+                    cloud_header
+                );
+
+                lock.insert(group_id, cloud_header);
+            }
+        }
 
         Ok(())
     }
@@ -982,6 +1234,7 @@ impl CGWRemoteDiscovery {
         gid: i32,
         infras: Vec<MacAddress>,
         cache: Arc<RwLock<CGWDevicesCache>>,
+        cloud_header: Option<String>,
     ) -> Result<Vec<MacAddress>> {
         // TODO: assign list to shards; currently - only created bulk, no assignment
         let mut futures = Vec::with_capacity(infras.len());
@@ -1099,6 +1352,17 @@ impl CGWRemoteDiscovery {
             return Err(Error::RemoteDiscoveryFailedInfras(failed_infras));
         }
 
+        if let Some(header) = cloud_header {
+            if !success_infras.is_empty() {
+                self.add_group_infras_header_map(gid, header, success_infras.clone())
+                    .await;
+
+                if let Err(e) = self.update_infra_group_infras_header_redis(gid).await {
+                    error!("Failed to update Redis with infra to group header mapping! Group id: {gid}. Error: {e}");
+                }
+            }
+        }
+
         Ok(success_infras)
     }
 
@@ -1111,6 +1375,7 @@ impl CGWRemoteDiscovery {
         let mut futures = Vec::with_capacity(infras.len());
         // Results store vec of MACs we failed to add
         let mut failed_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
+        let mut removed_infras: Vec<MacAddress> = Vec::with_capacity(futures.len());
         for x in infras.iter() {
             let db_accessor_clone = self.db_accessor.clone();
             let mac = *x;
@@ -1124,7 +1389,7 @@ impl CGWRemoteDiscovery {
             }));
         }
 
-        let mut removed_infras: i32 = 0;
+        let mut removed_infras_num: i32 = 0;
         for (i, future) in futures.iter_mut().enumerate() {
             match future.await {
                 Ok(res) => {
@@ -1133,6 +1398,7 @@ impl CGWRemoteDiscovery {
                     } else {
                         let mut devices_cache = cache.write().await;
                         let device_mac = infras[i];
+                        removed_infras.push(device_mac);
                         if let Some(device) = devices_cache.get_device_mut(&device_mac) {
                             if device.get_device_state() == CGWDeviceState::CGWDeviceConnected {
                                 device.set_device_remains_in_db(false);
@@ -1161,7 +1427,7 @@ impl CGWRemoteDiscovery {
                                 }
                             }
                         }
-                        removed_infras += 1;
+                        removed_infras_num += 1;
                     }
                 }
                 Err(_) => {
@@ -1172,7 +1438,7 @@ impl CGWRemoteDiscovery {
 
         // Update assigned infras num
         if let Err(e) = self
-            .decrement_group_assigned_infras_num(gid, removed_infras)
+            .decrement_group_assigned_infras_num(gid, removed_infras_num)
             .await
         {
             error!("destroy_infras_list: failed to decrement assigned infras num! Error: {e}");
@@ -1180,6 +1446,223 @@ impl CGWRemoteDiscovery {
 
         if !failed_infras.is_empty() {
             return Err(Error::RemoteDiscoveryFailedInfras(failed_infras));
+        }
+
+        self.del_infras_from_header_map(gid, removed_infras.clone())
+            .await;
+
+        if let Err(e) = self.update_infra_group_infras_header_redis(gid).await {
+            error!("Failed to update Redis with infra to group header mapping! Group id: {gid}. Error: {e}");
+        }
+
+        Ok(())
+    }
+
+    async fn add_group_infras_header_map(
+        &self,
+        group_id: i32,
+        cloud_header: String,
+        infras: Vec<MacAddress>,
+    ) {
+        let mut lock = self.infras_to_header_map.write().await;
+        if lock.item_exist(&group_id) {
+            lock.add_infras(group_id, cloud_header, infras).await;
+        } else {
+            let item = CGWInfraGroupInfrasCloudHeaderItem::new(cloud_header, infras);
+            // If for specific cloud header there is no any infras assigned
+            // no need to hold empty inner item - remove it
+            lock.add_item(group_id, item);
+        }
+        lock.remove_empty().await;
+    }
+
+    async fn del_group_infras_header_map(&self, group_id: i32) {
+        let mut lock = self.infras_to_header_map.write().await;
+        lock.del_item(group_id);
+        // If for specific cloud header there is no any infras assigned
+        // no need to hold empty inner item - remove it
+        lock.remove_empty().await;
+    }
+
+    async fn del_infras_from_header_map(&self, group_id: i32, infras: Vec<MacAddress>) {
+        let mut lock = self.infras_to_header_map.write().await;
+        lock.del_infras(group_id, infras).await;
+        // If for specific cloud header there is no any infras assigned
+        // no need to hold empty inner item - remove it
+        lock.remove_empty().await;
+    }
+
+    pub async fn get_group_infra_cloud_header(
+        &self,
+        group_id: &i32,
+        infra: &MacAddress,
+    ) -> Option<String> {
+        let lock = self.infras_to_header_map.read().await;
+        if let Some(item) = lock.get_item(group_id) {
+            let item_lock = item.read().await;
+            return item_lock.get_infra_cloud_header(infra).cloned();
+        }
+
+        None
+    }
+
+    pub async fn update_group_infras_header_map(
+        &self,
+        group_id: i32,
+        infras: Vec<MacAddress>,
+        cloud_header: Option<String>,
+    ) {
+        if !infras.is_empty() {
+            match cloud_header {
+                Some(header) => {
+                    // First - remove infras from old cloud header map
+                    self.del_infras_from_header_map(group_id, infras.clone())
+                        .await;
+
+                    // Second - add infras to new cloud header map
+                    self.add_group_infras_header_map(group_id, header, infras)
+                        .await;
+                }
+                None => {
+                    self.del_infras_from_header_map(group_id, infras).await;
+                }
+            }
+        }
+    }
+
+    pub async fn update_infra_group_infras_header_redis(&self, group_id: i32) -> Result<()> {
+        let mut con = self.redis_client.clone();
+
+        let lock = self.infras_to_header_map.read().await;
+        match lock.get_item(&group_id) {
+            Some(item) => {
+                let item_lock = item.read().await;
+                let item_str = match serde_json::to_string(&item_lock.map) {
+                    Ok(serialized_str) => serialized_str,
+                    Err(e) => {
+                        error!(
+                            "Failed to serialize infras header map for group id: {group_id}! Error: {e}"
+                        );
+                        return Err(Error::RemoteDiscovery(
+                            "Failed to serialize infras header map item",
+                        ));
+                    }
+                };
+
+                let res: RedisResult<()> = redis::cmd("HSET")
+                    .arg(format!("{}{group_id}", REDIS_KEY_GID))
+                    .arg(REDIS_KEY_GID_INFRA_CLOUD_HEADER)
+                    .arg(item_str)
+                    .query_async(&mut con)
+                    .await;
+                if let Err(e) = res {
+                    if e.is_io_error() {
+                        Self::set_redis_health_state_not_ready(e.to_string()).await;
+                    }
+                    error!("Failed to set group infras cloud header! Error: {e}");
+                    return Err(Error::RemoteDiscovery(
+                        "Failed to set group infras cloud header",
+                    ));
+                }
+            }
+            None => {
+                error!("Failed to get infras header map item for group id: {group_id}!");
+                return Err(Error::RemoteDiscovery(
+                    "Failed to get infras header map item",
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn update_infra_group_header_redis(&self, group_id: i32) -> Result<()> {
+        let mut con = self.redis_client.clone();
+
+        let lock = self.group_to_header_map.read().await;
+        match lock.get_group_cloud_header(&group_id) {
+            Some(cloud_header) => {
+                let res: RedisResult<()> = redis::cmd("HSET")
+                    .arg(format!("{REDIS_KEY_GID}{group_id}"))
+                    .arg(REDIS_KEY_GID_GROUP_CLOUD_HEADER)
+                    .arg(cloud_header)
+                    .query_async(&mut con)
+                    .await;
+                if let Err(e) = res {
+                    if e.is_io_error() {
+                        Self::set_redis_health_state_not_ready(e.to_string()).await;
+                    }
+                    error!("Failed to set infra group cloud header! Error: {e}");
+                    return Err(Error::RemoteDiscovery(
+                        "Failed to set group infra group cloud header",
+                    ));
+                }
+            }
+            None => {
+                error!("Failed to get infra group header map item for group id: {group_id}!");
+                return Err(Error::RemoteDiscovery(
+                    "Failed to get infra group header map item",
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn sync_group_infras_to_header_map(&self) -> Result<()> {
+        let mut lock = self.infras_to_header_map.write().await;
+
+        // Clear hashmap
+        lock.clear();
+        let mut con = self.redis_client.clone();
+
+        let redis_keys: Vec<String> = match redis::cmd("KEYS")
+            .arg(format!("{REDIS_KEY_GID}*"))
+            .query_async(&mut con)
+            .await
+        {
+            Err(e) => {
+                if e.is_io_error() {
+                    Self::set_redis_health_state_not_ready(e.to_string()).await;
+                }
+                error!("Failed to sync group to cloud header map! Error: {e}");
+                return Err(Error::RemoteDiscovery("Failed to get KEYS list from REDIS"));
+            }
+            Ok(keys) => keys,
+        };
+
+        for key in redis_keys {
+            let group_id: i32 = match redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_VALUE_GID)
+                .query_async(&mut con)
+                .await
+            {
+                Ok(gid) => gid,
+                Err(e) => {
+                    if e.is_io_error() {
+                        Self::set_redis_health_state_not_ready(e.to_string()).await;
+                    }
+                    warn!("Found proper key '{key}' entry, but failed to fetch GID from it! Error: {e}");
+                    continue;
+                }
+            };
+
+            if let Ok(cloud_header) = redis::cmd("HGET")
+                .arg(&key)
+                .arg(REDIS_KEY_GID_INFRA_CLOUD_HEADER)
+                .query_async::<_, String>(&mut con)
+                .await
+            {
+                debug!(
+                    "Found group {key}, group id: {group_id}, cloud_header: {:?}",
+                    cloud_header
+                );
+
+                if let Ok(map) = serde_json::from_str(&cloud_header) {
+                    lock.add_item(group_id, CGWInfraGroupInfrasCloudHeaderItem { map });
+                }
+            }
         }
 
         Ok(())
@@ -1276,7 +1759,7 @@ impl CGWRemoteDiscovery {
             };
 
             match self
-                .assign_infra_group_to_cgw(i.id, None, i.reserved_size, infras_assigned)
+                .assign_infra_group_to_cgw(i.id, None, i.reserved_size, infras_assigned, None)
                 .await
             {
                 Ok(shard_id) => {
@@ -1628,8 +2111,15 @@ impl CGWRemoteDiscovery {
         });
     }
 
-    pub async fn get_infra_from_db(&self, mac: MacAddress)-> Option<CGWDBInfra>
-    {
+    pub async fn get_group_from_db(&self, group_id: i32) -> Option<CGWDBInfrastructureGroup> {
+        self.db_accessor.clone().get_infra_group(group_id).await
+    }
+
+    pub async fn get_infra_from_db(&self, mac: MacAddress) -> Option<CGWDBInfra> {
         self.db_accessor.clone().get_infra(mac).await
+    }
+
+    pub async fn get_group_infras_from_db(&self, group_id: i32) -> Option<Vec<CGWDBInfra>> {
+        self.db_accessor.clone().get_group_infras(group_id).await
     }
 }

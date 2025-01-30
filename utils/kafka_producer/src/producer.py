@@ -275,3 +275,13 @@ class Producer:
                 # time.sleep(interval_s)
                 # if time.time() > end:
                 #    break
+
+    def handle_cloud_header(self, group_header: List[int], infras_header: List[Tuple[int, MacRange]]) -> None:
+        with self as conn:
+            for group in group_header:
+                conn.send(self.topic, self.message.group_header(group),
+                          bytes(str(group), encoding="utf-8"))
+            for group, infra in infras_header:
+                conn.send(self.topic, self.message.infras_header(group, infra),
+                          bytes(str(group), encoding="utf-8"))
+            conn.flush()

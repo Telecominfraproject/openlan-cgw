@@ -22,28 +22,30 @@ pub struct CGWDBInfrastructureGroup {
     pub id: i32,
     pub reserved_size: i32,
     pub actual_size: i32,
+    pub cloud_header: Option<String>,
 }
 
 impl From<Row> for CGWDBInfra {
     fn from(row: Row) -> Self {
         let mac: MacAddress = row.get("mac");
-        let gid: i32 = row.get("infra_group_id");
+        let infra_group_id: i32 = row.get("infra_group_id");
         Self {
             mac,
-            infra_group_id: gid,
+            infra_group_id,
         }
     }
 }
 
 impl From<Row> for CGWDBInfrastructureGroup {
     fn from(row: Row) -> Self {
-        let infra_id: i32 = row.get("id");
-        let res_size: i32 = row.get("reserved_size");
-        let act_size: i32 = row.get("actual_size");
+        let id: i32 = row.get("id");
+        let reserved_size: i32 = row.get("reserved_size");
+        let actual_size: i32 = row.get("actual_size");
         Self {
-            id: infra_id,
-            reserved_size: res_size,
-            actual_size: act_size,
+            id,
+            reserved_size,
+            actual_size,
+            cloud_header: None,
         }
     }
 }
@@ -229,7 +231,6 @@ impl CGWDBAccessor {
         }
     }
 
-    #[allow(dead_code)]
     pub async fn get_infra_group(&self, gid: i32) -> Option<CGWDBInfrastructureGroup> {
         if let Ok(q) = self
             .cl
@@ -239,8 +240,12 @@ impl CGWDBAccessor {
             let row = self.cl.query_one(&q, &[&gid]).await;
 
             match row {
-                Ok(r) => Some(CGWDBInfrastructureGroup::from(r)),
-                Err(_e) => return None,
+                Ok(r) => {
+                    return Some(CGWDBInfrastructureGroup::from(r));
+                }
+                Err(_e) => {
+                    return None;
+                }
             };
         }
 
@@ -329,29 +334,55 @@ impl CGWDBAccessor {
         }
     }
 
-    pub async fn get_infra(&self, mac: MacAddress) -> Option<CGWDBInfra> {
+    pub async fn get_group_infras(&self, group_id: i32) -> Option<Vec<CGWDBInfra>> {
+        let mut list: Vec<CGWDBInfra> = Vec::new();
+
         match self
             .cl
-            .prepare("SELECT * from infras WHERE mac = $1")
+            .prepare("SELECT * from infras WHERE infra_group_id = $1")
             .await
         {
+            Ok(q) => {
+                match self.cl.query(&q, &[&group_id]).await {
+                    Ok(r) => {
+                        for x in r {
+                            let infra = CGWDBInfra::from(x);
+                            list.push(infra);
+                        }
+                        return Some(list);
+                    }
+                    Err(e) => {
+                        error!("Query infras with group id {group_id} failed! Error: {e}");
+                        return None;
+                    }
+                };
+            }
+            Err(e) => {
+                error!("Failed to prepare statement! Error: {e}");
+                return None;
+            }
+        }
+    }
+
+    pub async fn get_infra(&self, mac: MacAddress) -> Option<CGWDBInfra> {
+        match self.cl.prepare("SELECT * from infras WHERE mac = $1").await {
             Ok(q) => {
                 let row = self.cl.query_one(&q, &[&mac]).await;
 
                 match row {
                     Ok(r) => {
                         return Some(CGWDBInfra::from(r));
-                    },
+                    }
                     Err(e) => {
                         error!("Query infra {mac} failed! Error: {e}");
                         return None;
-                    },
+                    }
                 };
             }
             Err(e) => {
                 error!("Failed to prepare statement! Error: {e}");
                 return None;
-            },
+            }
         }
     }
 }

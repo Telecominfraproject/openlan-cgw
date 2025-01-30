@@ -14,6 +14,8 @@ def main(args: Args):
     if args.message:
         producer.handle_device_messages(args.message, args.group_id, args.send_to_macs,
                                         args.count, args.time_to_send_s, args.interval_s)
+    if args.header_group or args.header_infras:
+        producer.handle_cloud_header(args.header_group, args.header_infras)
 
 
 if __name__ == "__main__":

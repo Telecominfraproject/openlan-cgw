@@ -147,6 +147,8 @@ class Message:
     MAC = "infra_group_infra"
     DATA = "msg"
     MSG_UUID = "uuid"
+    GROUP_HEADER = "group_header"
+    INFRAS_HEADER = "infras_header"
 
     def __init__(self) -> None:
         with open(self.TEMPLATE_FILE) as f:
@@ -215,6 +217,19 @@ class Message:
         else:
             msg[self.DATA] = {"data": data}
         # msg[self.MSG_UUID] = str(uuid.uuid1(node=MacRange.mac2num(mac), clock_seq=sequence))
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def group_header(self, id: int, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.GROUP_HEADER])
+        msg[self.GROUP_ID] = int(id)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+    def infras_header(self, id: int, mac_range: MacRange, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.INFRAS_HEADER])
+        msg[self.GROUP_ID] = int(id)
+        msg[self.DEV_LIST] = list(mac_range)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
@@ -298,3 +313,5 @@ class Args:
     interval_s: float
     group_id: int
     send_to_macs: MacRange
+    header_group: List[int]
+    header_infras: List[Tuple[int, MacRange]]

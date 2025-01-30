@@ -403,7 +403,7 @@ impl CGWUCentralMessagesQueueManager {
     pub async fn iterate_over_disconnected_devices(
         &self,
     ) -> HashMap<MacAddress, Vec<(i32, CGWUCentralMessagesQueueItem)>> {
-        let mut devices_to_flush: Vec<(MacAddress, i32)> = Vec::<(MacAddress, i32)>::new();
+        let mut devices_to_flush: Vec<(i32, MacAddress)> = Vec::<(i32, MacAddress)>::new();
 
         {
             // 1. Check if disconnected device message queue is empty
@@ -417,10 +417,10 @@ impl CGWUCentralMessagesQueueManager {
                         .device_request_tick(infra_mac, TIMEOUT_MANAGER_DURATION)
                         .await
                     {
-                        devices_to_flush.push((*infra_mac, *infra_gid));
+                        devices_to_flush.push((*infra_gid, *infra_mac));
                     }
                 } else {
-                    devices_to_flush.push((*infra_mac, *infra_gid));
+                    devices_to_flush.push((*infra_gid, *infra_mac));
                 }
             }
         }
@@ -429,7 +429,7 @@ impl CGWUCentralMessagesQueueManager {
             HashMap::new();
         // 2. Remove disconnected device and it queue
         let mut container_write_lock = self.disconnected_devices.write().await;
-        for (infra_mac, infra_gid) in devices_to_flush.iter() {
+        for (infra_gid, infra_mac) in devices_to_flush.iter() {
             let mut requests: Vec<(i32, CGWUCentralMessagesQueueItem)> = Vec::new();
             while let Some(msg) = self.dequeue_device_message(infra_mac).await {
                 requests.push((*infra_gid, msg));

@@ -66,7 +66,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.handle_single_group_create(
-            str(group_id), uuid_val.int, default_shard_id)
+            group_id, uuid_val.int, default_shard_id)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -76,7 +76,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -120,7 +120,7 @@ class TestCgwMultiInstances:
         infra_mac = "11-22-33-44-55-66"
         message = Message()
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(), message.add_dev_to_group(
-            str(group_id), [infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+            str(group_id), [infra_mac], uuid_val.int), group_id,  partition=partitions[0])
 
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if ret_msg is None:
@@ -181,7 +181,7 @@ class TestCgwMultiInstances:
         # Send message to CGW that does not own group - to force CGW message relay mechanism
         uuid_val = uuid.uuid4()
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.remove_dev_from_group(str(group_id), [infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.remove_dev_from_group(str(group_id), [infra_mac], uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if ret_msg is None:
             print('Failed to receive infra deassign result, was expecting ' +
@@ -233,7 +233,7 @@ class TestCgwMultiInstances:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.handle_single_group_delete(
-            str(group_id), uuid_val.int)
+            group_id, uuid_val.int)
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -243,7 +243,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
 
         if ret_msg.value['success'] is False:
@@ -328,7 +328,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_create_to_shard(str(group_id), default_shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_create_to_shard(str(group_id), default_shard_id, uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -338,7 +338,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)
@@ -379,7 +379,7 @@ class TestCgwMultiInstances:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_delete(str(group_id), uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_delete(str(group_id), uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -389,7 +389,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)
@@ -475,7 +475,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_create_to_shard(str(group_id), shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_create_to_shard(str(group_id), shard_id, uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -485,7 +485,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)
@@ -526,7 +526,7 @@ class TestCgwMultiInstances:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_delete(str(group_id), uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_delete(str(group_id), uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -536,7 +536,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)
@@ -611,7 +611,7 @@ class TestCgwMultiInstances:
 
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_create(str(group_id), uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_create(str(group_id), uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
@@ -621,7 +621,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_create_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)
@@ -652,7 +652,7 @@ class TestCgwMultiInstances:
         uuid_val = uuid.uuid4()
 
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
-                                              message.group_delete(str(group_id), uuid_val.int), bytes(str(group_id), encoding="utf-8"),  partition=partitions[0])
+                                              message.group_delete(str(group_id), uuid_val.int), group_id,  partition=partitions[0])
         ret_msg = test_context.kafka_consumer.get_result_msg(uuid_val.int)
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
@@ -662,7 +662,7 @@ class TestCgwMultiInstances:
 
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
-        assert (int(ret_msg.value['infra_group_id']) == group_id)
+        assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
         assert (ret_msg.value["reporter_shard_id"]
                 == expected_reporter_shard_id)

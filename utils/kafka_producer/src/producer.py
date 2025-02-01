@@ -153,39 +153,39 @@ class Producer:
     def is_connected(self) -> bool:
         return self.conn is not None
 
-    def handle_single_group_delete(self, group: str, uuid_val: int = None):
+    def handle_single_group_delete(self, group: int, uuid_val: int = None):
         if group is None:
             raise Exception(
                 'producer: Cannot destroy group without group_id specified!')
 
         self.conn.send(self.topic, self.message.group_delete(group, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_single_group_create(self, group: str, uuid_val: int = None, shard_id: int = None):
+    def handle_single_group_create(self, group: int, uuid_val: int = None, shard_id: int = None):
         if group is None:
             raise Exception(
                 'producer: Cannot create new group without group id specified!')
 
         if shard_id is None:
             self.conn.send(self.topic, self.message.group_create(group, uuid_val),
-                           bytes(group, encoding="utf-8"))
+                           bytes(str(group), encoding="utf-8"))
         else:
             self.conn.send(self.topic, self.message.group_create_to_shard(group, shard_id, uuid_val),
-                           bytes(group, encoding="utf-8"))
+                           bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_group_creation(self, create: List[str], delete: List[str]) -> None:
+    def handle_group_creation(self, create: List[int], delete: List[int]) -> None:
         with self as conn:
             for group in create:
                 conn.send(self.topic, self.message.group_create(group),
-                          bytes(group, encoding="utf-8"))
+                          bytes(str(group), encoding="utf-8"))
             for group in delete:
                 conn.send(self.topic, self.message.group_delete(group),
-                          bytes(group, encoding="utf-8"))
+                          bytes(str(group), encoding="utf-8"))
             conn.flush()
 
-    def handle_single_device_assign(self, group: str, mac: str, uuid_val: int):
+    def handle_single_device_assign(self, group: int, mac: str, uuid_val: int):
         if group is None:
             raise Exception(
                 'producer: Cannot assign infra to group without group id specified!')
@@ -197,10 +197,10 @@ class Producer:
         mac_range = MacRange(mac)
 
         self.conn.send(self.topic, self.message.add_dev_to_group(group, mac_range, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_single_device_deassign(self, group: str, mac: str, uuid_val: int):
+    def handle_single_device_deassign(self, group: int, mac: str, uuid_val: int):
         if group is None:
             raise Exception(
                 'Cannot deassign infra from group without group id specified!')
@@ -212,10 +212,10 @@ class Producer:
         mac_range = MacRange(mac)
 
         self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_multiple_devices_assign(self, group: str, mac_list: list, uuid_val: int):
+    def handle_multiple_devices_assign(self, group: int, mac_list: list, uuid_val: int):
         if group is None:
             raise Exception(
                 'producer: Cannot assign infra to group without group id specified!')
@@ -225,10 +225,10 @@ class Producer:
                 'producer: Cannot assign infra to group without infra MAC list specified!')
 
         self.conn.send(self.topic, self.message.add_devices_to_group(group, mac_list, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_multiple_devices_deassign(self, group: str, mac_list: list, uuid_val: int):
+    def handle_multiple_devices_deassign(self, group: int, mac_list: list, uuid_val: int):
         if group is None:
             raise Exception(
                 'Cannot deassign infra from group without group id specified!')
@@ -238,26 +238,26 @@ class Producer:
                 'Cannot deassign infra from group without infra MAC list specified!')
 
         self.conn.send(self.topic, self.message.remove_dev_from_group(group, mac_list, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_device_assignment(self, add: List[Tuple[str, MacRange]], remove: List[Tuple[str, MacRange]]) -> None:
+    def handle_device_assignment(self, add: List[Tuple[int, MacRange]], remove: List[Tuple[int, MacRange]]) -> None:
         with self as conn:
             for group, mac_range in add:
                 logger.debug(f"{group = }, {mac_range = }")
                 conn.send(self.topic, self.message.add_dev_to_group(group, mac_range),
-                          bytes(group, encoding="utf-8"))
+                          bytes(str(group), encoding="utf-8"))
             for group, mac_range in remove:
                 conn.send(self.topic, self.message.remove_dev_from_group(group, mac_range),
-                          bytes(group, encoding="utf-8"))
+                          bytes(str(group), encoding="utf-8"))
             conn.flush()
 
-    def handle_single_device_message(self, message: dict, group: str, mac: str, uuid_val: int) -> None:
+    def handle_single_device_message(self, message: dict, group: int, mac: str, uuid_val: int) -> None:
         self.conn.send(self.topic, self.message.to_device(group, mac, message, 0, uuid_val),
-                       bytes(group, encoding="utf-8"))
+                       bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_device_messages(self, message: dict, group: str, mac_range: MacRange,
+    def handle_device_messages(self, message: dict, group: int, mac_range: MacRange,
                                count: int, time_s: int, interval_s: int) -> None:
         if not time_s:
             end = sys.maxsize
@@ -270,7 +270,7 @@ class Producer:
             for seq in range(count):
                 for mac in mac_range:
                     conn.send(self.topic, self.message.to_device(group, mac, message, seq),
-                              bytes(group, encoding="utf-8"))
+                              bytes(str(group), encoding="utf-8"))
                 conn.flush()
                 # time.sleep(interval_s)
                 # if time.time() > end:

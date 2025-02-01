@@ -12,14 +12,12 @@ infrastructure_group_create:
   type:
     type: string
     enum:
-    - infrastructure_group_create
+      - infrastructure_group_create
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -36,19 +34,16 @@ infrastructure_group_create_to_shard:
   type:
     type: string
     enum:
-    - infrastructure_group_create_to_shard
+      - infrastructure_group_create_to_shard
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   shard_id:
-    description:
-      Specific shard (CGW) id that this group should be assigned to.
+    description: Specific shard (CGW) id that this group should be assigned to.
       If shard does not exist, request will fail.
     type: integer
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -56,22 +51,19 @@ infrastructure_group_create_to_shard:
     format: uuid
 
 infrastructure_group_delete:
-  description:
-    Destroy previously created infrastructure group.
+  description: Destroy previously created infrastructure group.
     NOTE - also deassign (if any) underlying assigned infras.
     Also works if any assigned infra is already connected to CGW.
     Request generates corresponding 'infrastructure_group_delete_response' response.
   type:
     type: string
     enum:
-    - infrastructure_group_delete
+      - infrastructure_group_delete
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -79,17 +71,15 @@ infrastructure_group_delete:
     format: uuid
 
 infrastructure_group_infras_add:
-  description:
-    Assign list of infras to specified group.
+  description: Assign list of infras to specified group.
     Request generates corresponding 'infrastructure_group_infras_add_response' response.
   type:
     type: string
     enum:
-    - infrastructure_group_infras_add
+      - infrastructure_group_infras_add
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   infra_group_infras:
     description:
       Array of infras (MAC address / mac serial, any form is accepted) that
@@ -98,8 +88,7 @@ infrastructure_group_infras_add:
     items:
       type: string
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -107,19 +96,17 @@ infrastructure_group_infras_add:
     format: uuid
 
 infrastructure_group_infras_del:
-  description:
-    De-assign list of infras from specified group.
+  description: De-assign list of infras from specified group.
     Any connected infras will become un-assigned and thus - unaddressable.
     It's up to the caller to make sure to reassign them (if needed).
     Request generates corresponding 'infrastructure_group_infras_del_response' response.
   type:
     type: string
     enum:
-    - infrastructure_group_infras_del
+      - infrastructure_group_infras_del
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   infra_group_infras:
     description:
       Array of infras (MAC address / mac serial, any form is accepted) that
@@ -128,8 +115,7 @@ infrastructure_group_infras_del:
     items:
       type: string
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -137,8 +123,7 @@ infrastructure_group_infras_del:
     format: uuid
 
 infrastructure_group_infra_message_enqueue:
-  description:
-    Enqueue a uCentral request for the specified infra device.
+  description: Enqueue a uCentral request for the specified infra device.
     This does not result immediate execution of the underlying request,
     but rather caches the request in internal message queue, and the request
     will get executed whenever device is ready to receive one.
@@ -148,14 +133,12 @@ infrastructure_group_infra_message_enqueue:
   type:
     type: string
     enum:
-    - infrastructure_group_infra_message_enqueue
+      - infrastructure_group_infra_message_enqueue
   infra_group_id:
-    description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
-    type: string
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
   infra_group_infra:
-    description:
-      MAC (serial) of the infra to sink message down to.
+    description: MAC (serial) of the infra to sink message down to.
       Must be a part of infra_group, either way request will fail
       with corresponding fail message.
     type: string
@@ -165,14 +148,12 @@ infrastructure_group_infra_message_enqueue:
       Should include method, ID.
     type: object
   timeout:
-    description:
-      Timeout value for how long the execution should take.
+    description: Timeout value for how long the execution should take.
       Whenever elapses, msg queue get's completely flushed
       and the timeout messages - 'infra_request_result' with status 'failed' are generated.
     type: string
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.
@@ -187,16 +168,15 @@ rebalance_groups:
   type:
     type: string
     enum:
-    - rebalance_groups
+      - rebalance_groups
   infra_group_id:
     description:
       The 'infra_group_id' while is represented as string, is actually a stringified digit.
       The 'infra_group_id' while is required, can be set to any value, as it's currently omitted
       and ignored.
-    type: string
+    type: integer
   uuid:
-    description:
-      The underlying unique identifier of the request.
+    description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,
       effectively matching a request with a response, due to
       async nature of the Kafka bus.

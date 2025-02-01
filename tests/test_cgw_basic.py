@@ -124,7 +124,7 @@ class TestCgwBasic:
         infra_is_assigned = False
         messages = test_context.kafka_consumer.get_msgs()
         msg_mac = test_context.default_dev_sim_mac()
-        default_group = test_context.default_kafka_group().encode('utf-8')
+        default_group = test_context.default_kafka_group()
 
         assert messages, \
             f"Failed to receive any messages (events) from sim-device, while expected connect / infra_join"
@@ -137,14 +137,14 @@ class TestCgwBasic:
         for message in messages:
             if message.value['type'] == 'infra_join' and message.value['infra_group_infra'] == msg_mac:
                 join_message_received = True
-                if message.key == default_group and str(message.value['infra_group_id']).encode('utf-8') == default_group:
+                if int(message.key) == default_group and int(message.value['infra_group_id']) == default_group:
                     infra_is_assigned = True
                 break
 
         assert cgw_metrics_get_groups_assigned_num() == 1
         assert cgw_metrics_get_connections_num() == 1
         assert cgw_metrics_get_group_infras_assigned_num(
-            int(default_group)) == 1
+            default_group) == 1
 
         assert join_message_received, \
             f"Failed to find 'infra_join' message for default infra MAC"

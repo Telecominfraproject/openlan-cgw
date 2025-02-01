@@ -497,27 +497,27 @@ impl CGWConnectionServer {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreate {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             uuid: Uuid,
         }
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreateToShard {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             shard_id: i32,
             uuid: Uuid,
         }
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupDelete {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             uuid: Uuid,
         }
 
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupInfrasAdd {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             infra_group_infras: Vec<MacAddress>,
             uuid: Uuid,
         }
@@ -525,7 +525,7 @@ impl CGWConnectionServer {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupInfrasDel {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             infra_group_infras: Vec<MacAddress>,
             uuid: Uuid,
         }
@@ -533,7 +533,7 @@ impl CGWConnectionServer {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupMsgJSON {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             infra_group_infra: MacAddress,
             msg: Map<String, Value>,
             uuid: Uuid,
@@ -543,17 +543,17 @@ impl CGWConnectionServer {
         #[derive(Debug, Serialize, Deserialize)]
         struct RebalanceGroups {
             r#type: String,
-            infra_group_id: String,
+            infra_group_id: i32,
             uuid: Uuid,
         }
 
         let map: Map<String, Value> = serde_json::from_str(payload).ok()?;
 
-        let rc = map.get(&String::from("type"))?;
+        let rc = map.get("type")?;
         let msg_type = rc.as_str()?;
 
-        let rc = map.get(&String::from("infra_group_id"))?;
-        let group_id: i32 = rc.as_str()?.parse().ok()?;
+        let rc = map.get("infra_group_id")?;
+        let group_id: i32 = rc.as_i64()? as i32;
 
         match msg_type {
             "infrastructure_group_create" => {

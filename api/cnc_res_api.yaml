@@ -251,3 +251,66 @@ rebalance_groups_response:
     description:
       Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
+
+infrastructure_group_set_cloud_header_response:
+  description:
+    Response to corresponding 'infrastructure_group_set_cloud_header' request.
+  type:
+    type: string
+    enum:
+    - infrastructure_group_set_cloud_header_response
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  uuid:
+    description:
+      The underlying unique identifier of the request, to which
+      this response is being generated.
+    type: string
+    format: uuid
+  success:
+    type: boolean
+  error_message:
+    description:
+      Error message reporting why the request failed.
+      Non-empty only if 'success' is false (e.g. request failed).
+    type: string
+
+infrastructure_group_infras_set_cloud_header_response:
+  description:
+    Response to corresponding 'infrastructure_group_infras_set_cloud_header' request.
+  type:
+    type: string
+    enum:
+    - infrastructure_group_infras_set_cloud_header_response
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    type: integer
+  uuid:
+    type: string
+    format: uuid
+    description:
+      The underlying unique identifier of the request, to which
+      this response is being generated.
+  success:
+    type: boolean
+  error_message:
+    type: string
+    description:
+      Error message reporting why the request failed.
+      Non-empty only if 'success' is false (e.g. request failed).
+  failed_infras:
+    description:
+      Array of infras (MAC address / mac serial, any form is accepted) that
+      should were not added (failed to) to specified infras cloud header.
+      Potential cause - infra is a member of some other group (different from infra_group_id specified in current request)
+      and should be removed from old group first.
+    type: array
+    items:
+      type: string

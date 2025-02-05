@@ -221,3 +221,45 @@ ap_client_migrate:
     description:
       Destination band on which the underlying infra is migrating on.
     type: string
+
+infrastructure_state_event_message:
+  description:
+    Enveloped infra state event that infra device generates periodically.
+    The original UCentral State/Healthcheck events are presented in 'payload'.
+  type:
+    type: string
+    enum:
+    - infrastructure_state_event_message
+  event_type:
+    description:
+      The UCentral State/Healthcheck event type.
+    type: string
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  payload:
+    description:
+      Payload of infra State or Healthcheck (UCentral) event message.
+    type: string
+
+infrastructure_realtime_event_message:
+  description:
+    Enveloped infra real-time event that infra device generates periodically.
+    The original UCentral Real-time events are presented in 'payload'.
+  type:
+    type: string
+    enum:
+    - infrastructure_realtime_event_message
+  event_type:
+    description:
+      The UCentral Real-time event type (e.g. Log, Alarm, WifiScan, etc...).
+    type: string
+  reporter_shard_id:
+    description:
+      ID of the shard that handled request and generated this response.
+    type: integer
+  payload:
+    description:
+      Payload of infra Real-time (UCentral) event message.
+    type: string

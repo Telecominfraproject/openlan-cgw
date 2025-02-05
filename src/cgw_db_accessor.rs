@@ -25,28 +25,32 @@ pub struct CGWDBInfrastructureGroup {
     pub cloud_header: Option<String>,
 }
 
-impl From<Row> for CGWDBInfra {
-    fn from(row: Row) -> Self {
-        let mac: MacAddress = row.get("mac");
-        let infra_group_id: i32 = row.get("infra_group_id");
-        Self {
+impl TryFrom<Row> for CGWDBInfra {
+    type Error = tokio_postgres::Error;
+
+    fn try_from(row: Row) -> std::result::Result<Self, tokio_postgres::Error> {
+        let mac: MacAddress = row.try_get("mac")?;
+        let infra_group_id: i32 = row.try_get("infra_group_id")?;
+        Ok(Self {
             mac,
             infra_group_id,
-        }
+        })
     }
 }
 
-impl From<Row> for CGWDBInfrastructureGroup {
-    fn from(row: Row) -> Self {
-        let id: i32 = row.get("id");
-        let reserved_size: i32 = row.get("reserved_size");
-        let actual_size: i32 = row.get("actual_size");
-        Self {
+impl TryFrom<Row> for CGWDBInfrastructureGroup {
+    type Error = tokio_postgres::Error;
+
+    fn try_from(row: Row) -> std::result::Result<Self, tokio_postgres::Error> {
+        let id: i32 = row.try_get("id")?;
+        let reserved_size: i32 = row.try_get("reserved_size")?;
+        let actual_size: i32 = row.try_get("actual_size")?;
+        Ok(Self {
             id,
             reserved_size,
             actual_size,
             cloud_header: None,
-        }
+        })
     }
 }
 
@@ -222,8 +226,14 @@ impl CGWDBAccessor {
         match res {
             Ok(r) => {
                 for x in r {
-                    let infra_group = CGWDBInfrastructureGroup::from(x);
-                    list.push(infra_group);
+                    match CGWDBInfrastructureGroup::try_from(x) {
+                        Ok(infra_group) => {
+                            list.push(infra_group);
+                        }
+                        Err(e) => {
+                            error!("Failed to construct CGWDBInfrastructureGroup! Error: {e}");
+                        }
+                    }
                 }
                 Some(list)
             }
@@ -240,9 +250,15 @@ impl CGWDBAccessor {
             let row = self.cl.query_one(&q, &[&gid]).await;
 
             match row {
-                Ok(r) => {
-                    return Some(CGWDBInfrastructureGroup::from(r));
-                }
+                Ok(r) => match CGWDBInfrastructureGroup::try_from(r) {
+                    Ok(infra_group) => {
+                        return Some(infra_group);
+                    }
+                    Err(e) => {
+                        error!("Failed to construct CGWDBInfrastructureGroup! Error: {e}");
+                        return None;
+                    }
+                },
                 Err(_e) => {
                     return None;
                 }
@@ -322,8 +338,14 @@ impl CGWDBAccessor {
         match res {
             Ok(r) => {
                 for x in r {
-                    let infra = CGWDBInfra::from(x);
-                    list.push(infra);
+                    match CGWDBInfra::try_from(x) {
+                        Ok(infra) => {
+                            list.push(infra);
+                        }
+                        Err(e) => {
+                            error!("Failed to construct CGWDBInfra! Error: {e}");
+                        }
+                    }
                 }
                 Some(list)
             }
@@ -346,8 +368,14 @@ impl CGWDBAccessor {
                 match self.cl.query(&q, &[&group_id]).await {
                     Ok(r) => {
                         for x in r {
-                            let infra = CGWDBInfra::from(x);
-                            list.push(infra);
+                            match CGWDBInfra::try_from(x) {
+                                Ok(infra) => {
+                                    list.push(infra);
+                                }
+                                Err(e) => {
+                                    error!("Failed to construct CGWDBInfra! Error: {e}");
+                                }
+                            }
                         }
                         return Some(list);
                     }
@@ -368,21 +396,24 @@ impl CGWDBAccessor {
         match self.cl.prepare("SELECT * from infras WHERE mac = $1").await {
             Ok(q) => {
                 let row = self.cl.query_one(&q, &[&mac]).await;
-
-                match row {
-                    Ok(r) => {
-                        return Some(CGWDBInfra::from(r));
+                if let Ok(r) = row {
+                    match CGWDBInfra::try_from(r) {
+                        Ok(infra) => {
+                            return Some(infra);
+                        }
+                        Err(e) => {
+                            error!("Failed to construct CGWDBInfra! Error: {e}");
+                            return None;
+                        }
                     }
-                    Err(e) => {
-                        error!("Query infra {mac} failed! Error: {e}");
-                        return None;
-                    }
-                };
+                }
             }
             Err(e) => {
                 error!("Failed to prepare statement! Error: {e}");
                 return None;
             }
         }
+
+        None
     }
 }

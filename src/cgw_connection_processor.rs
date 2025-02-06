@@ -3,9 +3,10 @@ use crate::{
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
     cgw_errors::{Error, Result},
     cgw_nb_api_listener::{
-        cgw_construct_cloud_header, cgw_construct_infra_realtime_event_message,
-        cgw_construct_infra_request_result_msg, cgw_construct_infra_state_event_message,
-        cgw_construct_unassigned_infra_join_msg, CGWKafkaProducerTopic,
+        cgw_construct_cloud_header, cgw_construct_infra_join_msg,
+        cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
+        cgw_construct_infra_state_event_message, cgw_construct_unassigned_infra_join_msg,
+        CGWKafkaProducerTopic,
     },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
@@ -583,20 +584,44 @@ impl CGWConnectionProcessor {
                         self.serial, self.group_id, new_group_id
                     );
 
-                    if new_group_id != self.group_id {
-                        if let Ok(unassigned_join) = cgw_construct_unassigned_infra_join_msg(
-                            self.serial,
-                            self.addr,
-                            self.cgw_server.get_local_id(),
-                            String::default(),
-                        ) {
-                            self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
-                                new_group_id,
-                                unassigned_join,
-                                CGWKafkaProducerTopic::Connection,
-                            );
-                        } else {
-                            error!("Failed to construct unassigned_infra_join message!");
+                    match (self.group_id, new_group_id) {
+                        (0, new_gid) if new_gid != 0 => {
+                            debug!("Infra {} changed state from [unassigned] to [assigned]. Current group id: {}, new group id {}", self.serial, self.group_id, new_group_id);
+                            if let Ok(unassigned_join) = cgw_construct_infra_join_msg(
+                                new_gid,
+                                self.serial,
+                                self.addr,
+                                self.cgw_server.get_local_id(),
+                                String::default(),
+                            ) {
+                                self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    new_group_id,
+                                    unassigned_join,
+                                    CGWKafkaProducerTopic::Connection,
+                                );
+                            } else {
+                                error!("Failed to construct infra_join message!");
+                            }
+                        }
+                        (current_gid, 0) if current_gid != 0 => {
+                            debug!("Infra {} changed state from [assigned] to [unassigned]. Current group id: {}, new group id {}", self.serial, self.group_id, new_group_id);
+                            if let Ok(unassigned_join) = cgw_construct_unassigned_infra_join_msg(
+                                self.serial,
+                                self.addr,
+                                self.cgw_server.get_local_id(),
+                                String::default(),
+                            ) {
+                                self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                    new_group_id,
+                                    unassigned_join,
+                                    CGWKafkaProducerTopic::Connection,
+                                );
+                            } else {
+                                error!("Failed to construct unassigned_infra_join message!");
+                            }
+                        }
+                        _ => {
+                            debug!("Infra {} group id was not changed! Current group id: {}, new group id {}", self.serial, self.group_id, new_group_id);
                         }
                     }
 

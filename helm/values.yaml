@@ -21,22 +21,22 @@ services:
     ports:
       # this port doesn't actually exist in cgw ... yet
       # It is needed however, as the ALB requires at least one ssl port
-      restapi:
-        servicePort: 16002
-        targetPort: 16002
-        protocol: TCP
-      websocket:
-        servicePort: 15002
-        targetPort: 15002
-        protocol: TCP
-      metrics:
-        servicePort: 15003
-        targetPort: 8080
-        protocol: TCP
-      grpc:
-        servicePort: 15051
-        targetPort: 50051
-        protocol: TCP
+      #restapi:
+      #  servicePort: 16002
+      #  targetPort: 16002
+      #  protocol: TCP
+      #websocket:
+      #  servicePort: 15002
+      #  targetPort: 15002
+      #  protocol: TCP
+      #metrics:
+      #  servicePort: 15003
+      #  targetPort: 8080
+      #  protocol: TCP
+      #grpc:
+      #  servicePort: 15051
+      #  targetPort: 50051
+      #  protocol: TCP
 
 checks:
   cgw:
@@ -51,13 +51,18 @@ checks:
 
 ingresses: {}
 
-volumes:
-  cgw:
-    - name: certs
-      mountPath: /etc/cgw/certs
-      volumeDefinition: |
-        secret:
-          secretName: {{ if .Values.existingCertsSecret }}{{ .Values.existingCertsSecret }}{{ else }}{{ include "cgw.fullname" . }}-certs{{ end }}
+volumes: {}
+#  cgw:
+#    - name: db-certificate
+#      mountPath: /etc/cgw/nb_infra/certs
+#      volumeDefinition: |
+#        secret:
+#          secretName: cgw-db-cert
+#    - name: cgw-certificates
+#      mountPath: /etc/cgw/certs
+#      volumeDefinition: |
+#        secret:
+#          secretName: cgw-certs
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -99,28 +104,55 @@ public_env_variables:
   CGW_WSS_CAS: "cas.pem"
   CGW_WSS_CERT: "websocket-cert.pem"
   CGW_WSS_KEY: "websocket-key.pem"
-  CGW_DB_HOST: "pgsql"
-  CGW_DB_PORT: "5432"
-  CGW_DB_NAME: "cgw"
-  CGW_DB_USERNAME: "cgw"
-  CGW_KAFKA_HOST: "kafka"
-  CGW_KAFKA_PORT: "9092"
-  CGW_REDIS_HOST: "redis"
-  CGW_REDIS_PORT: "6379"
   CGW_LOG_LEVEL: "info"  # or debug
   CGW_KAFKA_CONSUME_TOPIC: "CnC"
   CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
   # set to (#cpus * 2) - 2
   DEFAULT_WSS_THREAD_NUM: "6"
+#  CGW_DB_TLS: "yes"
+#  CGW_REDIS_TLS: "yes"
+#  CGW_KAFKA_TLS: "yes"
 
+#Set secret_env_variables or existingEnvSecret variable
 secret_env_variables:
-  CGW_DB_PASSWORD: "123"
+#  CGW_DB_PASSWORD: "cgw123"
+#  CGW_DB_HOST: "pgsql"
+#  CGW_DB_PORT: "5432"
+#  CGW_DB_NAME: "cgw"
+#  CGW_DB_USERNAME: "cgw"
+#  CGW_KAFKA_HOST: "kafka"
+#  CGW_KAFKA_PORT: "9092"
+#  CGW_REDIS_HOST: "redis"
+#  CGW_REDIS_PORT: "6379"
+#  CGW_DB_PASSWORD: "123"
+
+existingEnvSecret:
 
 # NOTE: List of required certificates may be found in "certs" key. Alternative way to pass required certificates is to create external secret with all required certificates and set secret name in "existingCertsSecret" key. Details may be found in https://github.com/Telecominfraproject/wlan-cloud-ucentral-deploy/tree/main/cgwchart#tldr
-existingCertsSecret: ""
 
-certs:
-  root.pem: ""
-  websocket-cert.pem: ""
-  websocket-key.pem: ""
-  cas.pem: ""
+#if CGW_DB_TLS is enabled set db_cert or existingDBCertsSecret variable
+db_cert:
+#db_cert: |
+#  -----BEGIN CERTIFICATE-----
+#  .......
+#  -----END CERTIFICATE-----
+
+existingDBCertsSecret:
+
+
+#Set cgw_certs or existingCgwCertsSecret variable
+#cgw_certs:
+#  websocket-cert.pem: |
+#    -----BEGIN CERTIFICATE-----
+#    .......
+#    -----END CERTIFICATE-----
+#  websocket-key.pem: |
+#    -----BEGIN PRIVATE KEY-----
+#    .......
+#    -----END PRIVATE KEY-----
+#  cas.pem: |
+#    -----BEGIN CERTIFICATE-----
+#    .......
+#    -----END CERTIFICATE-----
+
+existingCgwCertsSecret:

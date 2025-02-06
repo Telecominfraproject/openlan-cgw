@@ -51,14 +51,9 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
           {{- end }}
-          {{- range $key, $value := .Values.secret_env_variables }}
-            - name: {{ $key }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cgw.fullname" $root }}-env
-                  key: {{ $key }}
-          {{- end }}
-
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingEnvSecret | default (printf "%s-env" (include "cgw.fullname" .)) }}
           ports:
           {{- range $port, $portValue := .Values.services.cgw.ports }}
             - name: {{ $port }}

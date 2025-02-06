@@ -70,8 +70,11 @@ The following table lists the configurable parameters of the chart and their def
 | persistence.size | string | Defines PV size | `'10Gi'` |
 | public\_env\_variables | hash | Defines list of environment variables to be passed to the Gateway via ConfigMaps | |
 | secret\_env\_variables | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |
-| existingCertsSecret | string | Existing Kubernetes secret containing all required certificates and private keys for microservice operation. If set, certificates from `certs` key are ignored | `""` |
-| certs | hash | Defines files (keys and certificates) that should be passed to the Gateway (PEM format is adviced to be used) (see `volumes.cgw` on where it is mounted). If `existingCertsSecret` is set, certificates passed this way will not be used. |  |
+| existingEnvSecret | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |
+| cgw\_certs | hash | Defines files (keys and certificates) that should be passed to the Gateway (PEM format is adviced to be used) (see `volumes.cgw` on where it is mounted). If `existingCgwCertsSecret` is set, certificates passed this way will not be used. |  |
+| existingCgwCertsSecret | string | Existing Kubernetes secret containing all environment variables to the Gateway. If set, environment variables from `secret_env_variables` key are ignored | `""` |
+| db\_cert | hash | Defines root certificate which should be passed to Gateway to postgres via SSL `(see volumes.cgw` on where it is mounted). If `existingDBCertsSecret` is set, certificates passed this way will not be used. Required if `CGW_DB_TLS = "yes"` or `CGW_REDIS_TLS: "yes"` |  |
+| existingDBCertsSecret | string | Existing Kubernetes secret containing root certificate required for microservice to connect to postgres database. If set, certificates from `db_cert` key are ignored. Required if `CGW_DB_TLS = "yes"` or `CGW_REDIS_TLS: "yes"` | `""` |
 | certsCAs | hash | Defines files with CAs that should be passed to the Gateway (see `volumes.cgw` on where it is mounted) |  |
 
 

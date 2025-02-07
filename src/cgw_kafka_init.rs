@@ -111,16 +111,19 @@ fn cgw_get_kafka_topics(
     Ok(existing_topics)
 }
 
-async fn cgw_create_kafka_topics(admin_client: &AdminClient<DefaultClientContext>) -> Result<()> {
+async fn cgw_create_kafka_topics(
+    admin_client: &AdminClient<DefaultClientContext>,
+    topics_list: &[&str],
+) -> Result<()> {
     let mut new_topics: Vec<NewTopic<'_>> = Vec::new();
     let default_replication: i32 = 1;
     let default_topic_partitions_num: i32 = 2;
     let default_cnc_topic_partitions_num: i32 = 1;
 
-    for topic_name in CGW_KAFKA_TOPICS_LIST {
+    for topic_name in topics_list {
         new_topics.push(NewTopic::new(
-            topic_name,
-            if topic_name == "CnC" {
+            *topic_name,
+            if *topic_name == "CnC" {
                 default_cnc_topic_partitions_num
             } else {
                 default_topic_partitions_num
@@ -200,43 +203,36 @@ pub async fn cgw_init_kafka_topics(
     // So, just simply add 1 to received number of CGW instances
     let active_cgw_number = cgw_get_active_cgw_number(redis_args).await? + 1;
     let admin_client = cgw_create_kafka_admin(kafka_args)?;
-    let existing_topics: Vec<(String, usize)> = cgw_get_kafka_topics(&admin_client)?;
+    let mut existing_topics: Vec<(String, usize)> = cgw_get_kafka_topics(&admin_client)?;
 
-    if existing_topics.is_empty() {
-        info!("Creating kafka topics");
-        cgw_create_kafka_topics(&admin_client).await?;
-    } else {
-        // Find missing topics
-        let missing_topics: Vec<&str> = CGW_KAFKA_TOPICS_LIST
-            .iter()
-            .filter(|topic| !existing_topics.iter().any(|(name, _)| name == *topic))
-            .copied()
-            .collect();
+    // Find missing topics
+    let missing_topics: Vec<&str> = CGW_KAFKA_TOPICS_LIST
+        .iter()
+        .filter(|topic| !existing_topics.iter().any(|(name, _)| name == *topic))
+        .copied()
+        .collect();
 
-        if !missing_topics.is_empty() {
-            return Err(Error::KafkaInit(format!(
-                "Failed to init kafka topics! Missed kafka topics: {}",
-                missing_topics.join(", ")
-            )));
-        }
+    if !missing_topics.is_empty() {
+        // If there is some topics exists - create missed
+        info!("Missed kafka topics: {}", missing_topics.join(", "));
+        info!("Creating missed kafka topics!");
 
-        match existing_topics.iter().find(|(key, _)| key == "CnC") {
-            Some((topic_name, partitions_num)) => {
-                if active_cgw_number > *partitions_num {
-                    error!("Updating number of partitions for CnC topic!");
-                    cgw_update_kafka_topics_partitions(
-                        &admin_client,
-                        topic_name,
-                        active_cgw_number,
-                    )
+        cgw_create_kafka_topics(&admin_client, &missing_topics).await?;
+        existing_topics = cgw_get_kafka_topics(&admin_client)?;
+    }
+
+    match existing_topics.iter().find(|(key, _)| key == "CnC") {
+        Some((topic_name, partitions_num)) => {
+            if active_cgw_number > *partitions_num {
+                error!("Updating number of partitions for CnC topic!");
+                cgw_update_kafka_topics_partitions(&admin_client, topic_name, active_cgw_number)
                     .await?;
-                }
             }
-            None => {
-                return Err(Error::KafkaInit(
-                    "Failed to find CnC topic in existing topics list!".to_string(),
-                ));
-            }
+        }
+        None => {
+            return Err(Error::KafkaInit(
+                "Failed to find CnC topic in existing topics list!".to_string(),
+            ));
         }
     }
 

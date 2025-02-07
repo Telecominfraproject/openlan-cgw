@@ -21,6 +21,7 @@ use rdkafka::{
     producer::{FutureProducer, FutureRecord},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
@@ -119,6 +120,8 @@ pub struct InfraGroupInfraRequestResult {
     pub reporter_shard_id: i32,
     pub uuid: Uuid,
     pub id: u64,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
     pub success: bool,
     pub error_message: Option<String>,
 }
@@ -221,6 +224,8 @@ pub struct InfraStateEventMessage {
     pub event_type: String,
     pub payload: String,
     pub reporter_shard_id: i32,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -229,18 +234,46 @@ pub struct InfraRealtimeEventMessage {
     pub event_type: String,
     pub payload: String,
     pub reporter_shard_id: i32,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
+
+/* Start */
+#[derive(Debug, Serialize)]
+pub struct InfraGroupSetCloudHeaderResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InfraGroupInfrasSetCloudHeaderResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub failed_infras: Vec<MacAddress>,
+    pub reporter_shard_id: i32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+/* End */
 
 pub fn cgw_construct_infra_state_event_message(
     event_type: String,
     payload: String,
     reporter_shard_id: i32,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let state_message = InfraStateEventMessage {
         r#type: "infrastructure_state_event_message",
         event_type,
         payload,
         reporter_shard_id,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&state_message)?)
@@ -250,12 +283,14 @@ pub fn cgw_construct_infra_realtime_event_message(
     event_type: String,
     payload: String,
     reporter_shard_id: i32,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let realtime_message = InfraRealtimeEventMessage {
         r#type: "infrastructure_realtime_event_message",
         event_type,
         payload,
         reporter_shard_id,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&realtime_message)?)
@@ -552,6 +587,7 @@ pub fn cgw_construct_infra_request_result_msg(
     reporter_shard_id: i32,
     uuid: Uuid,
     id: u64,
+    cloud_header: Option<String>,
     success: bool,
     error_message: Option<String>,
 ) -> Result<String> {
@@ -560,11 +596,100 @@ pub fn cgw_construct_infra_request_result_msg(
         reporter_shard_id,
         uuid,
         id,
+        cloud_header,
         success,
         error_message,
     };
 
     Ok(serde_json::to_string(&infra_request_result)?)
+}
+
+pub fn cgw_construct_infra_group_set_cloud_header_response(
+    infra_group_id: i32,
+    reporter_shard_id: i32,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let group_create = InfraGroupSetCloudHeaderResponse {
+        r#type: "infrastructure_group_set_cloud_header_response",
+        infra_group_id,
+        reporter_shard_id,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&group_create)?)
+}
+
+pub fn cgw_construct_infra_group_infras_set_cloud_header_response(
+    infra_group_id: i32,
+    failed_infras: Vec<MacAddress>,
+    reporter_shard_id: i32,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+) -> Result<String> {
+    let group_create = InfraGroupInfrasSetCloudHeaderResponse {
+        r#type: "infrastructure_group_infras_set_cloud_header_response",
+        infra_group_id,
+        failed_infras,
+        reporter_shard_id,
+        uuid,
+        success,
+        error_message,
+    };
+
+    Ok(serde_json::to_string(&group_create)?)
+}
+
+pub fn cgw_construct_cloud_header(
+    group_cloud_header: Option<String>,
+    infras_cloud_header: Option<String>,
+) -> Option<String> {
+    let cloud_header: Option<String> = match (group_cloud_header, infras_cloud_header) {
+        (Some(group_header), Some(infras_header)) => {
+            // Need to join both group and infras header into single cloud-header
+            let group_header_map: HashMap<String, Value> = match serde_json::from_str(&group_header)
+            {
+                Ok(map) => map,
+                Err(e) => {
+                    println!("Failed to deserialize group header: {group_header}! Error: {e}");
+                    // Do not break any process if cloud header serde fail
+                    HashMap::default()
+                }
+            };
+
+            let infras_header_map: HashMap<String, Value> =
+                match serde_json::from_str(&infras_header) {
+                    Ok(map) => map,
+                    Err(e) => {
+                        println!(
+                            "Failed to deserialize infras header: {infras_header}! Error: {e}"
+                        );
+                        // Do not break any process if cloud header serde fail
+                        HashMap::default()
+                    }
+                };
+
+            let mut cloud_header_map: HashMap<String, Value> = group_header_map;
+            cloud_header_map.extend(infras_header_map);
+
+            match serde_json::to_string(&cloud_header_map) {
+                Ok(cloud_header_str) => Some(cloud_header_str),
+                Err(e) => {
+                    error!("Failed to create cloud header! Error: {e}");
+                    None
+                }
+            }
+        }
+        (Some(group_cloud_header), None) => Some(group_cloud_header),
+        (None, Some(infras_cloud_header)) => Some(infras_cloud_header),
+        (None, None) => None,
+    };
+
+    cloud_header
 }
 
 struct CGWConsumerContextData {

@@ -14,7 +14,7 @@ infrastructure_group_create:
     enum:
       - infrastructure_group_create
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   uuid:
     description: The underlying unique identifier of the request.
@@ -23,6 +23,11 @@ infrastructure_group_create:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  cloud-header:
+    description:
+      The infrastructure group cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_group_create_to_shard:
   description:
@@ -36,7 +41,7 @@ infrastructure_group_create_to_shard:
     enum:
       - infrastructure_group_create_to_shard
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   shard_id:
     description: Specific shard (CGW) id that this group should be assigned to.
@@ -49,6 +54,11 @@ infrastructure_group_create_to_shard:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  cloud-header:
+    description:
+      The infrastructure group cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_group_delete:
   description: Destroy previously created infrastructure group.
@@ -60,7 +70,7 @@ infrastructure_group_delete:
     enum:
       - infrastructure_group_delete
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   uuid:
     description: The underlying unique identifier of the request.
@@ -78,7 +88,7 @@ infrastructure_group_infras_add:
     enum:
       - infrastructure_group_infras_add
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   infra_group_infras:
     description:
@@ -94,6 +104,11 @@ infrastructure_group_infras_add:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  cloud-header:
+    description:
+      The infrastructure group infras cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_group_infras_del:
   description: De-assign list of infras from specified group.
@@ -105,7 +120,7 @@ infrastructure_group_infras_del:
     enum:
       - infrastructure_group_infras_del
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   infra_group_infras:
     description:
@@ -135,7 +150,7 @@ infrastructure_group_infra_message_enqueue:
     enum:
       - infrastructure_group_infra_message_enqueue
   infra_group_id:
-    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    description: The 'infra_group_id' - represented as digit.
     type: integer
   infra_group_infra:
     description: MAC (serial) of the infra to sink message down to.
@@ -171,10 +186,64 @@ rebalance_groups:
       - rebalance_groups
   infra_group_id:
     description:
-      The 'infra_group_id' while is represented as string, is actually a stringified digit.
+      The 'infra_group_id' - represented as digit.
       The 'infra_group_id' while is required, can be set to any value, as it's currently omitted
       and ignored.
     type: integer
+  uuid:
+    description: The underlying unique identifier of the request.
+      The caller can expect a response with the same UUID value,
+      effectively matching a request with a response, due to
+      async nature of the Kafka bus.
+    type: string
+    format: uuid
+
+infrastructure_group_set_cloud_header:
+  description:
+    Set infrastructure group cloud header.
+    Request generates corresponding 'infrastructure_group_set_cloud_header_response' response.
+  type:
+    type: string
+    enum:
+      - infrastructure_group_set_cloud_header
+  infra_group_id:
+    description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
+    type: integer
+  cloud-header:
+    description:
+      The infrastructure group cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
+  uuid:
+    description: The underlying unique identifier of the request.
+      The caller can expect a response with the same UUID value,
+      effectively matching a request with a response, due to
+      async nature of the Kafka bus.
+    type: string
+    format: uuid
+
+infrastructure_group_infras_set_cloud_header:
+  description: Assign list of infras to specified group.
+    Request generates corresponding 'infrastructure_group_infras_set_cloud_header_response' response.
+  type:
+    type: string
+    enum:
+      - infrastructure_group_infras_set_cloud_header
+  infra_group_id:
+    description: The 'infra_group_id' - represented as digit.
+    type: integer
+  infra_group_infras:
+    description:
+      Array of infras (MAC address / mac serial, any form is accepted) the
+      cloud header should be assigned to.
+    type: array
+    items:
+      type: string
+  cloud-header:
+    description:
+      The infrastructure group infras cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
   uuid:
     description: The underlying unique identifier of the request.
       The caller can expect a response with the same UUID value,

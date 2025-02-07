@@ -9,5 +9,4 @@
 #
 # ARGS:
 # $1 - group id
-# $2 - mac address
-./run.sh -s localhost:9092 --remove-from-group $1 "$2^1"
+./run.sh -s localhost:9092 -c 1 --group-header $1

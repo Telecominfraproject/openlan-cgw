@@ -3,10 +3,12 @@ use crate::cgw_device::{
     OldNew,
 };
 use crate::cgw_nb_api_listener::{
-    cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_capabilities_changed_msg,
-    cgw_construct_infra_enqueue_response, cgw_construct_infra_group_create_response,
-    cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
-    cgw_construct_infra_group_infras_del_response, cgw_construct_infra_join_msg,
+    cgw_construct_cloud_header, cgw_construct_foreign_infra_connection_msg,
+    cgw_construct_infra_capabilities_changed_msg, cgw_construct_infra_enqueue_response,
+    cgw_construct_infra_group_create_response, cgw_construct_infra_group_delete_response,
+    cgw_construct_infra_group_infras_add_response, cgw_construct_infra_group_infras_del_response,
+    cgw_construct_infra_group_infras_set_cloud_header_response,
+    cgw_construct_infra_group_set_cloud_header_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
     cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_join_msg,
     cgw_construct_unassigned_infra_leave_msg, CGWKafkaProducerTopic,
@@ -39,7 +41,11 @@ use crate::{
 use crate::cgw_errors::{Error, Result};
 
 use std::str::FromStr;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    sync::Arc,
+};
 use tokio::{
     net::TcpStream,
     runtime::Runtime,
@@ -174,12 +180,14 @@ pub struct CGWConnectionServer {
 }
 
 enum CGWNBApiParsedMsgType {
-    InfrastructureGroupCreate,
-    InfrastructureGroupCreateToShard(i32),
+    InfrastructureGroupCreate(Option<String>),
+    InfrastructureGroupCreateToShard(i32, Option<String>),
     InfrastructureGroupDelete,
-    InfrastructureGroupInfrasAdd(Vec<MacAddress>),
+    InfrastructureGroupInfrasAdd(Vec<MacAddress>, Option<String>),
     InfrastructureGroupInfrasDel(Vec<MacAddress>),
     InfrastructureGroupInfraMsg(MacAddress, String, Option<u64>),
+    InfrastructureGroupSetCloudHeader(Option<String>),
+    InfrastructureGroupInfrasSetCloudHeader(Vec<MacAddress>, Option<String>),
     RebalanceGroups,
 }
 
@@ -499,6 +507,13 @@ impl CGWConnectionServer {
             r#type: String,
             infra_group_id: i32,
             uuid: Uuid,
+            // Cloud header is an opaque type from the perspective of CGW.
+            // We're actually agnostic to whatever content there is.
+            //
+            // Moreover, we also support <header:NULL> format
+            // to ease out NULL-ing procedure from the cloud perspective.
+            #[serde(default, rename = "cloud-header")]
+            group_cloud_header: Option<Map<String, Value>>,
         }
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreateToShard {
@@ -506,6 +521,13 @@ impl CGWConnectionServer {
             infra_group_id: i32,
             shard_id: i32,
             uuid: Uuid,
+            // Cloud header is an opaque type from the perspective of CGW.
+            // We're actually agnostic to whatever content there is.
+            //
+            // Moreover, we also support <header:NULL> format
+            // to ease out NULL-ing procedure from the cloud perspective.
+            #[serde(default, rename = "cloud-header")]
+            group_cloud_header: Option<Map<String, Value>>,
         }
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupDelete {
@@ -520,6 +542,13 @@ impl CGWConnectionServer {
             infra_group_id: i32,
             infra_group_infras: Vec<MacAddress>,
             uuid: Uuid,
+            // Cloud header is an opaque type from the perspective of CGW.
+            // We're actually agnostic to whatever content there is.
+            //
+            // Moreover, we also support <header:NULL> format
+            // to ease out NULL-ing procedure from the cloud perspective.
+            #[serde(default, rename = "cloud-header")]
+            infras_cloud_header: Option<Map<String, Value>>,
         }
 
         #[derive(Debug, Serialize, Deserialize)]
@@ -547,6 +576,35 @@ impl CGWConnectionServer {
             uuid: Uuid,
         }
 
+        #[derive(Debug, Serialize, Deserialize)]
+        struct InfraGroupSetCloudHeader {
+            r#type: String,
+            infra_group_id: i32,
+            // Cloud header is an opaque type from the perspective of CGW.
+            // We're actually agnostic to whatever content there is.
+            //
+            // Moreover, we also support <header:NULL> format
+            // to ease out NULL-ing procedure from the cloud perspective.
+            #[serde(default, rename = "cloud-header")]
+            group_cloud_header: Option<Map<String, Value>>,
+            uuid: Uuid,
+        }
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct InfraGroupInfrasSetCloudHeader {
+            r#type: String,
+            infra_group_id: i32,
+            infra_group_infras: Vec<MacAddress>,
+            // Cloud header is an opaque type from the perspective of CGW.
+            // We're actually agnostic to whatever content there is.
+            //
+            // Moreover, we also support <header:NULL> format
+            // to ease out NULL-ing procedure from the cloud perspective.
+            #[serde(rename = "cloud-header")]
+            infras_cloud_header: Option<Map<String, Value>>,
+            uuid: Uuid,
+        }
+
         let map: Map<String, Value> = serde_json::from_str(payload).ok()?;
 
         let rc = map.get("type")?;
@@ -558,18 +616,29 @@ impl CGWConnectionServer {
         match msg_type {
             "infrastructure_group_create" => {
                 let json_msg: InfraGroupCreate = serde_json::from_str(payload).ok()?;
+                let cloud_header: Option<String> = match json_msg.group_cloud_header {
+                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    None => None,
+                };
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    CGWNBApiParsedMsgType::InfrastructureGroupCreate,
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreate(cloud_header),
                 ));
             }
             "infrastructure_group_create_to_shard" => {
                 let json_msg: InfraGroupCreateToShard = serde_json::from_str(payload).ok()?;
+                let cloud_header: Option<String> = match json_msg.group_cloud_header {
+                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    None => None,
+                };
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
-                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(json_msg.shard_id),
+                    CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
+                        json_msg.shard_id,
+                        cloud_header,
+                    ),
                 ));
             }
             "infrastructure_group_delete" => {
@@ -582,11 +651,16 @@ impl CGWConnectionServer {
             }
             "infrastructure_group_infras_add" => {
                 let json_msg: InfraGroupInfrasAdd = serde_json::from_str(payload).ok()?;
+                let cloud_header: Option<String> = match json_msg.infras_cloud_header {
+                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    None => None,
+                };
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(
                         json_msg.infra_group_infras,
+                        cloud_header,
                     ),
                 ));
             }
@@ -602,7 +676,6 @@ impl CGWConnectionServer {
             }
             "infrastructure_group_infra_message_enqueue" => {
                 let json_msg: InfraGroupMsgJSON = serde_json::from_str(payload).ok()?;
-                debug!("{:?}", json_msg);
                 return Some(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
@@ -619,6 +692,34 @@ impl CGWConnectionServer {
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::RebalanceGroups,
+                ));
+            }
+            "infrastructure_group_set_cloud_header" => {
+                let json_msg: InfraGroupSetCloudHeader = serde_json::from_str(payload).ok()?;
+                let cloud_header: Option<String> = match json_msg.group_cloud_header {
+                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    None => None,
+                };
+                return Some(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupSetCloudHeader(cloud_header),
+                ));
+            }
+            "infrastructure_group_infras_set_cloud_header" => {
+                let json_msg: InfraGroupInfrasSetCloudHeader =
+                    serde_json::from_str(payload).ok()?;
+                let cloud_header: Option<String> = match json_msg.infras_cloud_header {
+                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    None => None,
+                };
+                return Some(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupInfrasSetCloudHeader(
+                        json_msg.infra_group_infras,
+                        cloud_header,
+                    ),
                 ));
             }
             &_ => {
@@ -644,8 +745,9 @@ impl CGWConnectionServer {
             };
 
             let connmap_r_lock = self.connmap.map.read().await;
-            let msg: CGWConnectionProcessorReqMsg =
-                CGWConnectionProcessorReqMsg::ForeignConnection((destination_shard_host.clone(), destination_wss_port));
+            let msg: CGWConnectionProcessorReqMsg = CGWConnectionProcessorReqMsg::ForeignConnection(
+                (destination_shard_host.clone(), destination_wss_port),
+            );
 
             if let Some(c) = connmap_r_lock.get(&mac) {
                 match c.send(msg.clone()) {
@@ -760,6 +862,22 @@ impl CGWConnectionServer {
                             .await
                         {
                             error!("Failed to sync Device cache! Error: {e}");
+                        }
+
+                        if let Err(e) = self.cgw_remote_discovery.sync_group_to_header_map().await {
+                            error!(
+                                "Can't create CGW Remote Discovery client! Failed to sync group to cloud header map! Error: {e}"
+                            );
+                        }
+
+                        if let Err(e) = self
+                            .cgw_remote_discovery
+                            .sync_group_infras_to_header_map()
+                            .await
+                        {
+                            error!(
+                                "Can't create CGW Remote Discovery client! Failed to sync group infras to cloud header map! Error: {e}"
+                            );
                         }
 
                         last_update_timestamp = current_timestamp;
@@ -878,7 +996,7 @@ impl CGWConnectionServer {
                 if let CGWNBApiParsedMsg {
                     uuid,
                     gid,
-                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreate,
+                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreate(cloud_header),
                 } = parsed_msg
                 {
                     // DB stuff - create group for remote shards to be aware of change
@@ -886,6 +1004,7 @@ impl CGWConnectionServer {
                         id: gid,
                         reserved_size: infras_capacity,
                         actual_size: 0i32,
+                        cloud_header,
                     };
                     match self
                         .cgw_remote_discovery
@@ -945,7 +1064,8 @@ impl CGWConnectionServer {
                 } else if let CGWNBApiParsedMsg {
                     uuid,
                     gid,
-                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(shard_id),
+                    msg_type:
+                        CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(shard_id, cloud_header),
                 } = parsed_msg
                 {
                     // DB stuff - create group for remote shards to be aware of change
@@ -953,6 +1073,7 @@ impl CGWConnectionServer {
                         id: gid,
                         reserved_size: infras_capacity,
                         actual_size: 0i32,
+                        cloud_header,
                     };
                     match self
                         .cgw_remote_discovery
@@ -1092,6 +1213,176 @@ impl CGWConnectionServer {
                             warn!("Destroy group gid {gid} received, but it does not exist!");
                         }
                     }
+                    // This type of msg is handled in place, not added to buf
+                    // for later processing.
+                    continue;
+                } else if let CGWNBApiParsedMsg {
+                    uuid,
+                    gid,
+                    msg_type: CGWNBApiParsedMsgType::InfrastructureGroupSetCloudHeader(cloud_header),
+                } = parsed_msg
+                {
+                    let response: Result<String>;
+
+                    // Check if group exist
+                    match self.cgw_remote_discovery.get_group_from_db(gid).await {
+                        Some(_group) => {
+                            self.cgw_remote_discovery
+                                .update_group_to_header_map(&gid, cloud_header)
+                                .await;
+
+                            // Check if Redis updated
+                            if let Err(e) = self
+                                .cgw_remote_discovery
+                                .update_infra_group_header_redis(gid)
+                                .await
+                            {
+                                response = cgw_construct_infra_group_set_cloud_header_response(
+                                    gid,
+                                    self.local_cgw_id,
+                                    uuid,
+                                    false,
+                                    Some(e.to_string()),
+                                );
+                            } else {
+                                response = cgw_construct_infra_group_set_cloud_header_response(
+                                    gid,
+                                    self.local_cgw_id,
+                                    uuid,
+                                    true,
+                                    None,
+                                );
+                            }
+                        }
+                        None => {
+                            response = cgw_construct_infra_group_set_cloud_header_response(
+                                gid,
+                                self.local_cgw_id,
+                                uuid,
+                                false,
+                                Some(format!("Group id {gid} does not exist!")),
+                            );
+                        }
+                    }
+
+                    if let Ok(resp) = response {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            gid,
+                            resp,
+                            CGWKafkaProducerTopic::CnCRes,
+                        );
+                    } else {
+                        error!(
+                            "Failed to construct infra_group_set_cloud_header_response message!"
+                        );
+                    }
+
+                    // This type of msg is handled in place, not added to buf
+                    // for later processing.
+                    continue;
+                } else if let CGWNBApiParsedMsg {
+                    uuid,
+                    gid,
+                    msg_type:
+                        CGWNBApiParsedMsgType::InfrastructureGroupInfrasSetCloudHeader(
+                            infras,
+                            cloud_header,
+                        ),
+                } = parsed_msg
+                {
+                    let response: Result<String>;
+
+                    match self
+                        .cgw_remote_discovery
+                        .get_group_infras_from_db(gid)
+                        .await
+                    {
+                        Some(group_infras) => {
+                            let infras_set: HashSet<MacAddress> =
+                                group_infras.iter().map(|infra| infra.mac).collect();
+
+                            let mut success_infras: Vec<MacAddress> =
+                                Vec::with_capacity(infras_set.len());
+                            let mut failed_infras: Vec<MacAddress> =
+                                Vec::with_capacity(infras_set.len());
+
+                            for infra in infras.clone() {
+                                if infras_set.contains(&infra) {
+                                    success_infras.push(infra);
+                                } else {
+                                    failed_infras.push(infra);
+                                }
+                            }
+
+                            self.cgw_remote_discovery
+                                .update_group_infras_header_map(gid, success_infras, cloud_header)
+                                .await;
+
+                            if let Err(e) = self
+                                .cgw_remote_discovery
+                                .update_infra_group_infras_header_redis(gid)
+                                .await
+                            {
+                                // We failed to insert each infra - redis was not updated!
+                                response =
+                                    cgw_construct_infra_group_infras_set_cloud_header_response(
+                                        gid,
+                                        infras,
+                                        self.local_cgw_id,
+                                        uuid,
+                                        false,
+                                        Some(e.to_string()),
+                                    );
+                            } else {
+                                response = match failed_infras.is_empty() {
+                                    true => {
+                                        // Successfully update group infras to cloud header map
+                                        cgw_construct_infra_group_infras_set_cloud_header_response(
+                                            gid,
+                                            failed_infras,
+                                            self.local_cgw_id,
+                                            uuid,
+                                            true,
+                                            None,
+                                        )
+                                    }
+                                    false => {
+                                        // Failed to update group infras to cloud header map for few MACs
+                                        cgw_construct_infra_group_infras_set_cloud_header_response(
+                                            gid,
+                                            failed_infras,
+                                            self.local_cgw_id,
+                                            uuid,
+                                            false,
+                                            Some(format!("Failed to update group {gid} infras cloud header map! Partial update!")),
+                                        )
+                                    }
+                                };
+                            }
+                        }
+                        None => {
+                            response = cgw_construct_infra_group_set_cloud_header_response(
+                                gid,
+                                self.local_cgw_id,
+                                uuid,
+                                false,
+                                Some(format!("Group id {gid} does not exist!")),
+                            );
+                        }
+                    }
+
+                    if let Ok(resp) = response {
+                        self.enqueue_mbox_message_from_cgw_to_nb_api(
+                            gid,
+                            resp,
+                            CGWKafkaProducerTopic::CnCRes,
+                        );
+                    } else {
+                        error!(
+                            "Failed to construct infra_group_set_cloud_header_response message!"
+                        );
+                    }
+
                     // This type of msg is handled in place, not added to buf
                     // for later processing.
                     continue;
@@ -1237,7 +1528,10 @@ impl CGWConnectionServer {
                             uuid,
                             gid,
                             msg_type:
-                                CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(infras_list),
+                                CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(
+                                    infras_list,
+                                    cloud_header,
+                                ),
                         } => {
                             if (self
                                 .cgw_remote_discovery
@@ -1266,7 +1560,12 @@ impl CGWConnectionServer {
                             let devices_cache_lock = self.devices_cache.clone();
                             match self
                                 .cgw_remote_discovery
-                                .create_infras_list(gid, infras_list.clone(), devices_cache_lock)
+                                .create_infras_list(
+                                    gid,
+                                    infras_list.clone(),
+                                    devices_cache_lock,
+                                    cloud_header,
+                                )
                                 .await
                             {
                                 Ok(success_infras) => {
@@ -1845,8 +2144,12 @@ impl CGWConnectionServer {
                         // Detect Capabilities changes as device exists in Cache
                         capability_changes = cgw_detect_device_changes(&current_device_caps, &caps);
                     } else {
-                        // Infra is not found in RAM Cache - try to get it frim PostgreSQL DB
-                        if let Some(infra) = self.cgw_remote_discovery.get_infra_from_db(device_mac).await {
+                        // Infra is not found in RAM Cache - try to get it from PostgreSQL DB
+                        if let Some(infra) = self
+                            .cgw_remote_discovery
+                            .get_infra_from_db(device_mac)
+                            .await
+                        {
                             device_group_id = infra.infra_group_id;
                             if let Some(group_owner_id) = self
                                 .cgw_remote_discovery
@@ -2023,8 +2326,12 @@ impl CGWConnectionServer {
                             }
                         }
                     } else {
-                        // Infra is not found in RAM Cache - try to get it frim PostgreSQL DB
-                        if let Some(infra) = self.cgw_remote_discovery.get_infra_from_db(device_mac).await {
+                        // Infra is not found in RAM Cache - try to get it from PostgreSQL DB
+                        if let Some(infra) = self
+                            .cgw_remote_discovery
+                            .get_infra_from_db(device_mac)
+                            .await
+                        {
                             device_group_id = infra.infra_group_id;
                         }
                     }
@@ -2205,16 +2512,29 @@ impl CGWConnectionServer {
             let failed_requests = queue_lock.iterate_over_disconnected_devices().await;
 
             for (infra, requests) in failed_requests {
-                for req in requests {
+                for (group_id, req) in requests {
+                    let group_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_cloud_header(&group_id)
+                        .await;
+                    let infras_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_infra_cloud_header(&group_id, &infra)
+                        .await;
+
+                    let cloud_header: Option<String> =
+                        cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
                         self.local_cgw_id,
-                        req.1.uuid,
-                        req.1.command.id,
+                        req.uuid,
+                        req.command.id,
+                        cloud_header,
                         false,
                         Some(format!("Request failed due to infra {} disconnect", infra)),
                     ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(
-                            req.0,
+                            group_id,
                             resp,
                             CGWKafkaProducerTopic::CnCRes,
                         );
@@ -2224,6 +2544,22 @@ impl CGWConnectionServer {
                 }
             }
         }
+    }
+
+    pub async fn get_group_cloud_header(&self, group_id: &i32) -> Option<String> {
+        self.cgw_remote_discovery
+            .get_group_cloud_header(group_id)
+            .await
+    }
+
+    pub async fn get_group_infra_cloud_header(
+        &self,
+        group_id: i32,
+        infra: &MacAddress,
+    ) -> Option<String> {
+        self.cgw_remote_discovery
+            .get_group_infra_cloud_header(&group_id, &infra)
+            .await
     }
 
     pub fn get_local_id(&self) -> i32 {

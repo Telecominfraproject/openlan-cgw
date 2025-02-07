@@ -58,6 +58,12 @@ def parse_args():
     parser.add_argument("-p", "--send-to-group", metavar="GROUP-ID", type=str)
     parser.add_argument("-r", "--send-to-mac", metavar="MAC-RANGE", type=MacRange,
                         help="range of mac address that will be receiving the messages")
+    parser.add_argument("-gh", "--group-header", metavar=("GROUP-ID"),
+                        nargs=1, action="append",
+                        help="set group header")
+    parser.add_argument("-ih", "--infras-header", metavar=("GROUP-ID", "MAC-RANGE"),
+                        nargs=2, action="append",
+                        help="set group infras header")
 
     parsed_args = parser.parse_args()
 
@@ -91,6 +97,8 @@ def parse_args():
         interval_s=parsed_args.send_interval,
         group_id=parsed_args.send_to_group,
         send_to_macs=parsed_args.send_to_mac,
+        header_group=[],
+        header_infras=[]
     )
     if parsed_args.new_group is not None:
         for (group,) in parsed_args.new_group:
@@ -115,5 +123,18 @@ def parse_args():
         except ValueError:
             parser.error(
                 f"--remove-from-group: failed to parse MAC range \"{mac}\"")
+    if parsed_args.group_header is not None:
+        for (group,) in parsed_args.group_header:
+            try:
+                args.header_group.append(group)
+            except ValueError:
+                parser.error(f"--group-header: failed to parse {group}")
+    if parsed_args.infras_header is not None:
+        try:
+            for group, mac in parsed_args.infras_header:
+                args.header_infras.append((group, MacRange(mac)))
+        except ValueError:
+            parser.error(
+                f"--infras-header: failed to parse MAC range \"{mac}\"")
 
     return args

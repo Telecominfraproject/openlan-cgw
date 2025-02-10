@@ -91,7 +91,7 @@ CGW_KAFKA_CERT                    - Client certificate to validate Kafka broker
 CGW_DB_HOST                       - IP or hostname of remote database server to connect to
 CGW_DB_PORT                       - PORT of remote database server to connect to
 CGW_DB_USER                       - PSQL DB username (credentials) to use upon connect to DB
-CGW_DB_PASS                       - PSQL DB password (credentials) to use upon connect to DB
+CGW_DB_PASSWORD                   - PSQL DB password (credentials) to use upon connect to DB
 CGW_DB_TLS                        - Utilize TLS connection with DB server
 CGW_REDIS_HOST                    - IP or hostname of remote redis-db server to connect to
 CGW_REDIS_PORT                    - PORT of remote redis-db server to connect to
@@ -118,7 +118,7 @@ $ export | grep CGW
 declare -x CGW_DB_HOST="localhost"
 declare -x CGW_DB_PORT="5432"
 declare -x CGW_DB_USERNAME="cgw"
-declare -x CGW_DB_PASS="123"
+declare -x CGW_DB_PASSWORD="123"
 declare -x CGW_DB_TLS="no"
 declare -x CGW_GRPC_LISTENING_IP="127.0.0.1"
 declare -x CGW_GRPC_LISTENING_PORT="50051"

@@ -388,6 +388,13 @@ impl CGWConnectionProcessor {
                                         self.cgw_server.clone(),
                                     );
                                 }
+
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -405,6 +412,12 @@ impl CGWConnectionProcessor {
                                 }
                             }
                             CGWUCentralEventType::Healthcheck => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -472,6 +485,12 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -502,6 +521,12 @@ impl CGWConnectionProcessor {
                             | CGWUCentralEventType::CfgPending
                             | CGWUCentralEventType::DeviceUpdate
                             | CGWUCentralEventType::Recovery => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,

@@ -4354,3 +4354,220 @@ class TestCgwInfraEvents:
 
         assert ret_msg.topic == 'Connection'
         assert ret_msg.value['type'] == 'infra_leave'
+
+    @pytest.mark.usefixtures("test_context",
+                             "cgw_probe",
+                             "kafka_probe",
+                             "redis_probe",
+                             "psql_probe")
+    def test_unassigned_infra_events(self, test_context):
+        assert test_context.kafka_producer.is_connected(), \
+            f'Cannot create default group: kafka producer is not connected to Kafka'
+
+        assert test_context.kafka_consumer.is_connected(), \
+            f'Cannot create default group: kafka consumer is not connected to Kafka'
+
+        # This test take ~2min 45 sec for executing
+        # Currently skip test be default
+        pytest.skip(
+            f"Test execution is too long (~2 min. 45 sec). Skip test.")
+
+        default_shard_id = test_context.default_shard_id()
+
+        # Get shard info from Redis
+        shard_info = test_context.redis_client.get_shard(default_shard_id)
+        if not shard_info:
+            print(f'Failed to get shard {default_shard_id} info from Redis!')
+            raise Exception(
+                f'Failed to get shard {default_shard_id} info from Redis!')
+
+        # Connect infra to CGW
+        test_context.device_sim.connect()
+        test_context.device_sim.send_hello(test_context.device_sim._socket)
+
+        # Simulate at least 1 sec sleep before checking metrics
+        time.sleep(1)
+        assert cgw_metrics_get_connections_num() == 1
+        assert test_context.device_sim._socket is not None, \
+            f"Expected websocket connection NOT to be NULL after reconnect."
+
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'unassigned_infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra unassigned join message!')
+            raise Exception(
+                'Failed to receive infra unassigned join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'unassigned_infra_join'
+
+        # Send all know for now infra state/realtime event
+        # Validate - for unassigned infra NB SHOULD NOT receive any!
+
+        # Send state event
+        test_context.device_sim.send_state_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_state_event_message')
+        if ret_msg is not None:
+            print('Received infra state event message for unassigned infra!')
+            raise Exception(
+                'Received infra state event message for unassigned infra!')
+
+        # Send Healthcheck event
+        test_context.device_sim.send_healthcheck_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_state_event_message')
+        if ret_msg is not None:
+            print('Received infra state event message for unassigned infra!')
+            raise Exception(
+                'Received infra state event message for unassigned infra!')
+
+        # Send Crashlog event
+        test_context.device_sim.send_crashlog_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send rebootlog event
+        test_context.device_sim.send_rebootlog_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send cfgpending event
+        test_context.device_sim.send_cfgpending_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send ping event
+        test_context.device_sim.send_ping_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send ping event
+        test_context.device_sim.send_recovery_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send log event
+        test_context.device_sim.send_log_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send event: client.join
+        test_context.device_sim.send_join(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send alarm event
+        test_context.device_sim.send_alarm_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send wifiscan event
+        test_context.device_sim.send_wifiscan_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send deviceupdate event
+        test_context.device_sim.send_deviceupdate_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Send deviceupdate event
+        test_context.device_sim.send_venue_broadcast_event(
+            test_context.device_sim._socket)
+
+        # Get message from Kafka
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infrastructure_realtime_event_message')
+        if ret_msg is not None:
+            print('Received infra realtime event message for unassigned infra!')
+            raise Exception(
+                'Received infra realtime event message for unassigned infra!')
+
+        # Simulate infra leave
+        test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'unassigned_infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra unassigned leave message!')
+            raise Exception(
+                'Failed to receive infra unassigned leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'unassigned_infra_leave'

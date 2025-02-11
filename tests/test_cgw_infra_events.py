@@ -146,6 +146,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -169,6 +179,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -400,6 +419,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -423,6 +452,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -654,6 +692,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -677,6 +725,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -908,6 +965,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -931,6 +998,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -1162,6 +1238,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -1185,6 +1271,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -1416,6 +1511,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -1439,6 +1544,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -1670,6 +1784,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -1693,6 +1817,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -1924,6 +2057,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -1947,6 +2090,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -2178,6 +2330,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -2202,6 +2364,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -2433,6 +2604,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -2456,6 +2637,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -2687,6 +2877,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -2710,6 +2910,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -2941,6 +3150,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -2964,6 +3183,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -3195,6 +3423,16 @@ class TestCgwInfraEvents:
         test_context.device_sim.connect()
         test_context.device_sim.send_hello(test_context.device_sim._socket)
 
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_join')
+        if ret_msg is None:
+            print('Failed to receive infra join message!')
+            raise Exception(
+                'Failed to receive infra join message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_join'
+
         # Simulate at least 1 sec sleep before checking metrics
         time.sleep(1)
         assert cgw_metrics_get_connections_num() == 1
@@ -3218,6 +3456,15 @@ class TestCgwInfraEvents:
 
         # Simulate infra leave
         test_context.device_sim.disconnect()
+        ret_msg = test_context.kafka_consumer.get_msg_by_type(
+            'infra_leave')
+        if ret_msg is None:
+            print('Failed to receive infra leave message!')
+            raise Exception(
+                'Failed to receive infra leave message!')
+
+        assert ret_msg.topic == 'Connection'
+        assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
         uuid_val = uuid.uuid4()
@@ -4366,11 +4613,6 @@ class TestCgwInfraEvents:
 
         assert test_context.kafka_consumer.is_connected(), \
             f'Cannot create default group: kafka consumer is not connected to Kafka'
-
-        # This test take ~2min 45 sec for executing
-        # Currently skip test be default
-        pytest.skip(
-            f"Test execution is too long (~2 min. 45 sec). Skip test.")
 
         default_shard_id = test_context.default_shard_id()
 

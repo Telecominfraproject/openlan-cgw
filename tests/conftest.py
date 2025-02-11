@@ -29,7 +29,7 @@ class TestContext:
 
     @staticmethod
     def default_producer_topic() -> str:
-        return 'CnC'
+        return 'cnc'
 
     def __init__(self):
         device = DeviceSimulator(
@@ -57,9 +57,9 @@ class TestContext:
 
         self.device_sim = device
 
-        producer = KafkaProducer(db='localhost:9092', topic='CnC')
+        producer = KafkaProducer(db='localhost:9092', topic='cnc')
         consumer = KafkaConsumer(
-            db='localhost:9092', topics=['CnC_Res', 'Connection', 'State', 'Infra_Realtime', 'Topology'], consumer_timeout=12000)
+            db='localhost:9092', topics=['cnc_res', 'connection', 'state', 'infra_realtime', 'topology'], consumer_timeout=12000)
         admin = KafkaAdmin(host='localhost', port=9092)
 
         self.kafka_producer = producer
@@ -126,7 +126,7 @@ def kafka_probe(test_context):
         test_context.kafka_consumer.connect()
     except:
         raise Exception(
-            'Failed to connect to kafka broker! Either CnC, CnC_Res topics are unavailable, or broker is down (not running)')
+            'Failed to connect to kafka broker! Either cnc, cnc_res topics are unavailable, or broker is down (not running)')
 
     # Let's make sure default group is always deleted.
     test_context.kafka_producer.handle_single_group_delete(

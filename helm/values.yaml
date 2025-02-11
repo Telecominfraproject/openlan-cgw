@@ -59,7 +59,8 @@ volumes:
         secret:
           secretName: {{ if .Values.existingCertsSecret }}{{ .Values.existingCertsSecret }}{{ else }}{{ include "cgw.fullname" . }}-certs{{ end }}
 
-resources: {}
+resources:
+  {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
@@ -107,9 +108,9 @@ public_env_variables:
   CGW_KAFKA_PORT: "9092"
   CGW_REDIS_HOST: "redis"
   CGW_REDIS_PORT: "6379"
-  CGW_LOG_LEVEL: "info"  # or debug
-  CGW_KAFKA_CONSUME_TOPIC: "CnC"
-  CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
+  CGW_LOG_LEVEL: "info" # or debug
+  CGW_KAFKA_CONSUME_TOPIC: "cnc"
+  CGW_KAFKA_PRODUCE_TOPIC: "cnc_res"
   # set to (#cpus * 2) - 2
   DEFAULT_WSS_THREAD_NUM: "6"
 

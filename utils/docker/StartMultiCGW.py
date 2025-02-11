@@ -48,8 +48,8 @@ DEFAULT_WSS_KEY: Final[str] = "key.pem"
 # Kafka params
 DEFAULT_KAFKA_HOST: Final[str] = "docker-broker-1"
 DEFAULT_KAFKA_PORT: Final[int] = 9092
-DEFAULT_KAFKA_CONSUME_TOPIC: Final[str] = "CnC"
-DEFAULT_KAFKA_PRODUCE_TOPIC: Final[str] = "CnC_Res"
+DEFAULT_KAFKA_CONSUME_TOPIC: Final[str] = "cnc"
+DEFAULT_KAFKA_PRODUCE_TOPIC: Final[str] = "cnc_res"
 DEFAULT_KAFKA_TLS: Final[str] = "no"
 DEFAULT_KAFKA_CERT: Final[str] = "kafka.truststore.pem"
 

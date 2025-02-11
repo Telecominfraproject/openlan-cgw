@@ -112,7 +112,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], (active_shards_num - 1))
+            'cnc', ['CGW'], (active_shards_num - 1))
         assert len(partitions) > 0
 
         # Infra add to Group
@@ -321,7 +321,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -468,7 +468,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -604,7 +604,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -870,8 +870,8 @@ class TestCgwMultiInstances:
 
         # Validate Kafka messages
         # Expected to receive:
-        #   1. Foreign Infra Connection - from Connection topic
-        #   2. Infra Join               - from Connection topic
+        #   1. Foreign Infra Connection - from connection topic
+        #   2. Infra Join               - from connection topic
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
             'foreign_infra_connection')
         if ret_msg is None:
@@ -879,7 +879,7 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive foreign infra connection message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'foreign_infra_connection'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -889,7 +889,7 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Validate Device socket recv message
@@ -917,7 +917,7 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del

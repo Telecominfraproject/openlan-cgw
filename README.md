@@ -20,11 +20,11 @@ More information about the compose generation can be found in the
 ## gRPC
 CGW utilizes gRPC to communicate with other CGW instances (referred to as Shards). This functionality does not depend on some external third party services.
 ## Kafka
-CGW uses Kafka as a main North-Bound API layer for communication with NB services. CnC topic is used for commands and requests handling, CnC_Res is used to send replies/results back (CGW reads CnC and writes into CnC_Res).
+CGW uses Kafka as a main North-Bound API layer for communication with NB services. The "cnc" topic is used for commands and requests handling, "cnc_res" is used to send replies/results back (CGW reads "cnc" and writes into "cnc_res").
 ### Requirements
 It's required for the Kafka to have the following topics pre-made upon CGW launch:
-1. "CnC"     - Kafka consumer topic
-2. "CnC_Res" - Kafka producer topic
+1. "cnc"     - Kafka consumer topic
+2. "cnc_res" - Kafka producer topic
 ## PSQL
 Application utilizes relational DB (PSQL) to store registered Infrastructure Groups as well as registered Infrastructures.
 ### Requirements

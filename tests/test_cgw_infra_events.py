@@ -153,7 +153,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -173,7 +173,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra state event message!')
 
-        assert ret_msg.topic == 'State'
+        assert ret_msg.topic == 'state'
         assert ret_msg.value['type'] == 'infrastructure_state_event_message'
         assert ret_msg.value['event_type'] == 'state'
 
@@ -186,7 +186,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -426,7 +426,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -446,7 +446,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra state event message!')
 
-        assert ret_msg.topic == 'State'
+        assert ret_msg.topic == 'state'
         assert ret_msg.value['type'] == 'infrastructure_state_event_message'
         assert ret_msg.value['event_type'] == 'healthcheck'
 
@@ -459,7 +459,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -699,7 +699,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -719,7 +719,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'crashlog'
 
@@ -732,7 +732,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -972,7 +972,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -992,7 +992,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'rebootLog'
 
@@ -1005,7 +1005,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -1245,7 +1245,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -1265,7 +1265,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'cfgpending'
 
@@ -1278,7 +1278,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -1518,7 +1518,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -1538,7 +1538,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'ping'
 
@@ -1551,7 +1551,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -1791,7 +1791,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -1811,7 +1811,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'recovery'
 
@@ -1824,7 +1824,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -2064,7 +2064,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -2084,7 +2084,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'log'
 
@@ -2097,7 +2097,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -2337,7 +2337,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -2358,7 +2358,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'realtime_event'
 
@@ -2371,7 +2371,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -2611,7 +2611,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -2631,7 +2631,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'alarm'
 
@@ -2644,7 +2644,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -2884,7 +2884,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -2904,7 +2904,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'wifiscan'
 
@@ -2917,7 +2917,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -3157,7 +3157,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -3177,7 +3177,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'deviceupdate'
 
@@ -3190,7 +3190,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -3430,7 +3430,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -3450,7 +3450,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra realtime event message!')
 
-        assert ret_msg.topic == 'Infra_Realtime'
+        assert ret_msg.topic == 'infra_realtime'
         assert ret_msg.value['type'] == 'infrastructure_realtime_event_message'
         assert ret_msg.value['event_type'] == 'venue_broadcast'
 
@@ -3463,7 +3463,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -3600,7 +3600,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_create_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
@@ -3654,7 +3654,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
         # We don't expect to have even a single 'failed_infra',
         # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
@@ -3709,7 +3709,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -3719,7 +3719,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra capabilities change event message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infrastructure_group_infra_capabilities_changed'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -3737,7 +3737,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del
@@ -3755,7 +3755,7 @@ class TestCgwInfraEvents:
             print(ret_msg.value['error_message'])
             raise Exception('Infra deassign failed!')
 
-        assert ret_msg.topic == 'CnC_Res'
+        assert ret_msg.topic == 'cnc_res'
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
@@ -3803,7 +3803,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive delete group result when expected')
 
-        assert ret_msg.topic == 'CnC_Res'
+        assert ret_msg.topic == 'cnc_res'
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
@@ -3873,7 +3873,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive unassigned infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_join'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -3898,7 +3898,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive unassigned infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_leave'
 
     @pytest.mark.usefixtures("test_context",
@@ -3943,7 +3943,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_create_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
@@ -3997,7 +3997,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
         # We don't expect to have even a single 'failed_infra',
         # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
@@ -4052,7 +4052,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -4062,7 +4062,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra capabilities change event message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infrastructure_group_infra_capabilities_changed'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -4086,7 +4086,7 @@ class TestCgwInfraEvents:
             print(ret_msg.value['error_message'])
             raise Exception('Infra deassign failed!')
 
-        assert ret_msg.topic == 'CnC_Res'
+        assert ret_msg.topic == 'cnc_res'
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_infras_del_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
@@ -4140,7 +4140,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive unassigned infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_leave'
 
         # Delete single group
@@ -4155,7 +4155,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive delete group result when expected')
 
-        assert ret_msg.topic == 'CnC_Res'
+        assert ret_msg.topic == 'cnc_res'
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
@@ -4228,7 +4228,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_create_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
@@ -4282,7 +4282,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
         # We don't expect to have even a single 'failed_infra',
         # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
@@ -4337,7 +4337,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -4347,7 +4347,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra capabilities change event message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infrastructure_group_infra_capabilities_changed'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -4367,7 +4367,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive delete group result when expected')
 
-        assert ret_msg.topic == 'CnC_Res'
+        assert ret_msg.topic == 'cnc_res'
         assert (ret_msg.value['type'] ==
                 'infrastructure_group_delete_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
@@ -4416,7 +4416,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive unassigned infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_leave'
 
     @pytest.mark.usefixtures("test_context",
@@ -4459,7 +4459,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_join'
 
         # Simulate at least 1 sec sleep before checking metrics
@@ -4485,7 +4485,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_create_response')
         assert (ret_msg.value['infra_group_id'] == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
 
         if ret_msg.value['success'] is False:
             print(ret_msg.value['error_message'])
@@ -4539,7 +4539,7 @@ class TestCgwInfraEvents:
                 'infrastructure_group_infras_add_response')
         assert (int(ret_msg.value["infra_group_id"]) == group_id)
         assert ((uuid.UUID(ret_msg.value['uuid']).int) == (uuid_val.int))
-        assert (ret_msg.topic == 'CnC_Res')
+        assert (ret_msg.topic == 'cnc_res')
         # We don't expect to have even a single 'failed_infra',
         # because the overall command succeeded
         assert (len(list(ret_msg.value["failed_infras"])) == 0)
@@ -4587,7 +4587,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Simulate infra leave
@@ -4599,7 +4599,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive unassigned infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
     @pytest.mark.usefixtures("test_context",
@@ -4640,7 +4640,7 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra unassigned join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_join'
 
         # Send all know for now infra state/realtime event
@@ -4811,5 +4811,5 @@ class TestCgwInfraEvents:
             raise Exception(
                 'Failed to receive infra unassigned leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'unassigned_infra_leave'

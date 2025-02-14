@@ -364,30 +364,28 @@ impl CGWDBAccessor {
             .prepare("SELECT * from infras WHERE infra_group_id = $1")
             .await
         {
-            Ok(q) => {
-                match self.cl.query(&q, &[&group_id]).await {
-                    Ok(r) => {
-                        for x in r {
-                            match CGWDBInfra::try_from(x) {
-                                Ok(infra) => {
-                                    list.push(infra);
-                                }
-                                Err(e) => {
-                                    error!("Failed to construct CGWDBInfra! Error: {e}");
-                                }
+            Ok(q) => match self.cl.query(&q, &[&group_id]).await {
+                Ok(r) => {
+                    for x in r {
+                        match CGWDBInfra::try_from(x) {
+                            Ok(infra) => {
+                                list.push(infra);
+                            }
+                            Err(e) => {
+                                error!("Failed to construct CGWDBInfra! Error: {e}");
                             }
                         }
-                        return Some(list);
                     }
-                    Err(e) => {
-                        error!("Query infras with group id {group_id} failed! Error: {e}");
-                        return None;
-                    }
-                };
-            }
+                    Some(list)
+                }
+                Err(e) => {
+                    error!("Query infras with group id {group_id} failed! Error: {e}");
+                    None
+                }
+            },
             Err(e) => {
                 error!("Failed to prepare statement! Error: {e}");
-                return None;
+                None
             }
         }
     }

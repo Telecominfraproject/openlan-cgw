@@ -122,7 +122,7 @@ async fn cgw_create_kafka_topics(
 
     for topic_name in topics_list {
         new_topics.push(NewTopic::new(
-            *topic_name,
+            topic_name,
             if *topic_name == "cnc" {
                 default_cnc_topic_partitions_num
             } else {

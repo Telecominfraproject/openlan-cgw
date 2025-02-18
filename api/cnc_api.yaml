@@ -1,7 +1,7 @@
 ---
-# Kafka 'CnC' (default) topic API list to interact with CGW infrastructure
+# Kafka 'cnc' (default) topic API list to interact with CGW infrastructure
 # The following objects define the layout of messages one can push into
-# 'CnC' topic.
+# 'cnc' topic.
 # The result messages for each of the request can be found in the
 # 'cnc_res_api.yaml' file.
 infrastructure_group_create:
@@ -24,8 +24,7 @@ infrastructure_group_create:
     type: string
     format: uuid
   cloud-header:
-    description:
-      The infrastructure group cloud header.
+    description: The infrastructure group cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
 
@@ -55,8 +54,7 @@ infrastructure_group_create_to_shard:
     type: string
     format: uuid
   cloud-header:
-    description:
-      The infrastructure group cloud header.
+    description: The infrastructure group cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
 
@@ -105,8 +103,7 @@ infrastructure_group_infras_add:
     type: string
     format: uuid
   cloud-header:
-    description:
-      The infrastructure group infras cloud header.
+    description: The infrastructure group infras cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
 
@@ -185,8 +182,7 @@ rebalance_groups:
     enum:
       - rebalance_groups
   infra_group_id:
-    description:
-      The 'infra_group_id' - represented as digit.
+    description: The 'infra_group_id' - represented as digit.
       The 'infra_group_id' while is required, can be set to any value, as it's currently omitted
       and ignored.
     type: integer
@@ -199,8 +195,7 @@ rebalance_groups:
     format: uuid
 
 infrastructure_group_set_cloud_header:
-  description:
-    Set infrastructure group cloud header.
+  description: Set infrastructure group cloud header.
     Request generates corresponding 'infrastructure_group_set_cloud_header_response' response.
   type:
     type: string
@@ -210,8 +205,7 @@ infrastructure_group_set_cloud_header:
     description: The 'infra_group_id' while is represented as string, is actually a stringified digit.
     type: integer
   cloud-header:
-    description:
-      The infrastructure group cloud header.
+    description: The infrastructure group cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
   uuid:
@@ -240,8 +234,7 @@ infrastructure_group_infras_set_cloud_header:
     items:
       type: string
   cloud-header:
-    description:
-      The infrastructure group infras cloud header.
+    description: The infrastructure group infras cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
   uuid:

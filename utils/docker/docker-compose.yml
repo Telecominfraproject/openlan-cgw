@@ -67,9 +67,9 @@ services:
       # to block init container to wait for Kafka broker to be ready
       kafka-topics --bootstrap-server broker:9092 --list
 
-      # create CnC and CnC_Res topics
-      kafka-topics.sh --create --partitions 2 --bootstrap-server broker:9092 --topic CnC
-      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic CnC_Res
+      # create cnc and cnc_res topics
+      kafka-topics.sh --create --partitions 2 --bootstrap-server broker:9092 --topic cnc
+      kafka-topics.sh --create --bootstrap-server broker:9092 --partitions 2 --topic cnc_res
       "
     networks:
       - cgw_network

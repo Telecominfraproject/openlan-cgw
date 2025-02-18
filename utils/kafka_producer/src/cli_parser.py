@@ -42,8 +42,8 @@ def parse_args():
     parser.add_argument("-D", "--remove-from-group", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
                         help="remove mac address from a group")
-    parser.add_argument("-T", "--topic", default="CnC",
-                        help="kafka topic (default: \"CnC\")")
+    parser.add_argument("-T", "--topic", default="cnc",
+                        help="kafka topic (default: \"cnc\")")
     parser.add_argument("-s", "--bootstrap-server", metavar="ADDRESS", default="127.0.0.1:9092",
                         help="kafka address (default: \"127.0.0.1:9092\")")
     parser.add_argument("-m", "--send-message", metavar="JSON", type=str,

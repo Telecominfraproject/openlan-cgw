@@ -11,12 +11,12 @@ use std::time::Duration;
 use crate::cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH;
 
 const CGW_KAFKA_TOPICS_LIST: [&str; 6] = [
-    "CnC",
-    "CnC_Res",
-    "Connection",
-    "Infra_Realtime",
-    "State",
-    "Topology",
+    "cnc",
+    "cnc_res",
+    "connection",
+    "infra_realtime",
+    "state",
+    "topology",
 ];
 
 async fn cgw_get_active_cgw_number(redis_args: &CGWRedisArgs) -> Result<usize> {
@@ -122,8 +122,8 @@ async fn cgw_create_kafka_topics(
 
     for topic_name in topics_list {
         new_topics.push(NewTopic::new(
-            *topic_name,
-            if *topic_name == "CnC" {
+            topic_name,
+            if *topic_name == "cnc" {
                 default_cnc_topic_partitions_num
             } else {
                 default_topic_partitions_num
@@ -221,17 +221,17 @@ pub async fn cgw_init_kafka_topics(
         existing_topics = cgw_get_kafka_topics(&admin_client)?;
     }
 
-    match existing_topics.iter().find(|(key, _)| key == "CnC") {
+    match existing_topics.iter().find(|(key, _)| key == "cnc") {
         Some((topic_name, partitions_num)) => {
             if active_cgw_number > *partitions_num {
-                error!("Updating number of partitions for CnC topic!");
+                error!("Updating number of partitions for cnc topic!");
                 cgw_update_kafka_topics_partitions(&admin_client, topic_name, active_cgw_number)
                     .await?;
             }
         }
         None => {
             return Err(Error::KafkaInit(
-                "Failed to find CnC topic in existing topics list!".to_string(),
+                "Failed to find cnc topic in existing topics list!".to_string(),
             ));
         }
     }

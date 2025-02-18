@@ -51,11 +51,11 @@ pub enum CGWKafkaProducerTopic {
 impl std::fmt::Display for CGWKafkaProducerTopic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            CGWKafkaProducerTopic::CnCRes => write!(f, "CnC_Res"),
-            CGWKafkaProducerTopic::Connection => write!(f, "Connection"),
-            CGWKafkaProducerTopic::State => write!(f, "State"),
-            CGWKafkaProducerTopic::InfraRealtime => write!(f, "Infra_Realtime"),
-            CGWKafkaProducerTopic::Topology => write!(f, "Topology"),
+            CGWKafkaProducerTopic::CnCRes => write!(f, "cnc_res"),
+            CGWKafkaProducerTopic::Connection => write!(f, "connection"),
+            CGWKafkaProducerTopic::State => write!(f, "state"),
+            CGWKafkaProducerTopic::InfraRealtime => write!(f, "infra_realtime"),
+            CGWKafkaProducerTopic::Topology => write!(f, "topology"),
         }
     }
 }
@@ -906,7 +906,7 @@ impl ConsumerContext for CustomContext {
 }
 
 static GROUP_ID: &str = "CGW";
-const CONSUMER_TOPICS: &[&str] = &["CnC"];
+const CONSUMER_TOPICS: &[&str] = &["cnc"];
 
 struct CGWKafkaConsumer {
     consumer: Arc<CGWKafkaConsumerType>,

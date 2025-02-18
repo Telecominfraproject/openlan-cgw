@@ -1863,7 +1863,7 @@ impl CGWConnectionServer {
                                 CGWKafkaProducerTopic::CnCRes,
                             );
                         } else {
-                            error!("Failed to construct device_enqueue message!");
+                            error!("Failed to construct infra_enqueue message!");
                         }
 
                         continue;
@@ -2021,7 +2021,7 @@ impl CGWConnectionServer {
                             ) {
                                 self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp, CGWKafkaProducerTopic::CnCRes);
                             } else {
-                                error!("Failed to construct device_enqueue message!");
+                                error!("Failed to construct infra_enqueue message!");
                             }
                         }
                     });
@@ -2062,7 +2062,7 @@ impl CGWConnectionServer {
                             CGWKafkaProducerTopic::CnCRes,
                         );
                     } else {
-                        error!("Failed to construct device_enqueue message!");
+                        error!("Failed to construct infra_enqueue message!");
                     }
 
                     error!("Failed to parse msg from NBAPI (malformed?)!");

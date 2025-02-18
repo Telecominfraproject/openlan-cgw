@@ -275,7 +275,7 @@ impl CGWInfraGroupInfrasCloudHeaderMap {
     }
 
     pub async fn remove_empty(&mut self) {
-        for (_group_id, item) in &self.map {
+        for item in self.map.values() {
             let mut lock = item.write().await;
             lock.remove_empty_entires();
         }
@@ -821,7 +821,7 @@ impl CGWRemoteDiscovery {
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(&increment_value.to_string())
+            .arg(increment_value.to_string())
             .query_async(&mut con)
             .await;
         if let Err(e) = res {
@@ -859,7 +859,7 @@ impl CGWRemoteDiscovery {
         let res: RedisResult<()> = redis::cmd("HINCRBY")
             .arg(format!("{}{gid}", REDIS_KEY_GID))
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(&(-decrement_value).to_string())
+            .arg((-decrement_value).to_string())
             .query_async(&mut con)
             .await;
         if let Err(e) = res {
@@ -2012,7 +2012,7 @@ impl CGWRemoteDiscovery {
         if let Some(infras_list) = self.db_accessor.get_all_infras().await {
             let mut con = self.redis_infra_cache_client.clone();
             let mut redis_keys: Vec<String> = match redis::cmd("KEYS")
-                .arg(&format!("shard_id_{}|*", self.local_shard_id))
+                .arg(format!("shard_id_{}|*", self.local_shard_id))
                 .query_async(&mut con)
                 .await
             {

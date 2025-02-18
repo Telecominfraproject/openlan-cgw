@@ -260,10 +260,7 @@ impl CGWConnectionProcessor {
         // cgw_connection_server has an authoritative decision whether
         // we can proceed.
         debug!("Sending ACK request for device serial: {}", self.serial);
-        let orig_connect_msg = match message.into_text() {
-            Ok(conn_msg) => conn_msg,
-            Err(_) => String::default(),
-        };
+        let orig_connect_msg = message.into_text().unwrap_or_default();
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(
             evt.serial,
@@ -388,6 +385,13 @@ impl CGWConnectionProcessor {
                                         self.cgw_server.clone(),
                                     );
                                 }
+
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -405,6 +409,12 @@ impl CGWConnectionProcessor {
                                 }
                             }
                             CGWUCentralEventType::Healthcheck => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -472,6 +482,12 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -502,6 +518,12 @@ impl CGWConnectionProcessor {
                             | CGWUCentralEventType::CfgPending
                             | CGWUCentralEventType::DeviceUpdate
                             | CGWUCentralEventType::Recovery => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,

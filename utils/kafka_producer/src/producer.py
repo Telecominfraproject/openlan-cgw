@@ -33,7 +33,7 @@ class Producer:
         return msg
 
     @staticmethod
-    def device_message_factory(mac: str, id: int = None, keep_rediretor: bool = None):
+    def device_message_factory(mac: str, id: int = None, keep_redirector: bool = None):
         msg = {}
         params = {}
 
@@ -43,12 +43,12 @@ class Producer:
         if id is None:
             id = 1
 
-        if keep_rediretor is None:
-            keep_rediretor = True
+        if keep_redirector is None:
+            keep_redirector = True
 
         params["serial"] = mac
         params["when"] = 0
-        params["keep_rediretor"] = keep_rediretor
+        params["keep_redirector"] = keep_redirector
 
         msg["jsonrpc"] = "2.0"
         msg["method"] = "factory"

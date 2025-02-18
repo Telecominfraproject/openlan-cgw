@@ -112,7 +112,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], (active_shards_num - 1))
+            'cnc', ['CGW'], (active_shards_num - 1))
         assert len(partitions) > 0
 
         # Infra add to Group
@@ -321,7 +321,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -468,7 +468,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -604,7 +604,7 @@ class TestCgwMultiInstances:
 
         # Get highest CGW ID assigned partition
         partitions = test_context.kafka_admin.get_topic_partitions_for_cgw_id(
-            'CnC', ['CGW'], expected_reporter_shard_id)
+            'cnc', ['CGW'], expected_reporter_shard_id)
         assert len(partitions) > 0
 
         message = Message()
@@ -714,7 +714,7 @@ class TestCgwMultiInstances:
                 f'Failed to get shard {default_shard_id} info from Redis!')
 
         # Validate number of assigned groups
-        #assert int(shard_info.get('assigned_groups_num')
+        # assert int(shard_info.get('assigned_groups_num')
         #           ) == cgw_metrics_get_groups_assigned_num() == 0
 
         uuid_val = uuid.uuid4()
@@ -828,16 +828,18 @@ class TestCgwMultiInstances:
 
         # Get second shard info from Redis
         destination_shard_id = 1
-        destination_shard_info = test_context.redis_client.get_shard(destination_shard_id)
+        destination_shard_info = test_context.redis_client.get_shard(
+            destination_shard_id)
         if not destination_shard_info:
-            print(f'Failed to get shard {destination_shard_id} info from Redis!')
+            print(
+                f'Failed to get shard {destination_shard_id} info from Redis!')
             raise Exception(
                 f'Failed to get shard {destination_shard_id} info from Redis!')
 
         destination_shard_host = 'localhost'
         destination_wss_port = destination_shard_info.get('wss_port')
         # Create sim device - force connection to second shard
-        # As the shard was aleady assigned to first shard
+        # As the shard was already assigned to first shard
         # it will simulate foreign infra connection!
         # Connect infra to CGW
         device = DeviceSimulator(
@@ -868,8 +870,8 @@ class TestCgwMultiInstances:
 
         # Validate Kafka messages
         # Expected to receive:
-        #   1. Foreign Infra Connection - from Conenction topic
-        #   2. Infra Join               - from Connection topic
+        #   1. Foreign Infra Connection - from connection topic
+        #   2. Infra Join               - from connection topic
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
             'foreign_infra_connection')
         if ret_msg is None:
@@ -877,7 +879,7 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive foreign infra connection message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'foreign_infra_connection'
 
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
@@ -887,11 +889,11 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive infra join message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_join'
 
         # Validate Device socket recv message
-        # Expected to receive foerign connection message
+        # Expected to receive foreign connection message
         wss_recv_msg = device.get_single_message(device._socket)
 
         assert wss_recv_msg is not None, \
@@ -899,13 +901,15 @@ class TestCgwMultiInstances:
 
         assert wss_recv_msg["type"] == "foreign_connection"
         assert wss_recv_msg["infra_group_infra"] == infra_mac
-        assert wss_recv_msg["destination_shard_host"] == shard_info.get('server_host')
-        assert int(wss_recv_msg["destination_wss_port"]) == int(shard_info.get('wss_port'))
+        assert wss_recv_msg["destination_shard_host"] == shard_info.get(
+            'server_host')
+        assert int(wss_recv_msg["destination_wss_port"]
+                   ) == int(shard_info.get('wss_port'))
 
         # Send disconnect
         device.disconnect()
 
-        # Valiudate Kafka result message
+        # Validate Kafka result message
         ret_msg = test_context.kafka_consumer.get_msg_by_type(
             'infra_leave')
         if ret_msg is None:
@@ -913,7 +917,7 @@ class TestCgwMultiInstances:
             raise Exception(
                 'Failed to receive infra leave message!')
 
-        assert ret_msg.topic == 'Connection'
+        assert ret_msg.topic == 'connection'
         assert ret_msg.value['type'] == 'infra_leave'
 
         # Infra del

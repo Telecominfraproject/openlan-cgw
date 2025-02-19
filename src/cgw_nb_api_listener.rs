@@ -958,7 +958,13 @@ impl CGWKafkaConsumer {
             .set_log_level(RDKafkaLogLevel::Debug);
 
         if kafka_args.kafka_tls {
-            let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+            let cert_path = match kafka_args.kafka_cert.is_empty() {
+                true => "probe".to_string(),
+                false => format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert),
+            };
+
+            debug!("Kafka consumer certificate: {cert_path}");
+
             consumer_config
                 .set("security.protocol", "SSL")
                 .set("ssl.ca.location", &cert_path)
@@ -1020,7 +1026,13 @@ impl CGWKafkaProducer {
             .set("message.timeout.ms", "5000");
 
         if kafka_args.kafka_tls {
-            let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+            let cert_path = match kafka_args.kafka_cert.is_empty() {
+                true => "probe".to_string(),
+                false => format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert),
+            };
+
+            debug!("Kafka producer certificate: {cert_path}");
+
             producer_config
                 .set("security.protocol", "SSL")
                 .set("ssl.ca.location", &cert_path)

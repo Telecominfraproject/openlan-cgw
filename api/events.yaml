@@ -27,6 +27,11 @@ infra_join:
     description:
       Payload of infra CONNECT message
     type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infra_leave:
   description:
@@ -44,6 +49,11 @@ infra_leave:
   infra_group_infra:
     description:
       MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
     type: string
 
 unassigned_infra_join:
@@ -109,6 +119,11 @@ foreign_infra_connection:
     description:
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_group_infra_capabilities_changed:
   description:
@@ -143,6 +158,11 @@ infrastructure_group_infra_capabilities_changed:
           type: string
         new:
           type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 ap_client_join:
   description:
@@ -170,6 +190,11 @@ ap_client_join:
     description:
       Band on which the underlying infra client joined.
     type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 ap_client_leave:
   description:
@@ -192,6 +217,11 @@ ap_client_leave:
   band:
     description:
       Band on which the underlying infra client disconnected.
+    type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
     type: string
 
 ap_client_migrate:
@@ -221,6 +251,11 @@ ap_client_migrate:
     description:
       Destination band on which the underlying infra is migrating on.
     type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_state_event_message:
   description:
@@ -242,6 +277,11 @@ infrastructure_state_event_message:
     description:
       Payload of infra State or Healthcheck (UCentral) event message.
     type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
 
 infrastructure_realtime_event_message:
   description:
@@ -262,4 +302,9 @@ infrastructure_realtime_event_message:
   payload:
     description:
       Payload of infra Real-time (UCentral) event message.
+    type: string
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
     type: string

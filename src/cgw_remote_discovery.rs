@@ -182,8 +182,8 @@ impl CGWInfraGroupCloudHeaderMap {
         self.map.clear();
     }
 
-    pub fn get_group_cloud_header(&self, group_id: &i32) -> Option<&String> {
-        self.map.get(group_id)
+    pub fn get_group_cloud_header(&self, group_id: i32) -> Option<&String> {
+        self.map.get(&group_id)
     }
 }
 
@@ -1167,7 +1167,7 @@ impl CGWRemoteDiscovery {
         }
     }
 
-    pub async fn get_group_cloud_header(&self, group_id: &i32) -> Option<String> {
+    pub async fn get_group_cloud_header(&self, group_id: i32) -> Option<String> {
         let lock = self.group_to_header_map.read().await;
         lock.get_group_cloud_header(group_id).cloned()
     }
@@ -1494,11 +1494,11 @@ impl CGWRemoteDiscovery {
 
     pub async fn get_group_infra_cloud_header(
         &self,
-        group_id: &i32,
+        group_id: i32,
         infra: &MacAddress,
     ) -> Option<String> {
         let lock = self.infras_to_header_map.read().await;
-        if let Some(item) = lock.get_item(group_id) {
+        if let Some(item) = lock.get_item(&group_id) {
             let item_lock = item.read().await;
             return item_lock.get_infra_cloud_header(infra).cloned();
         }
@@ -1580,7 +1580,7 @@ impl CGWRemoteDiscovery {
         let mut con = self.redis_client.clone();
 
         let lock = self.group_to_header_map.read().await;
-        match lock.get_group_cloud_header(&group_id) {
+        match lock.get_group_cloud_header(group_id) {
             Some(cloud_header) => {
                 let res: RedisResult<()> = redis::cmd("HSET")
                     .arg(format!("{REDIS_KEY_GID}{group_id}"))

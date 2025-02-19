@@ -143,6 +143,8 @@ pub struct InfraGroupInfraCapabilitiesChanged {
     pub infra_group_infra: MacAddress,
     pub changes: Vec<CGWDeviceChange>,
     pub reporter_shard_id: i32,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -169,6 +171,8 @@ pub struct ForeignInfraConnection {
     pub infra_public_ip: SocketAddr,
     pub reporter_shard_id: i32,
     pub group_owner_shard_id: i32,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -179,6 +183,8 @@ pub struct APClientJoinMessage {
     pub infra_group_infra: MacAddress,
     pub ssid: String,
     pub band: String,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -188,6 +194,8 @@ pub struct APClientLeaveMessage {
     pub client: MacAddress,
     pub infra_group_infra: MacAddress,
     pub band: String,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -198,6 +206,8 @@ pub struct APClientMigrateMessage {
     pub to_infra_group_infra_device: MacAddress,
     pub to_ssid: String,
     pub to_band: String,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -208,6 +218,8 @@ pub struct InfraJoinMessage {
     pub infra_public_ip: SocketAddr,
     pub reporter_shard_id: i32,
     pub connect_message_payload: String,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -216,6 +228,8 @@ pub struct InfraLeaveMessage {
     pub infra_group_id: i32,
     pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -423,6 +437,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
     infra_group_id: i32,
     diff: &HashMap<String, OldNew>,
     reporter_shard_id: i32,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let mut changes: Vec<CGWDeviceChange> = Vec::new();
 
@@ -440,6 +455,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
         infra_group_infra,
         changes,
         reporter_shard_id,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&dev_cap_msg)?)
@@ -481,6 +497,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
     infra_public_ip: SocketAddr,
     reporter_shard_id: i32,
     group_owner_shard_id: i32,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let foreign_infra_msg = ForeignInfraConnection {
         r#type: "foreign_infra_connection",
@@ -489,6 +506,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
         infra_public_ip,
         reporter_shard_id,
         group_owner_shard_id,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&foreign_infra_msg)?)
@@ -500,6 +518,7 @@ pub fn cgw_construct_client_join_msg(
     infra_group_infra: MacAddress,
     ssid: String,
     band: String,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let client_join_msg = APClientJoinMessage {
         r#type: "ap_client_join",
@@ -508,6 +527,7 @@ pub fn cgw_construct_client_join_msg(
         infra_group_infra,
         ssid,
         band,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&client_join_msg)?)
@@ -518,6 +538,7 @@ pub fn cgw_construct_client_leave_msg(
     client: MacAddress,
     infra_group_infra: MacAddress,
     band: String,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let client_join_msg = APClientLeaveMessage {
         r#type: "ap_client_leave",
@@ -525,6 +546,7 @@ pub fn cgw_construct_client_leave_msg(
         client,
         infra_group_infra,
         band,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&client_join_msg)?)
@@ -536,6 +558,7 @@ pub fn cgw_construct_client_migrate_msg(
     to_infra_group_infra_device: MacAddress,
     to_ssid: String,
     to_band: String,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let client_migrate_msg = APClientMigrateMessage {
         r#type: "ap_client_migrate",
@@ -544,6 +567,7 @@ pub fn cgw_construct_client_migrate_msg(
         to_infra_group_infra_device,
         to_ssid,
         to_band,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&client_migrate_msg)?)
@@ -555,6 +579,7 @@ pub fn cgw_construct_infra_join_msg(
     infra_public_ip: SocketAddr,
     reporter_shard_id: i32,
     connect_message_payload: String,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let infra_join_msg = InfraJoinMessage {
         r#type: "infra_join",
@@ -563,6 +588,7 @@ pub fn cgw_construct_infra_join_msg(
         infra_public_ip,
         reporter_shard_id,
         connect_message_payload,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&infra_join_msg)?)
@@ -572,12 +598,14 @@ pub fn cgw_construct_infra_leave_msg(
     infra_group_id: i32,
     infra_group_infra: MacAddress,
     reporter_shard_id: i32,
+    cloud_header: Option<String>,
 ) -> Result<String> {
     let infra_leave_msg = InfraLeaveMessage {
         r#type: "infra_leave",
         infra_group_id,
         infra_group_infra,
         reporter_shard_id,
+        cloud_header,
     };
 
     Ok(serde_json::to_string(&infra_leave_msg)?)

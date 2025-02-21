@@ -192,6 +192,11 @@ infra_request_result:
     format: uuid
     description: The underlying unique identifier of the request, to which
       this response is being generated.
+  cloud-header:
+    description:
+      The infrastructure group and infra cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
   success:
     type: boolean
   error_message:

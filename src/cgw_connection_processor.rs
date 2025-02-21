@@ -341,7 +341,7 @@ impl CGWConnectionProcessor {
         let mut kafka_msg: String = String::new();
 
         let group_cloud_header: Option<String> =
-            self.cgw_server.get_group_cloud_header(&self.group_id).await;
+            self.cgw_server.get_group_cloud_header(self.group_id).await;
         let infras_cloud_header: Option<String> = self
             .cgw_server
             .get_group_infra_cloud_header(self.group_id, &self.serial)
@@ -608,6 +608,16 @@ impl CGWConnectionProcessor {
 
                     match (self.group_id, new_group_id) {
                         (0, new_gid) if new_gid != 0 => {
+                            let group_cloud_header: Option<String> =
+                                self.cgw_server.get_group_cloud_header(self.group_id).await;
+                            let infras_cloud_header: Option<String> = self
+                                .cgw_server
+                                .get_group_infra_cloud_header(self.group_id, &self.serial)
+                                .await;
+
+                            let cloud_header: Option<String> =
+                                cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                             debug!("Infra {} changed state from [unassigned] to [assigned]. Current group id: {}, new group id {}", self.serial, self.group_id, new_group_id);
                             if let Ok(unassigned_join) = cgw_construct_infra_join_msg(
                                 new_gid,
@@ -615,6 +625,7 @@ impl CGWConnectionProcessor {
                                 self.addr,
                                 self.cgw_server.get_local_id(),
                                 String::default(),
+                                cloud_header,
                             ) {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                     new_group_id,
@@ -824,7 +835,7 @@ impl CGWConnectionProcessor {
                     let flushed_requests = queue_lock.clear_device_message_queue(&device_mac).await;
 
                     let group_cloud_header: Option<String> =
-                        self.cgw_server.get_group_cloud_header(&self.group_id).await;
+                        self.cgw_server.get_group_cloud_header(self.group_id).await;
                     let infras_cloud_header: Option<String> = self
                         .cgw_server
                         .get_group_infra_cloud_header(self.group_id, &self.serial)

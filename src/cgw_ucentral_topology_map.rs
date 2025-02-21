@@ -3,7 +3,7 @@ use crate::{
     cgw_device::CGWDeviceType,
     cgw_nb_api_listener::{
         cgw_construct_client_join_msg, cgw_construct_client_leave_msg,
-        cgw_construct_client_migrate_msg, CGWKafkaProducerTopic,
+        cgw_construct_client_migrate_msg, cgw_construct_cloud_header, CGWKafkaProducerTopic,
     },
     cgw_ucentral_parser::{
         CGWUCentralEvent, CGWUCentralEventRealtimeEventType, CGWUCentralEventStateClientsType,
@@ -419,14 +419,15 @@ impl CGWUCentralTopologyMap {
                 clients_leave_list,
                 gid,
                 conn_server.clone(),
-            );
+            )
+            .await;
         }
     }
 
     // We still want to have an easy access for node mac that reported this event,
     // hence it's easier to just pass it as an argument, rather then fetching
     // it from the array itself.
-    fn handle_clients_join(
+    async fn handle_clients_join(
         node_mac: MacAddress,
         clients_list: ClientsJoinList,
         gid: i32,
@@ -444,7 +445,22 @@ impl CGWUCentralTopologyMap {
 
         // We have AP mac, iterate only over keys - client macs
         for (client_mac, new_ssid, new_band) in clients_list {
-            let msg = cgw_construct_client_join_msg(gid, client_mac, node_mac, new_ssid, new_band);
+            let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
+            let infras_cloud_header: Option<String> = conn_server
+                .get_group_infra_cloud_header(gid, &client_mac)
+                .await;
+
+            let cloud_header: Option<String> =
+                cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
+            let msg = cgw_construct_client_join_msg(
+                gid,
+                client_mac,
+                node_mac,
+                new_ssid,
+                new_band,
+                cloud_header,
+            );
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
                     gid,
@@ -460,7 +476,7 @@ impl CGWUCentralTopologyMap {
     // We still want to have an easy access for node mac that reported this event,
     // hence it's easier to just pass it as an argument, rather then fetching
     // it from the array itself.
-    fn handle_clients_leave(
+    async fn handle_clients_leave(
         node_mac: MacAddress,
         clients_list: ClientsLeaveList,
         gid: i32,
@@ -478,7 +494,15 @@ impl CGWUCentralTopologyMap {
 
         // We have AP mac, iterate only over keys - client macs
         for (client_mac, band) in clients_list {
-            let msg = cgw_construct_client_leave_msg(gid, client_mac, node_mac, band);
+            let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
+            let infras_cloud_header: Option<String> = conn_server
+                .get_group_infra_cloud_header(gid, &client_mac)
+                .await;
+
+            let cloud_header: Option<String> =
+                cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
+            let msg = cgw_construct_client_leave_msg(gid, client_mac, node_mac, band, cloud_header);
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
                     gid,
@@ -494,7 +518,7 @@ impl CGWUCentralTopologyMap {
     // We still want to have an easy access for node mac that reported this event,
     // hence it's easier to just pass it as an argument, rather then fetching
     // it from the array itself.
-    fn handle_clients_migrate(
+    async fn handle_clients_migrate(
         clients_list: ClientsMigrateList,
         gid: i32,
 
@@ -511,12 +535,21 @@ impl CGWUCentralTopologyMap {
 
         // We have AP mac, iterate only over keys - client macs
         for (client_mac, new_parent_ap_mac, new_band, new_ssid) in clients_list {
+            let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
+            let infras_cloud_header: Option<String> = conn_server
+                .get_group_infra_cloud_header(gid, &client_mac)
+                .await;
+
+            let cloud_header: Option<String> =
+                cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
             let msg = cgw_construct_client_migrate_msg(
                 gid,
                 client_mac,
                 new_parent_ap_mac,
                 new_ssid,
                 new_band,
+                cloud_header,
             );
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
@@ -900,7 +933,8 @@ impl CGWUCentralTopologyMap {
                                     clients_join_list,
                                     gid,
                                     conn_server.clone(),
-                                );
+                                )
+                                .await;
                             }
 
                             if !clients_leave_list.is_empty() {
@@ -909,7 +943,8 @@ impl CGWUCentralTopologyMap {
                                     clients_leave_list,
                                     gid,
                                     conn_server.clone(),
-                                );
+                                )
+                                .await;
                             }
 
                             if !clients_migrate_list.is_empty() {
@@ -917,7 +952,8 @@ impl CGWUCentralTopologyMap {
                                     clients_migrate_list,
                                     gid,
                                     conn_server.clone(),
-                                );
+                                )
+                                .await;
                             }
                         }
 
@@ -1112,7 +1148,8 @@ impl CGWUCentralTopologyMap {
                 clients_join_list,
                 gid,
                 conn_server.clone(),
-            );
+            )
+            .await;
         }
 
         if !clients_leave_list.is_empty() {
@@ -1121,11 +1158,12 @@ impl CGWUCentralTopologyMap {
                 clients_leave_list,
                 gid,
                 conn_server.clone(),
-            );
+            )
+            .await;
         }
 
         if !clients_migrate_list.is_empty() {
-            Self::handle_clients_migrate(clients_migrate_list, gid, conn_server.clone());
+            Self::handle_clients_migrate(clients_migrate_list, gid, conn_server.clone()).await;
         }
     }
 

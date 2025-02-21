@@ -574,11 +574,26 @@ impl CGWNBApiParsedMsg {
                             );
                             match changes {
                                 Some(diff) => {
+                                    let group_cloud_header: Option<String> = server
+                                        .cgw_remote_discovery
+                                        .get_group_cloud_header(dev_gid)
+                                        .await;
+                                    let infras_cloud_header: Option<String> = server
+                                        .cgw_remote_discovery
+                                        .get_group_infra_cloud_header(dev_gid, &mac)
+                                        .await;
+
+                                    let cloud_header: Option<String> = cgw_construct_cloud_header(
+                                        group_cloud_header,
+                                        infras_cloud_header,
+                                    );
+
                                     if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
                                         mac,
                                         dev_gid,
                                         &diff,
                                         server.local_cgw_id,
+                                        cloud_header,
                                     ) {
                                         server.enqueue_mbox_message_from_cgw_to_nb_api(
                                             dev_gid,
@@ -2262,6 +2277,19 @@ impl CGWConnectionServer {
                         }
                     }
 
+                    // Construct cloud header
+                    let group_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_cloud_header(device_group_id)
+                        .await;
+                    let infras_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_infra_cloud_header(device_group_id, &device_mac)
+                        .await;
+
+                    let cloud_header: Option<String> =
+                        cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                     // Check if foreign infra connection - send event
                     if foreign_infra_join {
                         debug!("Detected foreign infra {} connection. Group: {}, Group Shard Owner: {}", device_mac.to_hex_string(), device_group_id, group_owner_shard_id);
@@ -2272,6 +2300,7 @@ impl CGWConnectionServer {
                             ip_addr,
                             self.local_cgw_id,
                             group_owner_shard_id,
+                            cloud_header.clone(),
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                 device_group_id,
@@ -2312,6 +2341,7 @@ impl CGWConnectionServer {
                                 ip_addr,
                                 self.local_cgw_id,
                                 orig_connect_message,
+                                cloud_header,
                             )
                         }
                     };
@@ -2328,11 +2358,24 @@ impl CGWConnectionServer {
 
                     // Check where there capabilities change event should be sent
                     if let Some(diff) = capability_changes {
+                        let group_cloud_header: Option<String> = self
+                            .cgw_remote_discovery
+                            .get_group_cloud_header(device_group_id)
+                            .await;
+                        let infras_cloud_header: Option<String> = self
+                            .cgw_remote_discovery
+                            .get_group_infra_cloud_header(device_group_id, &device_mac)
+                            .await;
+
+                        let cloud_header: Option<String> =
+                            cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                         if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
                             device_mac,
                             device_group_id,
                             &diff,
                             self.local_cgw_id,
+                            cloud_header,
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                 device_group_id,
@@ -2426,6 +2469,18 @@ impl CGWConnectionServer {
                             .await;
                     }
 
+                    let group_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_cloud_header(device_group_id)
+                        .await;
+                    let infras_cloud_header: Option<String> = self
+                        .cgw_remote_discovery
+                        .get_group_infra_cloud_header(device_group_id, &device_mac)
+                        .await;
+
+                    let cloud_header: Option<String> =
+                        cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
                     // Send [un]assigned infra leave message
                     let unassigned_infra_leave: bool = device_group_id == 0;
                     let leave_message = match unassigned_infra_leave {
@@ -2437,6 +2492,7 @@ impl CGWConnectionServer {
                             device_group_id,
                             device_mac,
                             self.local_cgw_id,
+                            cloud_header,
                         ),
                     };
 
@@ -2590,11 +2646,11 @@ impl CGWConnectionServer {
                 for (group_id, req) in requests {
                     let group_cloud_header: Option<String> = self
                         .cgw_remote_discovery
-                        .get_group_cloud_header(&group_id)
+                        .get_group_cloud_header(group_id)
                         .await;
                     let infras_cloud_header: Option<String> = self
                         .cgw_remote_discovery
-                        .get_group_infra_cloud_header(&group_id, &infra)
+                        .get_group_infra_cloud_header(group_id, &infra)
                         .await;
 
                     let cloud_header: Option<String> =
@@ -2621,7 +2677,7 @@ impl CGWConnectionServer {
         }
     }
 
-    pub async fn get_group_cloud_header(&self, group_id: &i32) -> Option<String> {
+    pub async fn get_group_cloud_header(&self, group_id: i32) -> Option<String> {
         self.cgw_remote_discovery
             .get_group_cloud_header(group_id)
             .await
@@ -2633,7 +2689,7 @@ impl CGWConnectionServer {
         infra: &MacAddress,
     ) -> Option<String> {
         self.cgw_remote_discovery
-            .get_group_infra_cloud_header(&group_id, infra)
+            .get_group_infra_cloud_header(group_id, infra)
             .await
     }
 

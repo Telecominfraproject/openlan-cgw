@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::cgw_errors::{Error, Result};
+use crate::cgw_nb_api_listener::ConsumerMetadata;
 use crate::cgw_ucentral_parser::{CGWUCentralCommand, CGWUCentralCommandType};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -22,6 +23,7 @@ struct CGWUCentralMessagesQueue {
     queue_state: CGWUCentralMessagesQueueState,
     last_req_id: u64,
     last_req_timeout: Duration,
+    last_req_consumer_medata: Option<ConsumerMetadata>,
 }
 
 impl CGWUCentralMessagesQueue {
@@ -31,6 +33,7 @@ impl CGWUCentralMessagesQueue {
             queue_state: CGWUCentralMessagesQueueState::default(),
             last_req_id: 0,
             last_req_timeout: Duration::ZERO,
+            last_req_consumer_medata: None,
         }
     }
 
@@ -52,6 +55,10 @@ impl CGWUCentralMessagesQueue {
 
     fn get_last_req_id(&self) -> u64 {
         self.last_req_id
+    }
+
+    fn set_last_req_consumer_metadata(&mut self, req_metadata: Option<ConsumerMetadata>) {
+        self.last_req_consumer_medata = req_metadata;
     }
 
     fn set_last_req_timeout(&mut self, req_timeout: Duration) {
@@ -81,6 +88,7 @@ pub struct CGWUCentralMessagesQueueItem {
     pub message: String,
     pub uuid: Uuid,
     pub timeout: Option<u64>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 impl CGWUCentralMessagesQueueItem {
@@ -89,12 +97,14 @@ impl CGWUCentralMessagesQueueItem {
         message: String,
         uuid: Uuid,
         timeout: Option<u64>,
+        consumer_metadata: Option<ConsumerMetadata>,
     ) -> CGWUCentralMessagesQueueItem {
         CGWUCentralMessagesQueueItem {
             command,
             message,
             uuid,
             timeout,
+            consumer_metadata,
         }
     }
 }
@@ -280,6 +290,7 @@ impl CGWUCentralMessagesQueueManager {
         device_mac: &MacAddress,
         req_id: u64,
         req_timeout: Duration,
+        req_metadata: Option<ConsumerMetadata>,
     ) {
         let container_lock = self.queue.read().await;
         if let Some(device_msg_queue) = container_lock.get(device_mac) {
@@ -287,6 +298,7 @@ impl CGWUCentralMessagesQueueManager {
 
             write_lock.set_last_req_id(req_id);
             write_lock.set_last_req_timeout(req_timeout);
+            write_lock.set_last_req_consumer_metadata(req_metadata);
         }
     }
 

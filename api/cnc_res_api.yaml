@@ -26,6 +26,15 @@ infrastructure_group_create_response:
     description: Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_delete_response:
   description: Response to corresponding 'infrastructure_group_delete' request.
@@ -49,6 +58,15 @@ infrastructure_group_delete_response:
     type: string
     description: Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_add_response:
   description: Response to corresponding 'infrastructure_group_infras_add' request.
@@ -94,6 +112,15 @@ infrastructure_group_infras_add_response:
       Can be empty.
       Can be present even if request failed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_del_response:
   description: Response to corresponding 'infrastructure_group_infras_del' request.
@@ -137,6 +164,15 @@ infrastructure_group_infras_del_response:
       Can be empty.
       Can be present even if request failed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infra_message_enqueue_response:
   description: Response to corresponding 'infrastructure_group_infra_message_enqueue' request.
@@ -172,6 +208,15 @@ infrastructure_group_infra_message_enqueue_response:
       Can be empty.
       Can be present even if request failed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infra_request_result:
   description:
@@ -203,6 +248,15 @@ infra_request_result:
     type: string
     description: Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 rebalance_groups_response:
   description: Response to corresponding 'rebalance_groups' request.
@@ -226,6 +280,15 @@ rebalance_groups_response:
     type: string
     description: Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_set_cloud_header_response:
   description: Response to corresponding 'infrastructure_group_set_cloud_header' request.
@@ -249,6 +312,15 @@ infrastructure_group_set_cloud_header_response:
     description: Error message reporting why the request failed.
       Non-empty only if 'success' is false (e.g. request failed).
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_set_cloud_header_response:
   description: Response to corresponding 'infrastructure_group_infras_set_cloud_header' request.
@@ -281,3 +353,12 @@ infrastructure_group_infras_set_cloud_header_response:
     type: array
     items:
       type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        type: integer
+      sender_id:
+        type: integer

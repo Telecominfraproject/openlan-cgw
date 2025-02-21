@@ -6,7 +6,7 @@ use crate::{
         cgw_construct_cloud_header, cgw_construct_infra_join_msg,
         cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
         cgw_construct_infra_state_event_message, cgw_construct_unassigned_infra_join_msg,
-        CGWKafkaProducerTopic,
+        CGWKafkaProducerTopic, ConsumerMetadata,
     },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
@@ -334,6 +334,7 @@ impl CGWConnectionProcessor {
         fsm_state: &mut CGWUCentralMessageProcessorState,
         pending_req_id: u64,
         pending_req_uuid: Uuid,
+        pending_req_consumer_metadata: Option<ConsumerMetadata>,
     ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
@@ -446,6 +447,11 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
+                                let partition = match pending_req_consumer_metadata.clone() {
+                                    Some(data) => data.sender_partition,
+                                    None => None,
+                                };
+
                                 *fsm_state = CGWUCentralMessageProcessorState::Idle;
                                 debug!("Got reply event for pending request id: {pending_req_id}");
                                 if let Ok(resp) = cgw_construct_infra_request_result_msg(
@@ -455,11 +461,13 @@ impl CGWConnectionProcessor {
                                     cloud_header,
                                     true,
                                     None,
+                                    pending_req_consumer_metadata,
                                 ) {
                                     self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                         self.group_id,
                                         resp,
                                         CGWKafkaProducerTopic::CnCRes,
+                                        partition,
                                     );
                                 } else {
                                     error!("Failed to construct infra_request_result message!");
@@ -534,6 +542,7 @@ impl CGWConnectionProcessor {
                                         self.group_id,
                                         resp,
                                         CGWKafkaProducerTopic::InfraRealtime,
+                                        None,
                                     )
                                 } else {
                                     error!("Failed to construct infra_realtime_event message!");
@@ -631,6 +640,7 @@ impl CGWConnectionProcessor {
                                     new_group_id,
                                     unassigned_join,
                                     CGWKafkaProducerTopic::Connection,
+                                    None,
                                 );
                             } else {
                                 error!("Failed to construct infra_join message!");
@@ -648,6 +658,7 @@ impl CGWConnectionProcessor {
                                     new_group_id,
                                     unassigned_join,
                                     CGWKafkaProducerTopic::Connection,
+                                    None,
                                 );
                             } else {
                                 error!("Failed to construct unassigned_infra_join message!");
@@ -711,6 +722,7 @@ impl CGWConnectionProcessor {
         let mut pending_req_type: CGWUCentralCommandType;
         let mut fsm_state = CGWUCentralMessageProcessorState::Idle;
         let mut last_contact = Instant::now();
+        let mut pending_req_consumer_metadata: Option<ConsumerMetadata> = None;
 
         // 1. Get last request timeout value
         // 2. Get last request id
@@ -743,6 +755,7 @@ impl CGWConnectionProcessor {
                         pending_req_id = queue_msg.command.id;
                         pending_req_type = queue_msg.command.cmd_type.clone();
                         pending_req_uuid = queue_msg.uuid;
+                        pending_req_consumer_metadata = queue_msg.consumer_metadata.clone();
 
                         let timeout = match queue_msg.timeout {
                             Some(secs) => Duration::from_secs(secs),
@@ -755,7 +768,12 @@ impl CGWConnectionProcessor {
 
                         // Set new pending request timeout value
                         queue_lock
-                            .set_device_last_req_info(&device_mac, pending_req_id, timeout)
+                            .set_device_last_req_info(
+                                &device_mac,
+                                pending_req_id,
+                                timeout,
+                                pending_req_consumer_metadata.clone(),
+                            )
                             .await;
 
                         debug!("Got pending request with id: {}", pending_req_id);
@@ -845,6 +863,12 @@ impl CGWConnectionProcessor {
                         cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
                     for req in flushed_requests {
+                        let consumer_partition = req.consumer_metadata;
+                        let partition = match consumer_partition.clone() {
+                            Some(data) => data.sender_partition,
+                            None => None,
+                        };
+
                         if let Ok(resp) = cgw_construct_infra_request_result_msg(
                             self.cgw_server.get_local_id(),
                             req.uuid,
@@ -854,23 +878,26 @@ impl CGWConnectionProcessor {
                             Some(format!(
                                 "Request flushed from infra queue {device_mac} due to previous request timeout!"
                             )),
+                            consumer_partition,
                         ) {
                             // Currently Device Queue Manager does not store infras GID
                             self.cgw_server
-                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp, CGWKafkaProducerTopic::CnCRes);
+                                .enqueue_mbox_message_from_cgw_to_nb_api(self.group_id, resp, CGWKafkaProducerTopic::CnCRes, partition);
                         } else {
                             error!("Failed to construct  message!");
                         }
                     }
 
-                    // reset request duration, request id and queue state
-                    pending_req_id = 0;
                     queue_lock
                         .set_device_queue_state(&device_mac, CGWUCentralMessagesQueueState::RxTx)
                         .await;
                     queue_lock
-                        .set_device_last_req_info(&device_mac, 0, Duration::ZERO)
+                        .set_device_last_req_info(&device_mac, 0, Duration::ZERO, None)
                         .await;
+                    let pending_req_partition = match pending_req_consumer_metadata.clone() {
+                        Some(data) => data.sender_partition,
+                        None => None,
+                    };
                     fsm_state = CGWUCentralMessageProcessorState::Idle;
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
                         self.cgw_server.get_local_id(),
@@ -879,15 +906,19 @@ impl CGWConnectionProcessor {
                         cloud_header,
                         false,
                         Some("Request timed out".to_string()),
+                        pending_req_consumer_metadata,
                     ) {
                         self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                             self.group_id,
                             resp,
                             CGWKafkaProducerTopic::CnCRes,
+                            pending_req_partition,
                         );
                     } else {
                         error!("Failed to construct rebalance_group message!");
                     }
+                    pending_req_consumer_metadata = None;
+                    pending_req_id = 0;
                 }
             }
 
@@ -895,8 +926,14 @@ impl CGWConnectionProcessor {
             let rc = match wakeup_reason {
                 WakeupReason::WSSRxMsg(res) => {
                     last_contact = Instant::now();
-                    self.process_wss_rx_msg(res, &mut fsm_state, pending_req_id, pending_req_uuid)
-                        .await
+                    self.process_wss_rx_msg(
+                        res,
+                        &mut fsm_state,
+                        pending_req_id,
+                        pending_req_uuid,
+                        pending_req_consumer_metadata.clone(),
+                    )
+                    .await
                 }
                 WakeupReason::MboxRx(mbox_message) => {
                     self.process_sink_mbox_rx_msg(&mut sink, mbox_message).await

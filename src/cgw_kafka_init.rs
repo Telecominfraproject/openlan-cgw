@@ -68,7 +68,13 @@ fn cgw_create_kafka_admin(kafka_args: &CGWKafkaArgs) -> Result<AdminClient<Defau
     );
 
     if kafka_args.kafka_tls {
-        let cert_path = format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert);
+        let cert_path = match kafka_args.kafka_cert.is_empty() {
+            true => "probe".to_string(),
+            false => format!("{CGW_TLS_NB_INFRA_CERTS_PATH}/{}", kafka_args.kafka_cert),
+        };
+
+        debug!("Kafka admin certificate: {cert_path}");
+
         admin_config
             .set("security.protocol", "SSL")
             .set("ssl.ca.location", &cert_path)

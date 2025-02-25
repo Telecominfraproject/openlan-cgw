@@ -60,6 +60,12 @@ impl std::fmt::Display for CGWKafkaProducerTopic {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ConsumerMetadata {
+    pub sender_partition: Option<i32>,
+    pub sender_id: i32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct InfraGroupCreateResponse {
     pub r#type: &'static str,
@@ -68,6 +74,7 @@ pub struct InfraGroupCreateResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,6 +85,7 @@ pub struct InfraGroupDeleteResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +98,7 @@ pub struct InfraGroupInfrasAddResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +111,7 @@ pub struct InfraGroupInfrasDelResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -112,6 +122,7 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -124,6 +135,7 @@ pub struct InfraGroupInfraRequestResult {
     pub cloud_header: Option<String>,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -134,6 +146,7 @@ pub struct RebalanceGroupsResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -261,6 +274,7 @@ pub struct InfraGroupSetCloudHeaderResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 #[derive(Debug, Serialize)]
@@ -272,6 +286,7 @@ pub struct InfraGroupInfrasSetCloudHeaderResponse {
     pub uuid: Uuid,
     pub success: bool,
     pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
 }
 
 /* End */
@@ -316,6 +331,7 @@ pub fn cgw_construct_infra_group_create_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let group_create = InfraGroupCreateResponse {
         r#type: "infrastructure_group_create_response",
@@ -324,6 +340,7 @@ pub fn cgw_construct_infra_group_create_response(
         uuid,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -335,6 +352,7 @@ pub fn cgw_construct_infra_group_delete_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let group_delete = InfraGroupDeleteResponse {
         r#type: "infrastructure_group_delete_response",
@@ -343,6 +361,7 @@ pub fn cgw_construct_infra_group_delete_response(
         uuid,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&group_delete)?)
@@ -356,6 +375,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
     success: bool,
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let dev_add = InfraGroupInfrasAddResponse {
         r#type: "infrastructure_group_infras_add_response",
@@ -366,6 +386,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
         success,
         error_message,
         kafka_partition_key,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&dev_add)?)
@@ -379,6 +400,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
     success: bool,
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let dev_del = InfraGroupInfrasDelResponse {
         r#type: "infrastructure_group_infras_del_response",
@@ -389,6 +411,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
         success,
         error_message,
         kafka_partition_key,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&dev_del)?)
@@ -400,6 +423,7 @@ pub fn cgw_construct_infra_enqueue_response(
     success: bool,
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
         r#type: "infrastructure_group_infra_message_enqueue_response",
@@ -408,6 +432,7 @@ pub fn cgw_construct_infra_enqueue_response(
         success,
         error_message,
         kafka_partition_key,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&dev_enq_resp)?)
@@ -419,6 +444,7 @@ pub fn cgw_construct_rebalance_group_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let rebalance_resp = RebalanceGroupsResponse {
         r#type: "rebalance_groups_response",
@@ -427,6 +453,7 @@ pub fn cgw_construct_rebalance_group_response(
         uuid,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&rebalance_resp)?)
@@ -618,6 +645,7 @@ pub fn cgw_construct_infra_request_result_msg(
     cloud_header: Option<String>,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let infra_request_result = InfraGroupInfraRequestResult {
         r#type: "infra_request_result",
@@ -627,6 +655,7 @@ pub fn cgw_construct_infra_request_result_msg(
         cloud_header,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&infra_request_result)?)
@@ -638,6 +667,7 @@ pub fn cgw_construct_infra_group_set_cloud_header_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let group_create = InfraGroupSetCloudHeaderResponse {
         r#type: "infrastructure_group_set_cloud_header_response",
@@ -646,6 +676,7 @@ pub fn cgw_construct_infra_group_set_cloud_header_response(
         uuid,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -658,6 +689,7 @@ pub fn cgw_construct_infra_group_infras_set_cloud_header_response(
     uuid: Uuid,
     success: bool,
     error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
 ) -> Result<String> {
     let group_create = InfraGroupInfrasSetCloudHeaderResponse {
         r#type: "infrastructure_group_infras_set_cloud_header_response",
@@ -667,6 +699,7 @@ pub fn cgw_construct_infra_group_infras_set_cloud_header_response(
         uuid,
         success,
         error_message,
+        consumer_metadata,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -1078,7 +1111,17 @@ impl CGWKafkaProducer {
         Ok(producer)
     }
 
-    async fn send(&self, key: String, payload: String) -> OwnedDeliveryResult {
+    async fn send(
+        &self,
+        key: String,
+        payload: String,
+        partition: Option<i32>,
+    ) -> OwnedDeliveryResult {
+        let future_record = FutureRecord::to(&self.topic).key(&key).payload(&payload);
+        if let Some(partition_id) = partition {
+            future_record.partition(partition_id);
+        }
+
         self.producer
             .send(
                 FutureRecord::to(&self.topic).key(&key).payload(&payload),
@@ -1224,9 +1267,10 @@ impl CGWNBApiClient {
         key: String,
         payload: String,
         topic: CGWKafkaProducerTopic,
+        partition: Option<i32>,
     ) {
         if let Some(producer) = self.producers.get(topic) {
-            let produce_future = producer.send(key, payload);
+            let produce_future = producer.send(key, payload, partition);
 
             if let Err((e, _)) = produce_future.await {
                 error!("{e}")

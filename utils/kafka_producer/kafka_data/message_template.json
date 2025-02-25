@@ -6,6 +6,10 @@
         "cloud-header": {
             "shasta-org": 6305,
             "shasta-venue": 12597
+        },
+        "consumer_metadata": {
+            "sender_partition": 1,
+            "sender_id": 100
         }
     },
     "add_group_to_shard": {

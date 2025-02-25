@@ -27,6 +27,15 @@ infrastructure_group_create:
     description: The infrastructure group cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_create_to_shard:
   description:
@@ -57,6 +66,15 @@ infrastructure_group_create_to_shard:
     description: The infrastructure group cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_delete:
   description: Destroy previously created infrastructure group.
@@ -77,6 +95,15 @@ infrastructure_group_delete:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_add:
   description: Assign list of infras to specified group.
@@ -106,6 +133,15 @@ infrastructure_group_infras_add:
     description: The infrastructure group infras cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_del:
   description: De-assign list of infras from specified group.
@@ -133,6 +169,15 @@ infrastructure_group_infras_del:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infra_message_enqueue:
   description: Enqueue a uCentral request for the specified infra device.
@@ -171,6 +216,15 @@ infrastructure_group_infra_message_enqueue:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 rebalance_groups:
   description:
@@ -193,6 +247,15 @@ rebalance_groups:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_set_cloud_header:
   description: Set infrastructure group cloud header.
@@ -215,6 +278,15 @@ infrastructure_group_set_cloud_header:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer
 
 infrastructure_group_infras_set_cloud_header:
   description: Assign list of infras to specified group.
@@ -244,3 +316,12 @@ infrastructure_group_infras_set_cloud_header:
       async nature of the Kafka bus.
     type: string
     format: uuid
+  consumer_metadata:
+    description: This field is optional. It contais two fields "sender_id" and "sender_partition"
+    type: object
+    value:
+      sender_partition:
+        description: Optional field - the sender partition message was sent from
+        type: integer
+      sender_id:
+        type: integer

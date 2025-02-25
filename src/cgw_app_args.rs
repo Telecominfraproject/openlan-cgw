@@ -30,7 +30,6 @@ const CGW_DEFAULT_GRPC_PUBLIC_PORT: u16 = 50051;
 const CGW_DEFAULT_KAFKA_HOST: &str = "localhost";
 const CGW_DEFAULT_KAFKA_PORT: u16 = 9092;
 const CGW_DEFAULT_KAFKA_TLS: &str = "no";
-const CGW_DEFAULT_KAFKA_CERT: &str = "kafka.truststore.pem";
 const CGW_DEFAULT_KAFKA_CONSUME_TOPIC: &str = "cnc";
 const CGW_DEFAULT_KAFKA_PRODUCE_TOPIC: &str = "cnc_res";
 const CGW_DEFAULT_DB_HOST: &str = "localhost";
@@ -249,8 +248,7 @@ impl CGWKafkaArgs {
         let kafka_tls_var: String =
             env::var("CGW_KAFKA_TLS").unwrap_or(CGW_DEFAULT_KAFKA_TLS.to_string());
         let kafka_tls = kafka_tls_var == "yes";
-        let kafka_cert: String =
-            env::var("CGW_KAFKA_CERT").unwrap_or(CGW_DEFAULT_KAFKA_CERT.to_string());
+        let kafka_cert: String = env::var("CGW_KAFKA_CERT").unwrap_or_default();
 
         Ok(CGWKafkaArgs {
             kafka_host,

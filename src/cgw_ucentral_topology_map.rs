@@ -3,7 +3,8 @@ use crate::{
     cgw_device::CGWDeviceType,
     cgw_nb_api_listener::{
         cgw_construct_client_join_msg, cgw_construct_client_leave_msg,
-        cgw_construct_client_migrate_msg, cgw_construct_cloud_header, CGWKafkaProducerTopic,
+        cgw_construct_client_migrate_msg, cgw_construct_cloud_header, cgw_get_timestamp_16_digits,
+        CGWKafkaProducerTopic,
     },
     cgw_ucentral_parser::{
         CGWUCentralEvent, CGWUCentralEventRealtimeEventType, CGWUCentralEventStateClientsType,
@@ -387,6 +388,7 @@ impl CGWUCentralTopologyMap {
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
         conn_server: Arc<CGWConnectionServer>,
+        timestamp: i64,
     ) {
         let mut lock = self.data.write().await;
         // Disconnected clients (seen before, don't see now) client mac from -> AP mac
@@ -419,6 +421,7 @@ impl CGWUCentralTopologyMap {
                 clients_leave_list,
                 gid,
                 conn_server.clone(),
+                timestamp,
             )
             .await;
         }
@@ -438,6 +441,7 @@ impl CGWUCentralTopologyMap {
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
         conn_server: Arc<CGWConnectionServer>,
+        timestamp: i64,
     ) {
         if clients_list.is_empty() {
             return;
@@ -460,6 +464,7 @@ impl CGWUCentralTopologyMap {
                 new_ssid,
                 new_band,
                 cloud_header,
+                timestamp,
             );
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
@@ -487,6 +492,7 @@ impl CGWUCentralTopologyMap {
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
         conn_server: Arc<CGWConnectionServer>,
+        timestamp: i64,
     ) {
         if clients_list.is_empty() {
             return;
@@ -502,7 +508,14 @@ impl CGWUCentralTopologyMap {
             let cloud_header: Option<String> =
                 cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
-            let msg = cgw_construct_client_leave_msg(gid, client_mac, node_mac, band, cloud_header);
+            let msg = cgw_construct_client_leave_msg(
+                gid,
+                client_mac,
+                node_mac,
+                band,
+                cloud_header,
+                timestamp,
+            );
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
                     gid,
@@ -528,6 +541,7 @@ impl CGWUCentralTopologyMap {
         // NB api from being an internal obj of conn_server to be a
         // standalone (singleton?) object.
         conn_server: Arc<CGWConnectionServer>,
+        timestamp: i64,
     ) {
         if clients_list.is_empty() {
             return;
@@ -550,6 +564,7 @@ impl CGWUCentralTopologyMap {
                 new_ssid,
                 new_band,
                 cloud_header,
+                timestamp,
             );
             if let Ok(r) = msg {
                 let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
@@ -785,6 +800,8 @@ impl CGWUCentralTopologyMap {
                             // Migrated client mac -> to (AP mac, ssid, band)
                             let mut clients_migrate_list: ClientsMigrateList = Vec::new();
 
+                            let timestamp = cgw_get_timestamp_16_digits();
+
                             // We also have to iterate through wireless clients
                             // to detect client connect/disconnect/migrate events.
                             for (client_mac, (last_seen_ts, ssid, band)) in
@@ -933,6 +950,7 @@ impl CGWUCentralTopologyMap {
                                     clients_join_list,
                                     gid,
                                     conn_server.clone(),
+                                    timestamp,
                                 )
                                 .await;
                             }
@@ -943,6 +961,7 @@ impl CGWUCentralTopologyMap {
                                     clients_leave_list,
                                     gid,
                                     conn_server.clone(),
+                                    timestamp,
                                 )
                                 .await;
                             }
@@ -952,6 +971,7 @@ impl CGWUCentralTopologyMap {
                                     clients_migrate_list,
                                     gid,
                                     conn_server.clone(),
+                                    timestamp,
                                 )
                                 .await;
                             }
@@ -1027,6 +1047,8 @@ impl CGWUCentralTopologyMap {
         let mut clients_leave_list: ClientsLeaveList = Vec::new();
         // Migrated client mac -> to (AP mac, ssid, band)
         let mut clients_migrate_list: ClientsMigrateList = Vec::new();
+
+        let timestamp = cgw_get_timestamp_16_digits();
 
         let mut lock = self.data.write().await;
         if let Some((ref mut topology_map_data, ref mut existing_nodes_map)) = lock.get_mut(&gid) {
@@ -1148,6 +1170,7 @@ impl CGWUCentralTopologyMap {
                 clients_join_list,
                 gid,
                 conn_server.clone(),
+                timestamp,
             )
             .await;
         }
@@ -1158,12 +1181,14 @@ impl CGWUCentralTopologyMap {
                 clients_leave_list,
                 gid,
                 conn_server.clone(),
+                timestamp,
             )
             .await;
         }
 
         if !clients_migrate_list.is_empty() {
-            Self::handle_clients_migrate(clients_migrate_list, gid, conn_server.clone()).await;
+            Self::handle_clients_migrate(clients_migrate_list, gid, conn_server.clone(), timestamp)
+                .await;
         }
     }
 

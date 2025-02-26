@@ -6,7 +6,7 @@ use crate::{
         cgw_construct_cloud_header, cgw_construct_infra_join_msg,
         cgw_construct_infra_realtime_event_message, cgw_construct_infra_request_result_msg,
         cgw_construct_infra_state_event_message, cgw_construct_unassigned_infra_join_msg,
-        CGWKafkaProducerTopic, ConsumerMetadata,
+        cgw_get_timestamp_16_digits, CGWKafkaProducerTopic, ConsumerMetadata,
     },
     cgw_ucentral_messages_queue_manager::{
         CGWUCentralMessagesQueueItem, CGWUCentralMessagesQueueState, CGW_MESSAGES_QUEUE,
@@ -19,7 +19,6 @@ use crate::{
     cgw_ucentral_topology_map::CGWUCentralTopologyMap,
 };
 
-use chrono::offset::Local;
 use eui48::MacAddress;
 use futures_util::{
     stream::{SplitSink, SplitStream},
@@ -338,7 +337,7 @@ impl CGWConnectionProcessor {
     ) -> Result<CGWConnectionState> {
         // Make sure we always track the as accurate as possible the time
         // of receiving of the event (where needed).
-        let timestamp = Local::now();
+        let timestamp = cgw_get_timestamp_16_digits();
         let mut kafka_msg: String = String::new();
 
         let group_cloud_header: Option<String> =
@@ -361,7 +360,7 @@ impl CGWConnectionProcessor {
                         &self.device_type,
                         self.feature_topomap_enabled,
                         &payload,
-                        timestamp.timestamp(),
+                        timestamp,
                     ) {
                         kafka_msg.clone_from(&payload);
                         let event_type_str: String = evt.evt_type.to_string();
@@ -398,6 +397,7 @@ impl CGWConnectionProcessor {
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
                                     cloud_header,
+                                    timestamp,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -421,6 +421,7 @@ impl CGWConnectionProcessor {
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
                                     cloud_header,
+                                    timestamp,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -462,6 +463,7 @@ impl CGWConnectionProcessor {
                                     true,
                                     None,
                                     pending_req_consumer_metadata,
+                                    timestamp,
                                 ) {
                                     self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                         self.group_id,
@@ -501,6 +503,7 @@ impl CGWConnectionProcessor {
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
                                     cloud_header,
+                                    timestamp,
                                 ) {
                                     self.cgw_server
                                         .enqueue_mbox_message_from_device_to_nb_api_c(
@@ -537,6 +540,7 @@ impl CGWConnectionProcessor {
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
                                     cloud_header,
+                                    timestamp,
                                 ) {
                                     self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                         self.group_id,
@@ -580,6 +584,7 @@ impl CGWConnectionProcessor {
     ) -> Result<CGWConnectionState> {
         if let Some(msg) = val {
             let processor_mac = self.serial;
+            let timestamp = cgw_get_timestamp_16_digits();
             match msg {
                 CGWConnectionProcessorReqMsg::AddNewConnectionShouldClose => {
                     debug!("process_sink_mbox_rx_msg: AddNewConnectionShouldClose, processor (mac:{processor_mac}) (ACK OK)");
@@ -635,6 +640,7 @@ impl CGWConnectionProcessor {
                                 self.cgw_server.get_local_id(),
                                 String::default(),
                                 cloud_header,
+                                timestamp,
                             ) {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                     new_group_id,
@@ -653,6 +659,7 @@ impl CGWConnectionProcessor {
                                 self.addr,
                                 self.cgw_server.get_local_id(),
                                 String::default(),
+                                timestamp,
                             ) {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                                     new_group_id,
@@ -861,6 +868,7 @@ impl CGWConnectionProcessor {
 
                     let cloud_header: Option<String> =
                         cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+                    let timestamp = cgw_get_timestamp_16_digits();
 
                     for req in flushed_requests {
                         let consumer_partition = req.consumer_metadata;
@@ -879,6 +887,7 @@ impl CGWConnectionProcessor {
                                 "Request flushed from infra queue {device_mac} due to previous request timeout!"
                             )),
                             consumer_partition,
+                            timestamp,
                         ) {
                             // Currently Device Queue Manager does not store infras GID
                             self.cgw_server
@@ -907,6 +916,7 @@ impl CGWConnectionProcessor {
                         false,
                         Some("Request timed out".to_string()),
                         pending_req_consumer_metadata,
+                        timestamp,
                     ) {
                         self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
                             self.group_id,

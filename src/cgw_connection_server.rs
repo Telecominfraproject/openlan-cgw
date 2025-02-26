@@ -11,7 +11,8 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_set_cloud_header_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
     cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_join_msg,
-    cgw_construct_unassigned_infra_leave_msg, CGWKafkaProducerTopic, ConsumerMetadata,
+    cgw_construct_unassigned_infra_leave_msg, cgw_get_timestamp_16_digits, CGWKafkaProducerTopic,
+    ConsumerMetadata,
 };
 use crate::cgw_runtime::{cgw_get_runtime, CGWRuntimeType};
 use crate::cgw_tls::cgw_tls_get_cn_from_stream;
@@ -217,10 +218,17 @@ impl CGWNBApiParsedMsg {
     }
 
     async fn handle(self, server: Arc<CGWConnectionServer>) {
+        let timestamp: i64 = cgw_get_timestamp_16_digits();
+
         match self.msg_type.clone() {
             CGWNBApiParsedMsgType::InfrastructureGroupCreate(cloud_header, consumer_metadata) => {
-                self.handle_infrastructure_group_create(server, cloud_header, consumer_metadata)
-                    .await
+                self.handle_infrastructure_group_create(
+                    server,
+                    cloud_header,
+                    consumer_metadata,
+                    timestamp,
+                )
+                .await
             }
             CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
                 shard_id,
@@ -232,11 +240,12 @@ impl CGWNBApiParsedMsg {
                     shard_id,
                     cloud_header,
                     consumer_metadata,
+                    timestamp,
                 )
                 .await
             }
             CGWNBApiParsedMsgType::InfrastructureGroupDelete(consumer_metadata) => {
-                self.handle_infrastructure_group_delete(server, consumer_metadata)
+                self.handle_infrastructure_group_delete(server, consumer_metadata, timestamp)
                     .await
             }
             CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(
@@ -249,12 +258,18 @@ impl CGWNBApiParsedMsg {
                     infras_list,
                     cloud_header,
                     consumer_metadata,
+                    timestamp,
                 )
                 .await
             }
             CGWNBApiParsedMsgType::InfrastructureGroupInfrasDel(infras_list, consumer_metadata) => {
-                self.handle_infrastructure_group_infras_del(server, infras_list, consumer_metadata)
-                    .await
+                self.handle_infrastructure_group_infras_del(
+                    server,
+                    infras_list,
+                    consumer_metadata,
+                    timestamp,
+                )
+                .await
             }
             CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
                 infra,
@@ -268,6 +283,7 @@ impl CGWNBApiParsedMsg {
                     msg,
                     timeout,
                     consumer_metadata,
+                    timestamp,
                 )
                 .await
             }
@@ -279,6 +295,7 @@ impl CGWNBApiParsedMsg {
                     server,
                     cloud_header,
                     consumer_metadata,
+                    timestamp,
                 )
                 .await
             }
@@ -292,11 +309,12 @@ impl CGWNBApiParsedMsg {
                     infras_list,
                     cloud_header,
                     consumer_metadata,
+                    timestamp,
                 )
                 .await
             }
             CGWNBApiParsedMsgType::RebalanceGroups(consumer_metadata) => {
-                self.handle_rebalance_groups(server, consumer_metadata)
+                self.handle_rebalance_groups(server, consumer_metadata, timestamp)
                     .await
             }
         }
@@ -307,6 +325,7 @@ impl CGWNBApiParsedMsg {
         server: Arc<CGWConnectionServer>,
         cloud_header: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let uuid = self.uuid;
         let gid = self.gid;
@@ -348,6 +367,7 @@ impl CGWNBApiParsedMsg {
                     true,
                     None,
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -369,6 +389,7 @@ impl CGWNBApiParsedMsg {
                     false,
                     Some(format!("Failed to create new group! Error: {e}")),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -389,6 +410,7 @@ impl CGWNBApiParsedMsg {
         shard_id: i32,
         cloud_header: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let uuid = self.uuid;
         let gid = self.gid;
@@ -430,6 +452,7 @@ impl CGWNBApiParsedMsg {
                     true,
                     None,
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -453,6 +476,7 @@ impl CGWNBApiParsedMsg {
                         "Failed to create new group to shard id {shard_id}! Error {e}"
                     )),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -471,6 +495,7 @@ impl CGWNBApiParsedMsg {
         &self,
         server: Arc<CGWConnectionServer>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let lock = server.devices_cache.clone();
         let uuid = self.uuid;
@@ -519,6 +544,7 @@ impl CGWNBApiParsedMsg {
                     true,
                     None,
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -540,6 +566,7 @@ impl CGWNBApiParsedMsg {
                     false,
                     Some(format!("Failed to delete group! Error: {e}")),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -562,6 +589,7 @@ impl CGWNBApiParsedMsg {
         infras_list: Vec<MacAddress>,
         cloud_header: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let local_shard_partition_key = {
             // Drop lock as soon as we return value
@@ -592,6 +620,7 @@ impl CGWNBApiParsedMsg {
                 )),
                 local_shard_partition_key.clone(),
                 consumer_metadata,
+                timestamp,
             ) {
                 server.enqueue_mbox_message_from_cgw_to_nb_api(
                     gid,
@@ -631,6 +660,7 @@ impl CGWNBApiParsedMsg {
                     None,
                     local_shard_partition_key.clone(),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -680,6 +710,7 @@ impl CGWNBApiParsedMsg {
                                         &diff,
                                         server.local_cgw_id,
                                         cloud_header,
+                                        timestamp,
                                     ) {
                                         server.enqueue_mbox_message_from_cgw_to_nb_api(
                                             dev_gid,
@@ -736,6 +767,7 @@ impl CGWNBApiParsedMsg {
                             Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
                             local_shard_partition_key.clone(),
                             consumer_metadata,
+                            timestamp,
                         ) {
                             server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
                         } else {
@@ -755,6 +787,7 @@ impl CGWNBApiParsedMsg {
         server: Arc<CGWConnectionServer>,
         infras_list: Vec<MacAddress>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let local_shard_partition_key = {
             // Drop lock as soon as we return value
@@ -782,6 +815,7 @@ impl CGWNBApiParsedMsg {
                 Some(format!("Failed to delete MACs from infra list, gid {gid}, uuid {uuid}: group does not exist")),
                 local_shard_partition_key.clone(),
                 consumer_metadata,
+                timestamp,
             ) {
                 server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
             } else {
@@ -819,6 +853,7 @@ impl CGWNBApiParsedMsg {
                     None,
                     local_shard_partition_key.clone(),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -858,6 +893,7 @@ impl CGWNBApiParsedMsg {
                             Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
                             local_shard_partition_key.clone(),
                             consumer_metadata,
+                            timestamp,
                         ) {
                             server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
                         } else {
@@ -879,6 +915,7 @@ impl CGWNBApiParsedMsg {
         msg: String,
         timeout: Option<u64>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let local_shard_partition_key = {
             // Drop lock as soon as we return value
@@ -904,6 +941,7 @@ impl CGWNBApiParsedMsg {
                 Some(format!("Failed to sink down msg to device of nonexisting group, gid {gid}, uuid {uuid}: group does not exist")),
                 local_shard_partition_key.clone(),
                 consumer_metadata,
+                timestamp,
             ) {
                 server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
             } else {
@@ -939,6 +977,7 @@ impl CGWNBApiParsedMsg {
                                         timeout,
                                         local_shard_partition_key.clone(),
                                         consumer_metadata,
+                                        timestamp,
                                     )
                                     .await;
                             }
@@ -951,6 +990,7 @@ impl CGWNBApiParsedMsg {
                                     Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
                                     local_shard_partition_key.clone(),
                                     consumer_metadata,
+                                    timestamp,
                                 ) {
                                     server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
                                 } else {
@@ -972,6 +1012,7 @@ impl CGWNBApiParsedMsg {
                                 timeout,
                                 local_shard_partition_key.clone(),
                                 consumer_metadata,
+                                timestamp,
                             )
                             .await;
                     }
@@ -990,6 +1031,7 @@ impl CGWNBApiParsedMsg {
                 )),
                 local_shard_partition_key.clone(),
                 consumer_metadata,
+                timestamp,
             ) {
                 server.enqueue_mbox_message_from_cgw_to_nb_api(
                     gid,
@@ -1009,6 +1051,7 @@ impl CGWNBApiParsedMsg {
         server: Arc<CGWConnectionServer>,
         cloud_header: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let response: Result<String>;
         let uuid = self.uuid;
@@ -1039,6 +1082,7 @@ impl CGWNBApiParsedMsg {
                         false,
                         Some(e.to_string()),
                         consumer_metadata,
+                        timestamp,
                     );
                 } else {
                     response = cgw_construct_infra_group_set_cloud_header_response(
@@ -1048,6 +1092,7 @@ impl CGWNBApiParsedMsg {
                         true,
                         None,
                         consumer_metadata,
+                        timestamp,
                     );
                 }
             }
@@ -1059,6 +1104,7 @@ impl CGWNBApiParsedMsg {
                     false,
                     Some(format!("Group id {gid} does not exist!")),
                     consumer_metadata,
+                    timestamp,
                 );
             }
         }
@@ -1081,6 +1127,7 @@ impl CGWNBApiParsedMsg {
         infras_list: Vec<MacAddress>,
         cloud_header: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let response: Result<String>;
         let uuid = self.uuid;
@@ -1129,6 +1176,7 @@ impl CGWNBApiParsedMsg {
                         false,
                         Some(e.to_string()),
                         consumer_metadata,
+                        timestamp,
                     );
                 } else {
                     response = match failed_infras.is_empty() {
@@ -1142,6 +1190,7 @@ impl CGWNBApiParsedMsg {
                                 true,
                                 None,
                                 consumer_metadata,
+                                timestamp,
                             )
                         }
                         false => {
@@ -1154,6 +1203,7 @@ impl CGWNBApiParsedMsg {
                                     false,
                                     Some(format!("Failed to update group {gid} infras cloud header map! Partial update!")),
                                     consumer_metadata,
+                                    timestamp,
                                 )
                         }
                     };
@@ -1167,6 +1217,7 @@ impl CGWNBApiParsedMsg {
                     false,
                     Some(format!("Group id {gid} does not exist!")),
                     consumer_metadata,
+                    timestamp,
                 );
             }
         }
@@ -1187,6 +1238,7 @@ impl CGWNBApiParsedMsg {
         &self,
         server: Arc<CGWConnectionServer>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let gid = self.gid;
         let uuid = self.uuid;
@@ -1206,6 +1258,7 @@ impl CGWNBApiParsedMsg {
                     true,
                     None,
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -1229,6 +1282,7 @@ impl CGWNBApiParsedMsg {
                     false,
                     Some(format!("Failed to rebalance groups! Error: {e}")),
                     consumer_metadata,
+                    timestamp,
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(
                         gid,
@@ -1995,6 +2049,8 @@ impl CGWConnectionServer {
 
             debug!("Received {num_of_msg_read} messages from NB API, processing...");
 
+            let timestamp = cgw_get_timestamp_16_digits();
+
             self.kafka_partition_key_update().await;
 
             local_shard_partition_key = {
@@ -2038,6 +2094,7 @@ impl CGWConnectionServer {
                             Some(format!("Failed to parse NB API message with key {key}")),
                             local_shard_partition_key.clone(),
                             None,
+                            timestamp,
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                 -1,
@@ -2190,22 +2247,21 @@ impl CGWConnectionServer {
                     let msg_stream = value.1;
                     let self_clone = self_clone.clone();
                     let local_shard_partition_key_clone = local_shard_partition_key_clone.clone();
+                    let timestamp = cgw_get_timestamp_16_digits();
                     tokio::spawn(async move {
                         if (discovery_clone
                             .relay_request_stream_to_remote_cgw(cgw_id, msg_stream)
                             .await)
                             .is_err()
                         {
-                            // Parse message
-                            // Get all data
-                            // Send resp
                             if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                 self_clone.local_cgw_id,
                                 Uuid::default(),
                                 false,
                                 Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
                                 local_shard_partition_key_clone,
-                                None
+                                None,
+                                timestamp,
                             ) {
                                 self_clone.enqueue_mbox_message_from_cgw_to_nb_api(-1, resp, CGWKafkaProducerTopic::CnCRes, None);
                             } else {
@@ -2244,6 +2300,7 @@ impl CGWConnectionServer {
                         Some(format!("Failed to parse NB API message with key {key}")),
                         local_shard_partition_key.clone(),
                         None,
+                        timestamp,
                     ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(
                             -1,
@@ -2310,6 +2367,7 @@ impl CGWConnectionServer {
             }
 
             let mut connmap_w_lock = self.connmap.map.write().await;
+            let timestamp = cgw_get_timestamp_16_digits();
 
             while !buf.is_empty() {
                 let msg = buf.remove(0);
@@ -2476,6 +2534,7 @@ impl CGWConnectionServer {
                             self.local_cgw_id,
                             group_owner_shard_id,
                             cloud_header.clone(),
+                            timestamp,
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                 device_group_id,
@@ -2504,6 +2563,7 @@ impl CGWConnectionServer {
                                 ip_addr,
                                 self.local_cgw_id,
                                 orig_connect_message,
+                                timestamp,
                             )
                         }
                         false => {
@@ -2518,6 +2578,7 @@ impl CGWConnectionServer {
                                 self.local_cgw_id,
                                 orig_connect_message,
                                 cloud_header,
+                                timestamp,
                             )
                         }
                     };
@@ -2553,6 +2614,7 @@ impl CGWConnectionServer {
                             &diff,
                             self.local_cgw_id,
                             cloud_header,
+                            timestamp,
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
                                 device_group_id,
@@ -2643,7 +2705,7 @@ impl CGWConnectionServer {
                     if self.feature_topomap_enabled {
                         let topomap = CGWUCentralTopologyMap::get_ref();
                         topomap
-                            .remove_device(&device_mac, device_group_id, self.clone())
+                            .remove_device(&device_mac, device_group_id, self.clone(), timestamp)
                             .await;
                     }
 
@@ -2662,15 +2724,18 @@ impl CGWConnectionServer {
                     // Send [un]assigned infra leave message
                     let unassigned_infra_leave: bool = device_group_id == 0;
                     let leave_message = match unassigned_infra_leave {
-                        true => {
-                            cgw_construct_unassigned_infra_leave_msg(device_mac, self.local_cgw_id)
-                        }
+                        true => cgw_construct_unassigned_infra_leave_msg(
+                            device_mac,
+                            self.local_cgw_id,
+                            timestamp,
+                        ),
 
                         false => cgw_construct_infra_leave_msg(
                             device_group_id,
                             device_mac,
                             self.local_cgw_id,
                             cloud_header,
+                            timestamp,
                         ),
                     };
 
@@ -2747,6 +2812,7 @@ impl CGWConnectionServer {
         timeout: Option<u64>,
         local_shard_partition_key: Option<String>,
         consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
     ) {
         let resp_partition: Option<i32> = match consumer_metadata.clone() {
             Some(data) => data.sender_partition,
@@ -2770,6 +2836,8 @@ impl CGWConnectionServer {
             let mut replaced_result: Option<Result<String>> = None;
             let mut replaced_partition: Option<i32> = None;
 
+            let timestamp = cgw_get_timestamp_16_digits();
+
             match queue_lock.push_device_message(infra.0, queue_msg).await {
                 Ok(replaced_item) => match replaced_item {
                     Some(item) => {
@@ -2784,6 +2852,7 @@ impl CGWConnectionServer {
                             Some("Request replaced with new!".to_string()),
                             local_shard_partition_key,
                             item.consumer_metadata,
+                            timestamp,
                         ));
                     }
                     None => {
@@ -2794,6 +2863,7 @@ impl CGWConnectionServer {
                             None,
                             local_shard_partition_key,
                             consumer_metadata,
+                            timestamp,
                         );
                     }
                 },
@@ -2805,6 +2875,7 @@ impl CGWConnectionServer {
                         Some(e.to_string()),
                         local_shard_partition_key,
                         consumer_metadata,
+                        timestamp,
                     );
                 }
             }
@@ -2846,6 +2917,7 @@ impl CGWConnectionServer {
             )),
             local_shard_partition_key,
             consumer_metadata,
+            timestamp,
         ) {
             self.enqueue_mbox_message_from_cgw_to_nb_api(
                 infra.2,
@@ -2866,6 +2938,7 @@ impl CGWConnectionServer {
             // iterate over disconnected devices
             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
             let failed_requests = queue_lock.iterate_over_disconnected_devices().await;
+            let timestamp = cgw_get_timestamp_16_digits();
 
             for (infra, requests) in failed_requests {
                 for (group_id, req) in requests {
@@ -2894,6 +2967,7 @@ impl CGWConnectionServer {
                         false,
                         Some(format!("Request failed due to infra {} disconnect", infra)),
                         req.consumer_metadata,
+                        timestamp,
                     ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(
                             group_id,

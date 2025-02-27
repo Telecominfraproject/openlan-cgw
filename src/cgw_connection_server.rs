@@ -391,7 +391,7 @@ impl CGWNBApiParsedMsg {
                 gid,
                 resp,
                 CGWKafkaProducerTopic::CnCRes,
-                        partition,
+                partition,
             );
         } else {
             error!("Failed to construct infra_group_create message!");
@@ -619,7 +619,7 @@ impl CGWNBApiParsedMsg {
         let mut is_success = false;
         let mut failed_infras = Vec::new();
         let mut error_message = None;
-        let mut successful_macs = Vec::new();
+        let mut successful_infras = Vec::new();
 
         match server
             .cgw_remote_discovery
@@ -633,29 +633,29 @@ impl CGWNBApiParsedMsg {
                     .clone()
                     .notify_devices_on_gid_change(success_infras.clone(), gid);
 
-                successful_macs = success_infras;
+                successful_infras = success_infras;
                 is_success = true;
             },
-            Err(Error::RemoteDiscoveryFailedInfras(failed_macs)) => {
+            Err(Error::RemoteDiscoveryFailedInfras(failed_infras_result)) => {
                 // We have a full list of macs we've tried to <add> to GID;
                 // Remove elements from cloned list based on where there
                 // they're present in <failed list>
                 // Whenever done - notify corresponding conn.processors,
                 // that they should updated their state to have GID
                 // change reflected;
-                let mut macs_to_notify = infras_list.clone();
-                macs_to_notify.retain(|&m| !failed_macs.contains(&m));
+                let mut infras_to_notify = infras_list.clone();
+                infras_to_notify.retain(|&m| !failed_infras_result.contains(&m));
 
                 // Do so, only if there are at least any <successful>
                 // GID changes;
-                if !macs_to_notify.is_empty() {
+                if !infras_to_notify.is_empty() {
                     server
                         .clone()
-                        .notify_devices_on_gid_change(macs_to_notify.clone(), gid);
-                    successful_macs = macs_to_notify;
+                        .notify_devices_on_gid_change(infras_to_notify.clone(), gid);
+                    successful_infras = infras_to_notify;
                 }
 
-                failed_infras = failed_macs;
+                failed_infras = failed_infras_result;
                 error_message = Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}"));
                 warn!("Failed to create few MACs from infras list (partial create)!");
             },
@@ -687,23 +687,23 @@ impl CGWNBApiParsedMsg {
         }
 
         // Process successfully added MAC addresses - only if we have any
-        if successful_macs.is_empty() {
+        if successful_infras.is_empty() {
             return;
         }
 
         let devices_cache_read = server.devices_cache.read().await;
-        for mac in successful_macs {
+        for infra in successful_infras {
             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
 
             // Update queue state if it exists
-            if queue_lock.check_messages_queue_exists(&mac).await {
+            if queue_lock.check_messages_queue_exists(&infra).await {
                 queue_lock
-                    .set_device_queue_state(&mac, CGWUCentralMessagesQueueState::RxTx)
+                    .set_device_queue_state(&infra, CGWUCentralMessagesQueueState::RxTx)
                     .await;
             }
 
             // Process device if it exists in cache
-            if let Some(dev) = devices_cache_read.get_device(&mac) {
+            if let Some(dev) = devices_cache_read.get_device(&infra) {
                 if dev.get_device_state() == CGWDeviceState::CGWDeviceConnected {
                     let dev_gid = dev.get_device_group_id();
                     let changes = cgw_detect_device_changes(
@@ -721,7 +721,7 @@ impl CGWNBApiParsedMsg {
 
                         let infras_cloud_header = server
                             .cgw_remote_discovery
-                            .get_group_infra_cloud_header(dev_gid, &mac)
+                            .get_group_infra_cloud_header(dev_gid, &infra)
                             .await;
 
                         let cloud_header = cgw_construct_cloud_header(
@@ -731,7 +731,7 @@ impl CGWNBApiParsedMsg {
 
                         // Send capabilities changed message
                         if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
-                            mac,
+                            infra,
                             dev_gid,
                             &diff,
                             server.local_cgw_id,
@@ -748,12 +748,12 @@ impl CGWNBApiParsedMsg {
                             error!("Failed to construct device_capabilities_changed message!");
                         }
                     } else {
-                        debug!("Capabilities for device: {} was not changed", mac.to_hex_string());
+                        debug!("Capabilities for device: {} was not changed", infra.to_hex_string());
                     }
                 } else {
                     // Device is not connected, update its status
                     queue_lock
-                        .device_disconnected(&mac, dev.get_device_group_id())
+                        .device_disconnected(&infra, dev.get_device_group_id())
                         .await;
                 }
             }
@@ -825,28 +825,28 @@ impl CGWNBApiParsedMsg {
 
                 is_success = true;
             },
-            Err(macs) => {
-                if let Error::RemoteDiscoveryFailedInfras(failed_macs) = macs {
+            Err(infras) => {
+                if let Error::RemoteDiscoveryFailedInfras(failed_infras_result) = infras {
                     // We have a full list of macs we've tried to <del> from GID;
                     // Remove elements from cloned list based on where there
                     // they're present in <failed list>
                     // Whenever done - notify corresponding conn.processors,
                     // that they should updated their state to have GID
                     // change reflected;
-                    let mut macs_to_notify = infras_list.clone();
-                    macs_to_notify.retain(|&m| !failed_macs.contains(&m));
+                    let mut infras_to_notify = infras_list.clone();
+                    infras_to_notify.retain(|&m| !failed_infras_result.contains(&m));
 
                     // Do so, only if there are at least any <successful>
                     // GID changes;
-                    if !macs_to_notify.is_empty() {
+                    if !infras_to_notify.is_empty() {
                         server
                             .clone()
-                            .notify_devices_on_gid_change(macs_to_notify, 0i32);
+                            .notify_devices_on_gid_change(infras_to_notify, 0i32);
                     }
 
                     warn!("Failed to destroy few MACs from infras list (partial delete)!");
 
-                    failed_infras = failed_macs;
+                    failed_infras = failed_infras_result;
                     error_message = Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}"));
                 } else {
                     // Handle other possible error types

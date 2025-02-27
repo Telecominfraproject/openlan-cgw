@@ -32,6 +32,9 @@ infra_join:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infra_join message.
+    type: string
 
 infra_leave:
   description:
@@ -54,6 +57,9 @@ infra_leave:
     description:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
+    type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infra_leave message.
     type: string
 
 unassigned_infra_join:
@@ -84,6 +90,9 @@ unassigned_infra_join:
     description:
       Payload of infra CONNECT message
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct unassigned_infra_join message.
+    type: string
 
 unassigned_infra_leave:
   description:
@@ -99,6 +108,9 @@ unassigned_infra_leave:
   infra_group_infra:
     description:
       MAC (serial) of the infra that successfully connected to CGW.
+    type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct unassigned_infra_leave message.
     type: string
 
 foreign_infra_connection:
@@ -123,6 +135,9 @@ foreign_infra_connection:
     description:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
+    type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct foreign_infra_connection message.
     type: string
 
 infrastructure_group_infra_capabilities_changed:
@@ -163,6 +178,9 @@ infrastructure_group_infra_capabilities_changed:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_infra_capabilities_changed message.
+    type: string
 
 ap_client_join:
   description:
@@ -195,6 +213,9 @@ ap_client_join:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct ap_client_join message.
+    type: string
 
 ap_client_leave:
   description:
@@ -222,6 +243,9 @@ ap_client_leave:
     description:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
+    type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct ap_client_leave message.
     type: string
 
 ap_client_migrate:
@@ -256,6 +280,9 @@ ap_client_migrate:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW construct ap_client_migrate message.
+    type: string
 
 infrastructure_state_event_message:
   description:
@@ -282,6 +309,9 @@ infrastructure_state_event_message:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW receive infrastructure_state_event_message message.
+    type: string
 
 infrastructure_realtime_event_message:
   description:
@@ -307,4 +337,7 @@ infrastructure_realtime_event_message:
     description:
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
+    type: string
+  timestamp:
+    description: 16 digits timestamp got once CGW receive infrastructure_realtime_event_message message.
     type: string

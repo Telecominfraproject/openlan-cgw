@@ -7,6 +7,7 @@ use crate::cgw_errors::{Error, Result};
 use crate::cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus};
 use crate::cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH;
 
+use chrono::Utc;
 use eui48::MacAddress;
 use futures::stream::TryStreamExt;
 use murmur2::murmur2;
@@ -75,6 +76,7 @@ pub struct InfraGroupCreateResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -86,6 +88,7 @@ pub struct InfraGroupDeleteResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -99,6 +102,7 @@ pub struct InfraGroupInfrasAddResponse {
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -112,6 +116,7 @@ pub struct InfraGroupInfrasDelResponse {
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -123,6 +128,7 @@ pub struct InfraGroupInfraMessageEnqueueResponse {
     pub error_message: Option<String>,
     pub kafka_partition_key: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -136,6 +142,7 @@ pub struct InfraGroupInfraRequestResult {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -147,6 +154,7 @@ pub struct RebalanceGroupsResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -158,6 +166,7 @@ pub struct InfraGroupInfraCapabilitiesChanged {
     pub reporter_shard_id: i32,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -167,6 +176,7 @@ pub struct UnassignedInfraJoinMessage {
     pub infra_public_ip: SocketAddr,
     pub reporter_shard_id: i32,
     pub connect_message_payload: String,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -174,6 +184,7 @@ pub struct UnassignedInfraLeaveMessage {
     pub r#type: &'static str,
     pub infra_group_infra: MacAddress,
     pub reporter_shard_id: i32,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -186,6 +197,7 @@ pub struct ForeignInfraConnection {
     pub group_owner_shard_id: i32,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -198,6 +210,7 @@ pub struct APClientJoinMessage {
     pub band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -209,6 +222,7 @@ pub struct APClientLeaveMessage {
     pub band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -221,6 +235,7 @@ pub struct APClientMigrateMessage {
     pub to_band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -233,6 +248,7 @@ pub struct InfraJoinMessage {
     pub connect_message_payload: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -243,6 +259,7 @@ pub struct InfraLeaveMessage {
     pub reporter_shard_id: i32,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -253,6 +270,7 @@ pub struct InfraStateEventMessage {
     pub reporter_shard_id: i32,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -263,6 +281,7 @@ pub struct InfraRealtimeEventMessage {
     pub reporter_shard_id: i32,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub timestamp: i64,
 }
 
 /* Start */
@@ -275,6 +294,7 @@ pub struct InfraGroupSetCloudHeaderResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -287,6 +307,7 @@ pub struct InfraGroupInfrasSetCloudHeaderResponse {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub timestamp: i64,
 }
 
 /* End */
@@ -296,6 +317,7 @@ pub fn cgw_construct_infra_state_event_message(
     payload: String,
     reporter_shard_id: i32,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let state_message = InfraStateEventMessage {
         r#type: "infrastructure_state_event_message",
@@ -303,6 +325,7 @@ pub fn cgw_construct_infra_state_event_message(
         payload,
         reporter_shard_id,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&state_message)?)
@@ -313,6 +336,7 @@ pub fn cgw_construct_infra_realtime_event_message(
     payload: String,
     reporter_shard_id: i32,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let realtime_message = InfraRealtimeEventMessage {
         r#type: "infrastructure_realtime_event_message",
@@ -320,6 +344,7 @@ pub fn cgw_construct_infra_realtime_event_message(
         payload,
         reporter_shard_id,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&realtime_message)?)
@@ -332,6 +357,7 @@ pub fn cgw_construct_infra_group_create_response(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let group_create = InfraGroupCreateResponse {
         r#type: "infrastructure_group_create_response",
@@ -341,6 +367,7 @@ pub fn cgw_construct_infra_group_create_response(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -353,6 +380,7 @@ pub fn cgw_construct_infra_group_delete_response(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let group_delete = InfraGroupDeleteResponse {
         r#type: "infrastructure_group_delete_response",
@@ -362,6 +390,7 @@ pub fn cgw_construct_infra_group_delete_response(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&group_delete)?)
@@ -376,6 +405,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let dev_add = InfraGroupInfrasAddResponse {
         r#type: "infrastructure_group_infras_add_response",
@@ -387,6 +417,7 @@ pub fn cgw_construct_infra_group_infras_add_response(
         error_message,
         kafka_partition_key,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&dev_add)?)
@@ -401,6 +432,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let dev_del = InfraGroupInfrasDelResponse {
         r#type: "infrastructure_group_infras_del_response",
@@ -412,6 +444,7 @@ pub fn cgw_construct_infra_group_infras_del_response(
         error_message,
         kafka_partition_key,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&dev_del)?)
@@ -424,6 +457,7 @@ pub fn cgw_construct_infra_enqueue_response(
     error_message: Option<String>,
     kafka_partition_key: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let dev_enq_resp = InfraGroupInfraMessageEnqueueResponse {
         r#type: "infrastructure_group_infra_message_enqueue_response",
@@ -433,6 +467,7 @@ pub fn cgw_construct_infra_enqueue_response(
         error_message,
         kafka_partition_key,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&dev_enq_resp)?)
@@ -445,6 +480,7 @@ pub fn cgw_construct_rebalance_group_response(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let rebalance_resp = RebalanceGroupsResponse {
         r#type: "rebalance_groups_response",
@@ -454,6 +490,7 @@ pub fn cgw_construct_rebalance_group_response(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&rebalance_resp)?)
@@ -465,6 +502,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
     diff: &HashMap<String, OldNew>,
     reporter_shard_id: i32,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let mut changes: Vec<CGWDeviceChange> = Vec::new();
 
@@ -483,6 +521,7 @@ pub fn cgw_construct_infra_capabilities_changed_msg(
         changes,
         reporter_shard_id,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&dev_cap_msg)?)
@@ -493,6 +532,7 @@ pub fn cgw_construct_unassigned_infra_join_msg(
     infra_public_ip: SocketAddr,
     reporter_shard_id: i32,
     connect_message_payload: String,
+    timestamp: i64,
 ) -> Result<String> {
     let unassigned_infra_msg = UnassignedInfraJoinMessage {
         r#type: "unassigned_infra_join",
@@ -500,6 +540,7 @@ pub fn cgw_construct_unassigned_infra_join_msg(
         infra_public_ip,
         reporter_shard_id,
         connect_message_payload,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&unassigned_infra_msg)?)
@@ -508,11 +549,13 @@ pub fn cgw_construct_unassigned_infra_join_msg(
 pub fn cgw_construct_unassigned_infra_leave_msg(
     infra_group_infra: MacAddress,
     reporter_shard_id: i32,
+    timestamp: i64,
 ) -> Result<String> {
     let unassigned_infra_msg = UnassignedInfraLeaveMessage {
         r#type: "unassigned_infra_leave",
         infra_group_infra,
         reporter_shard_id,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&unassigned_infra_msg)?)
@@ -525,6 +568,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
     reporter_shard_id: i32,
     group_owner_shard_id: i32,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let foreign_infra_msg = ForeignInfraConnection {
         r#type: "foreign_infra_connection",
@@ -534,6 +578,7 @@ pub fn cgw_construct_foreign_infra_connection_msg(
         reporter_shard_id,
         group_owner_shard_id,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&foreign_infra_msg)?)
@@ -546,6 +591,7 @@ pub fn cgw_construct_client_join_msg(
     ssid: String,
     band: String,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let client_join_msg = APClientJoinMessage {
         r#type: "ap_client_join",
@@ -555,6 +601,7 @@ pub fn cgw_construct_client_join_msg(
         ssid,
         band,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&client_join_msg)?)
@@ -566,6 +613,7 @@ pub fn cgw_construct_client_leave_msg(
     infra_group_infra: MacAddress,
     band: String,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let client_join_msg = APClientLeaveMessage {
         r#type: "ap_client_leave",
@@ -574,6 +622,7 @@ pub fn cgw_construct_client_leave_msg(
         infra_group_infra,
         band,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&client_join_msg)?)
@@ -586,6 +635,7 @@ pub fn cgw_construct_client_migrate_msg(
     to_ssid: String,
     to_band: String,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let client_migrate_msg = APClientMigrateMessage {
         r#type: "ap_client_migrate",
@@ -595,6 +645,7 @@ pub fn cgw_construct_client_migrate_msg(
         to_ssid,
         to_band,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&client_migrate_msg)?)
@@ -607,6 +658,7 @@ pub fn cgw_construct_infra_join_msg(
     reporter_shard_id: i32,
     connect_message_payload: String,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let infra_join_msg = InfraJoinMessage {
         r#type: "infra_join",
@@ -616,6 +668,7 @@ pub fn cgw_construct_infra_join_msg(
         reporter_shard_id,
         connect_message_payload,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&infra_join_msg)?)
@@ -626,6 +679,7 @@ pub fn cgw_construct_infra_leave_msg(
     infra_group_infra: MacAddress,
     reporter_shard_id: i32,
     cloud_header: Option<String>,
+    timestamp: i64,
 ) -> Result<String> {
     let infra_leave_msg = InfraLeaveMessage {
         r#type: "infra_leave",
@@ -633,6 +687,7 @@ pub fn cgw_construct_infra_leave_msg(
         infra_group_infra,
         reporter_shard_id,
         cloud_header,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&infra_leave_msg)?)
@@ -646,6 +701,7 @@ pub fn cgw_construct_infra_request_result_msg(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let infra_request_result = InfraGroupInfraRequestResult {
         r#type: "infra_request_result",
@@ -656,6 +712,7 @@ pub fn cgw_construct_infra_request_result_msg(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&infra_request_result)?)
@@ -668,6 +725,7 @@ pub fn cgw_construct_infra_group_set_cloud_header_response(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let group_create = InfraGroupSetCloudHeaderResponse {
         r#type: "infrastructure_group_set_cloud_header_response",
@@ -677,6 +735,7 @@ pub fn cgw_construct_infra_group_set_cloud_header_response(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -690,6 +749,7 @@ pub fn cgw_construct_infra_group_infras_set_cloud_header_response(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
 ) -> Result<String> {
     let group_create = InfraGroupInfrasSetCloudHeaderResponse {
         r#type: "infrastructure_group_infras_set_cloud_header_response",
@@ -700,6 +760,7 @@ pub fn cgw_construct_infra_group_infras_set_cloud_header_response(
         success,
         error_message,
         consumer_metadata,
+        timestamp,
     };
 
     Ok(serde_json::to_string(&group_create)?)
@@ -751,6 +812,17 @@ pub fn cgw_construct_cloud_header(
     };
 
     cloud_header
+}
+
+pub fn cgw_get_timestamp_16_digits() -> i64 {
+    let mut timestamp_16_digits = 0;
+
+    if let Some(nanos) = Utc::now().timestamp_nanos_opt() {
+        // Convert to microseconds (16 digits)
+        timestamp_16_digits = nanos / 1000i64;
+    }
+
+    timestamp_16_digits
 }
 
 struct CGWConsumerContextData {

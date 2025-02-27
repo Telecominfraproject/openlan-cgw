@@ -35,6 +35,9 @@ infrastructure_group_create_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_create_response message.
+    type: string
 
 infrastructure_group_delete_response:
   description: Response to corresponding 'infrastructure_group_delete' request.
@@ -67,6 +70,9 @@ infrastructure_group_delete_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_delete_response message.
+    type: string
 
 infrastructure_group_infras_add_response:
   description: Response to corresponding 'infrastructure_group_infras_add' request.
@@ -121,6 +127,9 @@ infrastructure_group_infras_add_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_add_response message.
+    type: string
 
 infrastructure_group_infras_del_response:
   description: Response to corresponding 'infrastructure_group_infras_del' request.
@@ -173,6 +182,9 @@ infrastructure_group_infras_del_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_del_response message.
+    type: string
 
 infrastructure_group_infra_message_enqueue_response:
   description: Response to corresponding 'infrastructure_group_infra_message_enqueue' request.
@@ -217,6 +229,10 @@ infrastructure_group_infra_message_enqueue_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_infra_message_enqueue_response message.
+    type: string
+
 
 infra_request_result:
   description:
@@ -257,6 +273,9 @@ infra_request_result:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infra_request_result message.
+    type: string
 
 rebalance_groups_response:
   description: Response to corresponding 'rebalance_groups' request.
@@ -289,6 +308,9 @@ rebalance_groups_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct rebalance_groups_response message.
+    type: string
 
 infrastructure_group_set_cloud_header_response:
   description: Response to corresponding 'infrastructure_group_set_cloud_header' request.
@@ -321,6 +343,9 @@ infrastructure_group_set_cloud_header_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_set_cloud_header_response message.
+    type: string
 
 infrastructure_group_infras_set_cloud_header_response:
   description: Response to corresponding 'infrastructure_group_infras_set_cloud_header' request.
@@ -362,3 +387,6 @@ infrastructure_group_infras_set_cloud_header_response:
         type: integer
       sender_id:
         type: integer
+  timestamp:
+    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_set_cloud_header_response message.
+    type: string

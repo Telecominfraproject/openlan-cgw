@@ -327,6 +327,7 @@ impl CGWNBApiParsedMsg {
         consumer_metadata: Option<ConsumerMetadata>,
         timestamp: i64,
     ) {
+        let response: Result<String>;
         let uuid = self.uuid;
         let gid = self.gid;
         // DB stuff - create group for remote shards to be aware of change
@@ -360,7 +361,7 @@ impl CGWNBApiParsedMsg {
                     *ts_w_lock = server.get_redis_last_update_timestamp().await;
                 }
 
-                if let Ok(resp) = cgw_construct_infra_group_create_response(
+                response = cgw_construct_infra_group_create_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -368,21 +369,12 @@ impl CGWNBApiParsedMsg {
                     None,
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_create message!");
-                }
+                );
             }
             Err(e) => {
                 warn!("Create group gid {gid}, uuid {uuid} request failed! Error: {e}");
 
-                if let Ok(resp) = cgw_construct_infra_group_create_response(
+                response = cgw_construct_infra_group_create_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -390,17 +382,19 @@ impl CGWNBApiParsedMsg {
                     Some(format!("Failed to create new group! Error: {e}")),
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_create message!");
-                }
+                );
             }
+        }
+
+        if let Ok(resp) = response {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                        partition,
+            );
+        } else {
+            error!("Failed to construct infra_group_create message!");
         }
     }
 
@@ -412,6 +406,7 @@ impl CGWNBApiParsedMsg {
         consumer_metadata: Option<ConsumerMetadata>,
         timestamp: i64,
     ) {
+        let response: Result<String>;
         let uuid = self.uuid;
         let gid = self.gid;
         // DB stuff - create group for remote shards to be aware of change
@@ -445,7 +440,7 @@ impl CGWNBApiParsedMsg {
                     *ts_w_lock = server.get_redis_last_update_timestamp().await;
                 }
 
-                if let Ok(resp) = cgw_construct_infra_group_create_response(
+                response = cgw_construct_infra_group_create_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -453,21 +448,12 @@ impl CGWNBApiParsedMsg {
                     None,
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_create message!");
-                }
+                );
             }
             Err(e) => {
-                warn!("Create group gid {gid}, uuid {uuid} request failed, reason: {e}",);
+                warn!("Create group gid {gid}, uuid {uuid} request failed, reason: {e}");
 
-                if let Ok(resp) = cgw_construct_infra_group_create_response(
+                response = cgw_construct_infra_group_create_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -477,17 +463,19 @@ impl CGWNBApiParsedMsg {
                     )),
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_create message!");
-                }
+                );
             }
+        }
+
+        if let Ok(resp) = response {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                partition,
+            );
+        } else {
+            error!("Failed to construct infra_group_create message!");
         }
     }
 
@@ -497,6 +485,7 @@ impl CGWNBApiParsedMsg {
         consumer_metadata: Option<ConsumerMetadata>,
         timestamp: i64,
     ) {
+        let response: Result<String>;
         let lock = server.devices_cache.clone();
         let uuid = self.uuid;
         let gid = self.gid;
@@ -537,7 +526,7 @@ impl CGWNBApiParsedMsg {
                     topomap.remove_gid(gid).await;
                 }
 
-                if let Ok(resp) = cgw_construct_infra_group_delete_response(
+                response = cgw_construct_infra_group_delete_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -545,21 +534,12 @@ impl CGWNBApiParsedMsg {
                     None,
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_delete message!");
-                }
+                );
             }
             Err(e) => {
                 warn!("Destroy group gid {gid}, uuid {uuid} request failed! Error: {e}");
 
-                if let Ok(resp) = cgw_construct_infra_group_delete_response(
+                response = cgw_construct_infra_group_delete_response(
                     gid,
                     server.local_cgw_id,
                     uuid,
@@ -567,19 +547,19 @@ impl CGWNBApiParsedMsg {
                     Some(format!("Failed to delete group! Error: {e}")),
                     consumer_metadata,
                     timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_delete message!");
-                }
-
-                warn!("Destroy group gid {gid} received, but it does not exist!");
+                );
             }
+        }
+
+        if let Ok(resp) = response {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                partition,
+            );
+        } else {
+            error!("Failed to construct infra_group_delete message!");
         }
     }
 
@@ -632,11 +612,14 @@ impl CGWNBApiParsedMsg {
                 error!("Failed to construct infra_group_device_add message!");
             }
 
-            warn!(
-                "Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}!"
-            );
+            warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}!");
             return;
         }
+
+        let mut is_success = false;
+        let mut failed_infras = Vec::new();
+        let mut error_message = None;
+        let mut successful_macs = Vec::new();
 
         match server
             .cgw_remote_discovery
@@ -650,133 +633,128 @@ impl CGWNBApiParsedMsg {
                     .clone()
                     .notify_devices_on_gid_change(success_infras.clone(), gid);
 
-                if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
-                    gid,
-                    // Empty vec: no infras assign <failed>
-                    Vec::new(),
-                    server.local_cgw_id,
-                    uuid,
-                    true,
-                    None,
-                    local_shard_partition_key.clone(),
-                    consumer_metadata,
-                    timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_device_add message!");
+                successful_macs = success_infras;
+                is_success = true;
+            },
+            Err(Error::RemoteDiscoveryFailedInfras(failed_macs)) => {
+                // We have a full list of macs we've tried to <add> to GID;
+                // Remove elements from cloned list based on where there
+                // they're present in <failed list>
+                // Whenever done - notify corresponding conn.processors,
+                // that they should updated their state to have GID
+                // change reflected;
+                let mut macs_to_notify = infras_list.clone();
+                macs_to_notify.retain(|&m| !failed_macs.contains(&m));
+
+                // Do so, only if there are at least any <successful>
+                // GID changes;
+                if !macs_to_notify.is_empty() {
+                    server
+                        .clone()
+                        .notify_devices_on_gid_change(macs_to_notify.clone(), gid);
+                    successful_macs = macs_to_notify;
                 }
 
-                let devices_cache_read = server.devices_cache.read().await;
-                for mac in success_infras {
-                    let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-                    if queue_lock.check_messages_queue_exists(&mac).await {
-                        queue_lock
-                            .set_device_queue_state(&mac, CGWUCentralMessagesQueueState::RxTx)
-                            .await;
-                    }
-
-                    if let Some(dev) = devices_cache_read.get_device(&mac) {
-                        if dev.get_device_state() == CGWDeviceState::CGWDeviceConnected {
-                            let dev_gid = dev.get_device_group_id();
-                            let changes = cgw_detect_device_changes(
-                                &CGWDeviceCapabilities::default(),
-                                &dev.get_device_capabilities(),
-                            );
-                            match changes {
-                                Some(diff) => {
-                                    let group_cloud_header: Option<String> = server
-                                        .cgw_remote_discovery
-                                        .get_group_cloud_header(dev_gid)
-                                        .await;
-                                    let infras_cloud_header: Option<String> = server
-                                        .cgw_remote_discovery
-                                        .get_group_infra_cloud_header(dev_gid, &mac)
-                                        .await;
-
-                                    let cloud_header: Option<String> = cgw_construct_cloud_header(
-                                        group_cloud_header,
-                                        infras_cloud_header,
-                                    );
-
-                                    if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
-                                        mac,
-                                        dev_gid,
-                                        &diff,
-                                        server.local_cgw_id,
-                                        cloud_header,
-                                        timestamp,
-                                    ) {
-                                        server.enqueue_mbox_message_from_cgw_to_nb_api(
-                                            dev_gid,
-                                            resp,
-                                            CGWKafkaProducerTopic::Connection,
-                                            partition,
-                                        );
-                                    } else {
-                                        error!(
-                                                "Failed to construct device_capabilities_changed message!"
-                                            );
-                                    }
-                                }
-                                None => {
-                                    debug!(
-                                        "Capabilities for device: {} was not changed",
-                                        mac.to_hex_string()
-                                    )
-                                }
-                            }
-                        } else {
-                            queue_lock
-                                .device_disconnected(&mac, dev.get_device_group_id())
-                                .await;
-                        }
-                    }
-                }
+                failed_infras = failed_macs;
+                error_message = Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}"));
+                warn!("Failed to create few MACs from infras list (partial create)!");
+            },
+            _ => {
+                error_message = Some(format!("Unknown error during infrastructure creation, gid {gid}, uuid {uuid}"));
+                warn!("Unknown error during infrastructure creation!");
             }
-            Err(macs) => {
-                if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs {
-                    // We have a full list of macs we've tried to <add> to GID;
-                    // Remove elements from cloned list based on where there
-                    // they're present in <failed list>
-                    // Whenever done - notify corresponding conn.processors,
-                    // that they should updated their state to have GID
-                    // change reflected;
-                    let mut macs_to_notify = infras_list.clone();
-                    macs_to_notify.retain(|&m| !failed_infras.contains(&m));
+        }
 
-                    // Do so, only if there are at least any <successful>
-                    // GID changes;
-                    if !macs_to_notify.is_empty() {
-                        server
-                            .clone()
-                            .notify_devices_on_gid_change(macs_to_notify, gid);
-                    }
+        if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
+            gid,
+            failed_infras,
+            server.local_cgw_id,
+            uuid,
+            is_success,
+            error_message,
+            local_shard_partition_key.clone(),
+            consumer_metadata,
+            timestamp,
+        ) {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                partition,
+            );
+        } else {
+            error!("Failed to construct infra_group_device_add message!");
+        }
 
-                    if let Ok(resp) = cgw_construct_infra_group_infras_add_response(
-                            gid,
-                            failed_infras,
+        // Process successfully added MAC addresses - only if we have any
+        if successful_macs.is_empty() {
+            return;
+        }
+
+        let devices_cache_read = server.devices_cache.read().await;
+        for mac in successful_macs {
+            let queue_lock = CGW_MESSAGES_QUEUE.read().await;
+
+            // Update queue state if it exists
+            if queue_lock.check_messages_queue_exists(&mac).await {
+                queue_lock
+                    .set_device_queue_state(&mac, CGWUCentralMessagesQueueState::RxTx)
+                    .await;
+            }
+
+            // Process device if it exists in cache
+            if let Some(dev) = devices_cache_read.get_device(&mac) {
+                if dev.get_device_state() == CGWDeviceState::CGWDeviceConnected {
+                    let dev_gid = dev.get_device_group_id();
+                    let changes = cgw_detect_device_changes(
+                        &CGWDeviceCapabilities::default(),
+                        &dev.get_device_capabilities(),
+                    );
+
+                    // Process device capabilities changes if any
+                    if let Some(diff) = changes {
+                        // Get cloud headers
+                        let group_cloud_header = server
+                            .cgw_remote_discovery
+                            .get_group_cloud_header(dev_gid)
+                            .await;
+
+                        let infras_cloud_header = server
+                            .cgw_remote_discovery
+                            .get_group_infra_cloud_header(dev_gid, &mac)
+                            .await;
+
+                        let cloud_header = cgw_construct_cloud_header(
+                            group_cloud_header,
+                            infras_cloud_header,
+                        );
+
+                        // Send capabilities changed message
+                        if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
+                            mac,
+                            dev_gid,
+                            &diff,
                             server.local_cgw_id,
-                            uuid,
-                            false,
-                            Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}")),
-                            local_shard_partition_key.clone(),
-                            consumer_metadata,
+                            cloud_header,
                             timestamp,
                         ) {
-                            server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
-                        } else {
-                            error!(
-                                "Failed to construct infra_group_device_add message!"
+                            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                dev_gid,
+                                resp,
+                                CGWKafkaProducerTopic::Connection,
+                                partition,
                             );
+                        } else {
+                            error!("Failed to construct device_capabilities_changed message!");
                         }
-
-                    warn!("Failed to create few MACs from infras list (partial create)!");
+                    } else {
+                        debug!("Capabilities for device: {} was not changed", mac.to_hex_string());
+                    }
+                } else {
+                    // Device is not connected, update its status
+                    queue_lock
+                        .device_disconnected(&mac, dev.get_device_group_id())
+                        .await;
                 }
             }
         }
@@ -819,16 +797,18 @@ impl CGWNBApiParsedMsg {
             ) {
                 server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
             } else {
-                error!(
-                    "Failed to construct infra_group_device_del message!"
-                );
+                error!("Failed to construct infra_group_device_del message!");
             }
 
-            warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid}!");
+            warn!("Unexpected: tried to delete infra list from nonexisting group (gid {gid}, uuid {uuid})!");
             return;
         }
 
         let lock = server.devices_cache.clone();
+        let mut is_success = false;
+        let mut failed_infras = Vec::new();
+        let mut error_message = None;
+
         match server
             .cgw_remote_discovery
             .destroy_infras_list(gid, infras_list.clone(), lock)
@@ -843,30 +823,10 @@ impl CGWNBApiParsedMsg {
                     .clone()
                     .notify_devices_on_gid_change(infras_list.clone(), 0i32);
 
-                if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
-                    gid,
-                    // Empty vec: no infras de-assign <failed>
-                    Vec::new(),
-                    server.local_cgw_id,
-                    uuid,
-                    true,
-                    None,
-                    local_shard_partition_key.clone(),
-                    consumer_metadata,
-                    timestamp,
-                ) {
-                    server.enqueue_mbox_message_from_cgw_to_nb_api(
-                        gid,
-                        resp,
-                        CGWKafkaProducerTopic::CnCRes,
-                        partition,
-                    );
-                } else {
-                    error!("Failed to construct infra_group_device_del message!");
-                }
-            }
+                is_success = true;
+            },
             Err(macs) => {
-                if let Error::RemoteDiscoveryFailedInfras(failed_infras) = macs {
+                if let Error::RemoteDiscoveryFailedInfras(failed_macs) = macs {
                     // We have a full list of macs we've tried to <del> from GID;
                     // Remove elements from cloned list based on where there
                     // they're present in <failed list>
@@ -874,7 +834,7 @@ impl CGWNBApiParsedMsg {
                     // that they should updated their state to have GID
                     // change reflected;
                     let mut macs_to_notify = infras_list.clone();
-                    macs_to_notify.retain(|&m| !failed_infras.contains(&m));
+                    macs_to_notify.retain(|&m| !failed_macs.contains(&m));
 
                     // Do so, only if there are at least any <successful>
                     // GID changes;
@@ -884,27 +844,31 @@ impl CGWNBApiParsedMsg {
                             .notify_devices_on_gid_change(macs_to_notify, 0i32);
                     }
 
-                    if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
-                            gid,
-                            failed_infras,
-                            server.local_cgw_id,
-                            uuid,
-                            false,
-                            Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}")),
-                            local_shard_partition_key.clone(),
-                            consumer_metadata,
-                            timestamp,
-                        ) {
-                            server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
-                        } else {
-                            error!(
-                                "Failed to construct infra_group_device_del message!"
-                            );
-                        }
-
                     warn!("Failed to destroy few MACs from infras list (partial delete)!");
+
+                    failed_infras = failed_macs;
+                    error_message = Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}"));
+                } else {
+                    // Handle other possible error types
+                    error_message = Some(format!("Unknown error occurred while deleting MACs, gid {gid}, uuid {uuid}"));
                 }
             }
+        };
+
+        if let Ok(resp) = cgw_construct_infra_group_infras_del_response(
+            gid,
+            failed_infras,
+            server.local_cgw_id,
+            uuid,
+            is_success,
+            error_message,
+            local_shard_partition_key.clone(),
+            consumer_metadata,
+            timestamp,
+        ) {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
+        } else {
+            error!("Failed to construct infra_group_device_del message!");
         }
     }
 
@@ -953,82 +917,14 @@ impl CGWNBApiParsedMsg {
         }
 
         // 1. Parse message from NB
-        if let Ok(parsed_cmd) = cgw_ucentral_parse_command_message(&msg.clone()) {
-            let devices_cache = server.devices_cache.read().await;
-            match devices_cache.get_device(&device_mac) {
-                Some(infra) => {
-                    if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure {
-                        match server
-                            .config_validator
-                            .validate_config_message(&msg, infra.get_device_type())
-                        {
-                            Ok(()) => {
-                                // 3. Add message to queue
-                                server
-                                    .enqueue_infrastructure_request(
-                                        (
-                                            device_mac,
-                                            infra.get_device_state(),
-                                            infra.get_device_group_id(),
-                                        ),
-                                        parsed_cmd,
-                                        msg,
-                                        uuid,
-                                        timeout,
-                                        local_shard_partition_key.clone(),
-                                        consumer_metadata,
-                                        timestamp,
-                                    )
-                                    .await;
-                            }
-                            Err(e) => {
-                                error!("Failed to validate config message! Invalid configure message for device: {device_mac}!");
-                                if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                                    server.local_cgw_id,
-                                    uuid,
-                                    false,
-                                    Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
-                                    local_shard_partition_key.clone(),
-                                    consumer_metadata,
-                                    timestamp,
-                                ) {
-                                    server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
-                                } else {
-                                    error!("Failed to construct device_enqueue message!");
-                                }
-                            }
-                        }
-                    } else {
-                        server
-                            .enqueue_infrastructure_request(
-                                (
-                                    device_mac,
-                                    infra.get_device_state(),
-                                    infra.get_device_group_id(),
-                                ),
-                                parsed_cmd,
-                                msg,
-                                uuid,
-                                timeout,
-                                local_shard_partition_key.clone(),
-                                consumer_metadata,
-                                timestamp,
-                            )
-                            .await;
-                    }
-                }
-                None => {
-                    error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
-                }
-            }
-        } else {
+        let parse_result = cgw_ucentral_parse_command_message(&msg.clone());
+        if parse_result.is_err() {
+            // Parsing error
             if let Ok(resp) = cgw_construct_infra_enqueue_response(
                 server.local_cgw_id,
                 uuid,
                 false,
-                Some(format!(
-                    "Failed to parse command message to device: {device_mac}, uuid {uuid}"
-                )),
+                Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
                 local_shard_partition_key.clone(),
                 consumer_metadata,
                 timestamp,
@@ -1043,7 +939,66 @@ impl CGWNBApiParsedMsg {
                 error!("Failed to construct device_enqueue message!");
             }
             error!("Failed to parse UCentral command!");
+            return;
         }
+
+        // 2. Get device information
+        let parsed_cmd = match parse_result {
+            Ok(cmd) => cmd,
+            Err(_) => return,
+        };
+
+        let devices_cache = server.devices_cache.read().await;
+        let infra = match devices_cache.get_device(&device_mac) {
+            Some(device) => device,
+            None => {
+                error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
+                return;
+            }
+        };
+
+        // 3. Process the command
+        if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure {
+            let validation_result = server
+                .config_validator
+                .validate_config_message(&msg, infra.get_device_type());
+
+            if let Err(e) = validation_result {
+                error!("Failed to validate config message! Invalid configure message for device: {device_mac}!");
+                if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                    server.local_cgw_id,
+                    uuid,
+                    false,
+                    Some(format!("Failed to validate config message! Invalid configure message for device: {device_mac}, uuid {uuid}\nError: {e}")),
+                    local_shard_partition_key.clone(),
+                    consumer_metadata,
+                    timestamp,
+                ) {
+                    server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
+                } else {
+                    error!("Failed to construct device_enqueue message!");
+                }
+                return;
+            }
+        }
+
+        // 4. Add message to queue
+        server
+            .enqueue_infrastructure_request(
+                (
+                    device_mac,
+                    infra.get_device_state(),
+                    infra.get_device_group_id(),
+                ),
+                parsed_cmd,
+                msg,
+                uuid,
+                timeout,
+                local_shard_partition_key.clone(),
+                consumer_metadata,
+                timestamp,
+            )
+            .await;
     }
 
     async fn handle_infrastructure_group_set_cloud_header(

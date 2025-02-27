@@ -124,8 +124,15 @@ def certificates_update(certs_path: str = DEFAULT_CERTS_PATH, client_certs_path:
 
         cert_gen_path = get_realpath(DEFAULT_CERT_GENERATOR_PATH)
 
-        # Clean up old certificates
+        # It might be that ca/server/client directories does not exists
+        # For example in case of clean environment (clone repo)
+        # Check if mentioned dirs exist - create new if needed.
         cert_subfolders = ["ca", "server", "client"]
+        for subfolder in cert_subfolders:
+            cert_folder = os.path.join(cert_gen_path, "certs", subfolder)
+            os.makedirs(cert_folder, exist_ok=True)
+
+        # Clean up old certificates
         for subfolder in cert_subfolders:
             cert_folder = os.path.join(cert_gen_path, "certs", subfolder)
             for file in os.listdir(cert_folder):

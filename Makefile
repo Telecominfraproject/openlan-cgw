@@ -66,14 +66,10 @@ run: stop cgw-img run_docker_services
 	@./run_cgw.sh "${CGW_IMG_ID}:${CGW_IMG_TAG}" ${CGW_IMG_CONTAINER_NAME}
 
 start-multi-cgw: cgw-img
-	@pushd ./utils/docker
-	@python3 StartMultiCGW.py --start
-	@popd
+	@cd ./utils/docker && python3 StartMultiCGW.py --start && cd -
 
 stop-multi-cgw:
-	@pushd ./utils/docker
-	@python3 StartMultiCGW.py --stop
-	@popd
+	@cd ./utils/docker && python3 StartMultiCGW.py --stop && cd -
 
 run_docker_services:
 	@cd ./utils/docker/ && docker compose up -d

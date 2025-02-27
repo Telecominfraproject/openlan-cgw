@@ -5,11 +5,12 @@ infra_join:
   description:
     Event, that CGW generates whenever assigned infra successfully connects to CGW.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - infra_join
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
@@ -33,18 +34,21 @@ infra_join:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct infra_join message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 infra_leave:
   description:
     Event, that CGW generates whenever assigned infra disconnects from the CGW.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - infra_leave
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
@@ -59,18 +63,21 @@ infra_leave:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct infra_leave message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 unassigned_infra_join:
   description:
     Event, that CGW generates whenever un-assigned infra successfully connects to CGW.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - unassigned_infra_join
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   group_owner_shard_id:
@@ -91,18 +98,21 @@ unassigned_infra_join:
       Payload of infra CONNECT message
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct unassigned_infra_join message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 unassigned_infra_leave:
   description:
     Event, that CGW generates whenever unassigned infra disconnects from the CGW.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - unassigned_infra_leave
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_infra:
@@ -110,19 +120,22 @@ unassigned_infra_leave:
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct unassigned_infra_leave message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 foreign_infra_connection:
   description:
     Event, that CGW generates whenever foreign (assigned, but connected
     to the wrong CGW instance)  infra successfully connects to CGW.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - foreign_infra_connection
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
@@ -137,19 +150,22 @@ foreign_infra_connection:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct foreign_infra_connection message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 infrastructure_group_infra_capabilities_changed:
   description:
     Event, that CGW generates whenever CGW detects capabilities change
     of the connected assigned infra.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - infrastructure_group_infra_capabilities_changed
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
@@ -179,14 +195,17 @@ infrastructure_group_infra_capabilities_changed:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_infra_capabilities_changed message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 ap_client_join:
   description:
     Event, that CGW generates whenever it detects topology
     change - a new WiFi client connection.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - ap_client_join
@@ -214,14 +233,17 @@ ap_client_join:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct ap_client_join message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 ap_client_leave:
   description:
     Event, that CGW generates whenever it detects topology
     change - a WiFi client disconnect.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - ap_client_leave
@@ -245,8 +267,10 @@ ap_client_leave:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct ap_client_leave message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 ap_client_migrate:
   description:
@@ -254,6 +278,7 @@ ap_client_migrate:
     change - existing WiFi client migrating from one infra to another
     (wifi client connects to AP_1 while was connected to AP_0).
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - ap_client_migrate
@@ -281,14 +306,17 @@ ap_client_migrate:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW construct ap_client_migrate message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been detected by the CGW.
+    type: integer
 
 infrastructure_state_event_message:
   description:
     Enveloped infra state event that infra device generates periodically.
     The original UCentral State/Healthcheck events are presented in 'payload'.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - infrastructure_state_event_message
@@ -297,7 +325,7 @@ infrastructure_state_event_message:
       The UCentral State/Healthcheck event type.
     type: string
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   payload:
@@ -310,14 +338,17 @@ infrastructure_state_event_message:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW receive infrastructure_state_event_message message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been received by the CGW on the socket level.
+    type: integer
 
 infrastructure_realtime_event_message:
   description:
     Enveloped infra real-time event that infra device generates periodically.
     The original UCentral Real-time events are presented in 'payload'.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
     - infrastructure_realtime_event_message
@@ -326,7 +357,7 @@ infrastructure_realtime_event_message:
       The UCentral Real-time event type (e.g. Log, Alarm, WifiScan, etc...).
     type: string
   reporter_shard_id:
-    description:
+    description: MANDATORY field.
       ID of the shard that handled request and generated this response.
     type: integer
   payload:
@@ -339,5 +370,7 @@ infrastructure_realtime_event_message:
       This field is optional and might be empty JSON object or missed.
     type: string
   timestamp:
-    description: 16 digits timestamp got once CGW receive infrastructure_realtime_event_message message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the event had been received by the CGW on the socket level.
+    type: integer

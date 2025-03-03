@@ -29,49 +29,193 @@ use eui48::MacAddress;
 type ClientLastSeenTimestamp = i64;
 
 // Client mac, ssid, band
-type ClientsJoinList = Vec<(MacAddress, String, String)>;
+struct ClientJoinInfo {
+    pub mac: MacAddress,
+    pub ssid: String,
+    pub band: String,
+}
+
+impl ClientJoinInfo {
+    pub fn new(mac: MacAddress, ssid: String, band: String) -> ClientJoinInfo {
+        ClientJoinInfo { mac, ssid, band }
+    }
+}
 
 // Client mac, band
-type ClientsLeaveList = Vec<(MacAddress, String)>;
+struct ClientLeaveInfo {
+    pub mac: MacAddress,
+    pub band: String,
+}
+
+impl ClientLeaveInfo {
+    pub fn new(mac: MacAddress, band: String) -> ClientLeaveInfo {
+        ClientLeaveInfo { mac, band }
+    }
+}
 
 // Client mac, new AP mac, band, ssid
-type ClientsMigrateList = Vec<(MacAddress, MacAddress, String, String)>;
+struct ClientMigrateInfo {
+    pub mac: MacAddress,
+    pub new_mac: MacAddress,
+    pub ssid: String,
+    pub band: String,
+}
+
+impl ClientMigrateInfo {
+    pub fn new(
+        mac: MacAddress,
+        new_mac: MacAddress,
+        ssid: String,
+        band: String,
+    ) -> ClientMigrateInfo {
+        ClientMigrateInfo {
+            mac,
+            new_mac,
+            ssid,
+            band,
+        }
+    }
+}
 
 // Last seen, ssid, band
-type ClientsConnectedList = (ClientLastSeenTimestamp, String, String);
+#[derive(Debug, PartialEq, Eq)]
+struct ClientConnectedInfo {
+    pub last_seen_timestamp: ClientLastSeenTimestamp,
+    pub ssid: String,
+    pub band: String,
+}
 
-// Topology map item
-type TopologyMapItem = HashMap<
-    i32,
-    (
-        CGWUCentralTopologyMapData,
-        // This hashmap is needed to keep track of _all_ topomap nodes
-        // connected (directly reported) by this device, to detect _migration_
-        // process:
-        // we need to keep track whenever WiFi client of AP_1, for example,
-        // 'silently' migrates to AP_2.
-        //
-        // We should also track the last time seen value of this
-        // client / node, to make appropriate decision
-        // whenever leave/join/migrate happens.
-        //
-        // LIMITATION:
-        //   * Works only on a per-group basis (if wifi-client migrates to
-        //     another GID, this event would be missed)
-        //     (as per current implementation).
-        // Track key:client mac, values:parent AP mac, last seen timestamp, ssid and band
-        HashMap<MacAddress, (MacAddress, ClientLastSeenTimestamp, String, String)>,
-    ),
->;
+impl ClientConnectedInfo {
+    pub fn new(
+        last_seen_timestamp: ClientLastSeenTimestamp,
+        ssid: String,
+        band: String,
+    ) -> ClientConnectedInfo {
+        ClientConnectedInfo {
+            last_seen_timestamp,
+            ssid,
+            band,
+        }
+    }
+}
 
-type TopologyMapNode = (
-    MacAddress,
-    (
-        CGWUCentralTopologyMapNodeOrigin,
-        CGWUCentralTopologyMapConnections,
-        HashMap<MacAddress, ClientsConnectedList>,
-    ),
-);
+type ClientsJoinList = Vec<ClientJoinInfo>;
+
+type ClientsLeaveList = Vec<ClientLeaveInfo>;
+
+type ClientsMigrateList = Vec<ClientMigrateInfo>;
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+struct ClinetParentInfo {
+    pub parent_ap_mac: MacAddress,
+    pub last_seen_timestamp: ClientLastSeenTimestamp,
+    pub ssid: String,
+    pub band: String,
+}
+
+impl ClinetParentInfo {
+    pub fn new(
+        parent_ap_mac: MacAddress,
+        last_seen_timestamp: ClientLastSeenTimestamp,
+        ssid: String,
+        band: String,
+    ) -> ClinetParentInfo {
+        ClinetParentInfo {
+            parent_ap_mac,
+            last_seen_timestamp,
+            ssid,
+            band,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct TopologyMapItemData {
+    pub data: CGWUCentralTopologyMapData,
+    // This hashmap is needed to keep track of _all_ topomap nodes
+    // connected (directly reported) by this device, to detect _migration_
+    // process:
+    // we need to keep track whenever WiFi client of AP_1, for example,
+    // 'silently' migrates to AP_2.
+    //
+    // We should also track the last time seen value of this
+    // client / node, to make appropriate decision
+    // whenever leave/join/migrate happens.
+    //
+    // LIMITATION:
+    //   * Works only on a per-group basis (if wifi-client migrates to
+    //     another GID, this event would be missed)
+    //     (as per current implementation).
+    // Track key:client mac, values:parent AP mac, last seen timestamp, ssid and band
+    pub connected_clients_map: HashMap<MacAddress, ClinetParentInfo>,
+}
+
+impl TopologyMapItemData {
+    pub fn new(
+        data: CGWUCentralTopologyMapData,
+        connected_clients_map: HashMap<MacAddress, ClinetParentInfo>,
+    ) -> TopologyMapItemData {
+        TopologyMapItemData {
+            data,
+            connected_clients_map,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct TopologyMapItem {
+    pub item: HashMap<i32, TopologyMapItemData>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct CGWUCentralTopologyChildConnections {
+    child_connections_map: HashMap<MacAddress, ClientConnectedInfo>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct TopologyMapNodeData {
+    // This hashmap is needed to keep track of _all_ topomap nodes
+    // connected (directly reported) by this device, to detect
+    // _connect_ / _disconnect_ events:
+    // we need to keep track whenever we see newly connected WiFi client,
+    // or an event of such device getting disconnected.
+    // This need to be found out fast, hence sacrifice memory in the
+    // name of faster lookup;
+    // LIMITATION:
+    //   * Works only on a per-group basis (if wifi-client migrates to
+    //     another GID, this event would be missed)
+    //     (as per current implementation).
+    // Track key:client mac, values:last seen timestamp, ssid and band
+    pub origin_node: CGWUCentralTopologyMapNodeOrigin,
+    pub connection_map: CGWUCentralTopologyMapConnections,
+    pub client_connections_list: CGWUCentralTopologyChildConnections,
+}
+
+impl TopologyMapNodeData {
+    pub fn new(
+        origin_node: CGWUCentralTopologyMapNodeOrigin,
+        connection_map: CGWUCentralTopologyMapConnections,
+        client_connections_list: CGWUCentralTopologyChildConnections,
+    ) -> TopologyMapNodeData {
+        TopologyMapNodeData {
+            origin_node,
+            connection_map,
+            client_connections_list,
+        }
+    }
+}
+
+struct TopologyMapNode {
+    pub mac: MacAddress,
+    pub node_data: TopologyMapNodeData,
+}
+
+impl TopologyMapNode {
+    pub fn new(mac: MacAddress, node_data: TopologyMapNodeData) -> TopologyMapNode {
+        TopologyMapNode { mac, node_data }
+    }
+}
+
 struct CGWTopologyMapQueueMessage {
     evt: CGWUCentralEvent,
     dev_type: CGWDeviceType,
@@ -89,13 +233,13 @@ type CGWTopologyMapQueueTxHandle = UnboundedSender<CGWTopologyMapQueueMessage>;
 //   and only erased when disconnect happens;
 // - any nodes, that are added to topomap as lldp peers
 //   should be deleted when the node that reported them gets deleted;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum CGWUCentralTopologyMapNodeOrigin {
     UCentralDevice,
     StateLLDPPeer,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct CGWUCentralTopologyMapConnectionParams {
     // TODO: actually use for graph building;
     // Currently, unused.
@@ -105,7 +249,7 @@ struct CGWUCentralTopologyMapConnectionParams {
     last_seen: ClientLastSeenTimestamp,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct CGWUCentralTopologyMapConnectionsData {
     // Infra node list = list of mac addresses (clients, fdb entires,
     // arp neighbors etc etc) reported on single port
@@ -148,7 +292,7 @@ struct CGWUCentralTopologyMapConnectionsData {
     child_lldp_nodes: HashMap<MacAddress, ()>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct CGWUCentralTopologyMapConnections {
     links_list: HashMap<CGWUCentralEventStatePort, CGWUCentralTopologyMapConnectionsData>,
 }
@@ -157,46 +301,37 @@ struct CGWUCentralTopologyMapConnections {
 struct CGWUCentralTopologyMapData {
     // Device nodes are only created upon receiving a new UCentral connection,
     // or LLDP peer info.
-    topology_nodes: HashMap<
-        MacAddress,
-        (
-            CGWUCentralTopologyMapNodeOrigin,
-            CGWUCentralTopologyMapConnections,
-            // This hashmap is needed to keep track of _all_ topomap nodes
-            // connected (directly reported) by this device, to detect
-            // _connect_ / _disconnect_ events:
-            // we need to keep track whenever we see newly connected WiFi client,
-            // or an event of such device getting disconnected.
-            // This need to be found out fast, hence sacrifice memory in the
-            // name of faster lookup;
-            // LIMITATION:
-            //   * Works only on a per-group basis (if wifi-client migrates to
-            //     another GID, this event would be missed)
-            //     (as per current implementation).
-            // Track key:client mac, values:last seen timestamp, ssid and band
-            HashMap<MacAddress, ClientsConnectedList>,
-        ),
-    >,
+    topology_nodes: HashMap<MacAddress, TopologyMapNodeData>,
+}
+
+#[derive(Debug)]
+struct CGWUCentralTopologyQueue {
+    pub tx_handle: Arc<CGWTopologyMapQueueTxHandle>,
+    pub rx_handle: Arc<Mutex<CGWTopologyMapQueueRxHandle>>,
 }
 
 #[derive(Debug)]
 pub struct CGWUCentralTopologyMap {
     // Stored on a per-gid basis
     data: Arc<RwLock<TopologyMapItem>>,
-    queue: (
-        Arc<CGWTopologyMapQueueTxHandle>,
-        Arc<Mutex<CGWTopologyMapQueueRxHandle>>,
-    ),
+    queue: CGWUCentralTopologyQueue,
     started: Mutex<bool>,
+}
+
+impl CGWUCentralTopologyQueue {
+    pub fn new() -> CGWUCentralTopologyQueue {
+        let (tx, rx) = unbounded_channel::<CGWTopologyMapQueueMessage>();
+        CGWUCentralTopologyQueue {
+            tx_handle: Arc::new(tx),
+            rx_handle: Arc::new(Mutex::new(rx)),
+        }
+    }
 }
 
 lazy_static! {
     pub static ref CGW_UCENTRAL_TOPOLOGY_MAP: CGWUCentralTopologyMap = CGWUCentralTopologyMap {
-        data: Arc::new(RwLock::new(HashMap::new())),
-        queue: {
-            let (tx, rx) = unbounded_channel::<CGWTopologyMapQueueMessage>();
-            (Arc::new(tx), Arc::new(Mutex::new(rx)))
-        },
+        data: Arc::new(RwLock::new(TopologyMapItem::default())),
+        queue: CGWUCentralTopologyQueue::new(),
         started: Mutex::new(false),
     };
 }
@@ -226,7 +361,7 @@ impl CGWUCentralTopologyMap {
         let mut num_of_msg_read = 0;
 
         loop {
-            let mut rx_mbox = topomap.queue.1.lock().await;
+            let mut rx_mbox = topomap.queue.rx_handle.lock().await;
 
             if num_of_msg_read < buf_capacity {
                 // Try to recv_many, but don't sleep too much
@@ -309,7 +444,7 @@ impl CGWUCentralTopologyMap {
         gid: i32,
         conn_server: Arc<CGWConnectionServer>,
     ) {
-        let _ = self.queue.0.send(CGWTopologyMapQueueMessage {
+        let _ = self.queue.tx_handle.send(CGWTopologyMapQueueMessage {
             evt,
             dev_type,
             node_mac,
@@ -320,7 +455,7 @@ impl CGWUCentralTopologyMap {
 
     pub async fn remove_gid(&self, gid: i32) {
         let mut lock = self.data.write().await;
-        lock.remove(&gid);
+        lock.item.remove(&gid);
     }
 
     pub async fn insert_device(&self, topology_node_mac: &MacAddress, platform: &str, gid: i32) {
@@ -344,8 +479,8 @@ impl CGWUCentralTopologyMap {
         // 0 (unassigned) to some specific GID, for example:
         // was gid 0 - we created node initially - then NB's assigned device
         // to a specific GID.
-        for (_gid, (v, _)) in lock.iter_mut() {
-            let _ = v.topology_nodes.remove(topology_node_mac);
+        for (_gid, v) in lock.item.iter_mut() {
+            let _ = v.data.topology_nodes.remove(topology_node_mac);
         }
 
         // Try to insert new topomap node, however it's possible that it's the
@@ -353,13 +488,13 @@ impl CGWUCentralTopologyMap {
         //   - if first time GID is being manipulated - we also have to create
         //     a hashmap that controls this GID;
         //   - if exists - simply insert new topomap node into existing GID map.
-        if let Some((ref mut topology_map_data, _)) = lock.get_mut(&gid) {
-            topology_map_data.topology_nodes.insert(
+        if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
+            topology_map_data.data.topology_nodes.insert(
                 *topology_node_mac,
-                (
+                TopologyMapNodeData::new(
                     CGWUCentralTopologyMapNodeOrigin::UCentralDevice,
                     map_connections,
-                    HashMap::new(),
+                    CGWUCentralTopologyChildConnections::default(),
                 ),
             );
         } else {
@@ -368,13 +503,16 @@ impl CGWUCentralTopologyMap {
             };
             topology_map_data.topology_nodes.insert(
                 *topology_node_mac,
-                (
+                TopologyMapNodeData::new(
                     CGWUCentralTopologyMapNodeOrigin::UCentralDevice,
                     map_connections,
-                    HashMap::new(),
+                    CGWUCentralTopologyChildConnections::default(),
                 ),
             );
-            lock.insert(gid, (topology_map_data, HashMap::new()));
+            lock.item.insert(
+                gid,
+                TopologyMapItemData::new(topology_map_data, HashMap::new()),
+            );
         }
     }
 
@@ -394,22 +532,25 @@ impl CGWUCentralTopologyMap {
         // Disconnected clients (seen before, don't see now) client mac from -> AP mac
         let mut clients_leave_list: ClientsLeaveList = Vec::new();
 
-        if let Some((ref mut topology_map_data, ref mut existing_nodes_map)) = lock.get_mut(&gid) {
-            Self::clear_related_nodes(topology_map_data, topology_node_mac);
-            if let Some((_, _, removed_clients_list)) =
-                topology_map_data.topology_nodes.remove(topology_node_mac)
+        if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
+            Self::clear_related_nodes(&mut topology_map_data.data, topology_node_mac);
+            if let Some(removed_clients_list) = topology_map_data
+                .data
+                .topology_nodes
+                .remove(topology_node_mac)
             {
                 // We have to clear Per-device connected clients from global
                 // map.
-                for client_mac in removed_clients_list.keys() {
-                    if let Some((
-                        _existing_client_parent_node_mac,
-                        _existing_client_node_last_seen_ts,
-                        _existing_client_ssid,
-                        existing_client_band,
-                    )) = existing_nodes_map.remove(client_mac)
+                for client_mac in removed_clients_list
+                    .client_connections_list
+                    .child_connections_map
+                    .keys()
+                {
+                    if let Some(client_parent_info) =
+                        topology_map_data.connected_clients_map.remove(client_mac)
                     {
-                        clients_leave_list.push((*client_mac, existing_client_band));
+                        clients_leave_list
+                            .push(ClientLeaveInfo::new(*client_mac, client_parent_info.band));
                     }
                 }
             }
@@ -448,10 +589,10 @@ impl CGWUCentralTopologyMap {
         }
 
         // We have AP mac, iterate only over keys - client macs
-        for (client_mac, new_ssid, new_band) in clients_list {
+        for client_info in clients_list {
             let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
             let infras_cloud_header: Option<String> = conn_server
-                .get_group_infra_cloud_header(gid, &client_mac)
+                .get_group_infra_cloud_header(gid, &client_info.mac)
                 .await;
 
             let cloud_header: Option<String> =
@@ -459,10 +600,10 @@ impl CGWUCentralTopologyMap {
 
             let msg = cgw_construct_client_join_msg(
                 gid,
-                client_mac,
+                client_info.mac,
                 node_mac,
-                new_ssid,
-                new_band,
+                client_info.ssid,
+                client_info.band,
                 cloud_header,
                 timestamp,
             );
@@ -499,10 +640,10 @@ impl CGWUCentralTopologyMap {
         }
 
         // We have AP mac, iterate only over keys - client macs
-        for (client_mac, band) in clients_list {
+        for client in clients_list {
             let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
             let infras_cloud_header: Option<String> = conn_server
-                .get_group_infra_cloud_header(gid, &client_mac)
+                .get_group_infra_cloud_header(gid, &client.mac)
                 .await;
 
             let cloud_header: Option<String> =
@@ -510,9 +651,9 @@ impl CGWUCentralTopologyMap {
 
             let msg = cgw_construct_client_leave_msg(
                 gid,
-                client_mac,
+                client.mac,
                 node_mac,
-                band,
+                client.band,
                 cloud_header,
                 timestamp,
             );
@@ -548,10 +689,10 @@ impl CGWUCentralTopologyMap {
         }
 
         // We have AP mac, iterate only over keys - client macs
-        for (client_mac, new_parent_ap_mac, new_band, new_ssid) in clients_list {
+        for client in clients_list {
             let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
             let infras_cloud_header: Option<String> = conn_server
-                .get_group_infra_cloud_header(gid, &client_mac)
+                .get_group_infra_cloud_header(gid, &client.mac)
                 .await;
 
             let cloud_header: Option<String> =
@@ -559,10 +700,10 @@ impl CGWUCentralTopologyMap {
 
             let msg = cgw_construct_client_migrate_msg(
                 gid,
-                client_mac,
-                new_parent_ap_mac,
-                new_ssid,
-                new_band,
+                client.mac,
+                client.new_mac,
+                client.ssid,
+                client.band,
                 cloud_header,
                 timestamp,
             );
@@ -611,8 +752,8 @@ impl CGWUCentralTopologyMap {
             // a ucentral device.
             {
                 let mut lock = self.data.write().await;
-                if let Some((ref mut topology_map_data, _)) = lock.get_mut(&gid) {
-                    Self::clear_related_nodes(topology_map_data, topology_node_mac);
+                if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
+                    Self::clear_related_nodes(&mut topology_map_data.data, topology_node_mac);
                 } else {
                     error!("Unexpected: GID {gid} doesn't exists (should've been created prior to state processing)!");
                     return;
@@ -678,14 +819,14 @@ impl CGWUCentralTopologyMap {
                         }
                     }
 
-                    nodes_to_create.push((
+                    nodes_to_create.push(TopologyMapNode::new(
                         link.remote_serial,
-                        (
+                        TopologyMapNodeData::new(
                             CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer,
                             lldp_peer_map_connections,
                             // Don't care about _child_ nodes tracking for LLDP
                             // peers - create empty map.
-                            HashMap::new(),
+                            CGWUCentralTopologyChildConnections::default(),
                         ),
                     ));
                 }
@@ -696,8 +837,8 @@ impl CGWUCentralTopologyMap {
             //
             // We need to catch any connected/disconnected/migrated events
             // based on this data.
-            let mut new_connected_child_clients_map: HashMap<MacAddress, ClientsConnectedList> =
-                HashMap::new();
+            let mut new_connected_child_clients_map: CGWUCentralTopologyChildConnections =
+                CGWUCentralTopologyChildConnections::default();
 
             for (local_port, links) in s.clients_data.links.into_iter() {
                 // Filled on a per-port basis.
@@ -740,10 +881,16 @@ impl CGWUCentralTopologyMap {
                                 if let CGWUCentralEventStatePort::WirelessPort(ref ssid, ref band) =
                                     local_port
                                 {
-                                    new_connected_child_clients_map.insert(
-                                        link_seen_on_port.remote_serial,
-                                        (ts, ssid.clone(), band.clone()),
-                                    );
+                                    new_connected_child_clients_map
+                                        .child_connections_map
+                                        .insert(
+                                            link_seen_on_port.remote_serial,
+                                            ClientConnectedInfo::new(
+                                                ts,
+                                                ssid.clone(),
+                                                band.clone(),
+                                            ),
+                                        );
                                 }
                             }
                             ts
@@ -770,9 +917,9 @@ impl CGWUCentralTopologyMap {
             }
 
             // Also add _this_ node that reported state to the list of added nodes;
-            nodes_to_create.push((
+            nodes_to_create.push(TopologyMapNode::new(
                 *topology_node_mac,
-                (
+                TopologyMapNodeData::new(
                     CGWUCentralTopologyMapNodeOrigin::UCentralDevice,
                     map_connections,
                     new_connected_child_clients_map,
@@ -780,14 +927,10 @@ impl CGWUCentralTopologyMap {
             ));
 
             let mut lock = self.data.write().await;
-            if let Some((ref mut topology_map_data, ref mut existing_nodes_map)) =
-                lock.get_mut(&gid)
-            {
-                for (node_mac, (node_origin, node_connections, connected_child_clients_map)) in
-                    nodes_to_create.into_iter()
-                {
+            if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
+                for node in nodes_to_create.into_iter() {
                     // Unconditionally insert/replace our AP / switch node;
-                    if node_mac == *topology_node_mac {
+                    if node.mac == *topology_node_mac {
                         // For APs we have a special handling of tracking wifi devices:
                         // track newly connected, disconnected or migrates
                         // events.
@@ -804,48 +947,53 @@ impl CGWUCentralTopologyMap {
 
                             // We also have to iterate through wireless clients
                             // to detect client connect/disconnect/migrate events.
-                            for (client_mac, (last_seen_ts, ssid, band)) in
-                                connected_child_clients_map.iter()
+                            for (client_mac, client_connected_info) in node
+                                .node_data
+                                .client_connections_list
+                                .child_connections_map
+                                .iter()
                             {
-                                if let Some((
-                                    existing_client_parent_node_mac,
-                                    existing_client_node_last_seen_ts,
-                                    existing_client_ssid,
-                                    existing_client_band,
-                                )) = existing_nodes_map.remove(client_mac)
+                                if let Some(existing_client_info) =
+                                    topology_map_data.connected_clients_map.remove(client_mac)
                                 {
                                     // We know that existing node for some reason has not _our_ parent mac,
                                     // means it's either we're late in seeing this MAC (it's long go
                                     // migrated), or this is an actual migration event detected:
                                     //   * compare current TS with existing, if current is higher
-                                    if existing_client_parent_node_mac != node_mac {
-                                        if *last_seen_ts >= existing_client_node_last_seen_ts {
+                                    if existing_client_info.parent_ap_mac != node.mac {
+                                        if client_connected_info.last_seen_timestamp
+                                            >= existing_client_info.last_seen_timestamp
+                                        {
                                             // Update TS, update mac of AP - owner, generate
                                             // migrate event
-                                            existing_nodes_map.insert(
+                                            topology_map_data.connected_clients_map.insert(
                                                 *client_mac,
-                                                (
-                                                    node_mac,
-                                                    *last_seen_ts,
-                                                    ssid.clone(),
-                                                    band.clone(),
+                                                ClinetParentInfo::new(
+                                                    node.mac,
+                                                    client_connected_info.last_seen_timestamp,
+                                                    client_connected_info.ssid.clone(),
+                                                    client_connected_info.band.clone(),
                                                 ),
                                             );
-                                            clients_migrate_list.push((
+                                            clients_migrate_list.push(ClientMigrateInfo::new(
                                                 *client_mac,
-                                                node_mac,
-                                                ssid.clone(),
-                                                band.clone(),
+                                                node.mac,
+                                                client_connected_info.ssid.clone(),
+                                                client_connected_info.band.clone(),
                                             ));
 
                                             // Since it's a migrate event, also __remove__ client
                                             // from client list of a node which client's migrated.
-                                            if let Some((_, _, ref mut old_clients_data)) =
+                                            if let Some(ref mut old_clients_data) =
                                                 topology_map_data
+                                                    .data
                                                     .topology_nodes
-                                                    .get_mut(&existing_client_parent_node_mac)
+                                                    .get_mut(&existing_client_info.parent_ap_mac)
                                             {
-                                                let _ = old_clients_data.remove(client_mac);
+                                                let _ = old_clients_data
+                                                    .client_connections_list
+                                                    .child_connections_map
+                                                    .remove(client_mac);
                                             }
                                         } else {
                                             // Turns out, latest evt timestamp is
@@ -853,39 +1001,38 @@ impl CGWUCentralTopologyMap {
                                             // Ignore this one (skip),
                                             // and make sure we insert removed
                                             // data back as it was.
-                                            existing_nodes_map.insert(
-                                                *client_mac,
-                                                (
-                                                    existing_client_parent_node_mac,
-                                                    existing_client_node_last_seen_ts,
-                                                    existing_client_ssid,
-                                                    existing_client_band,
-                                                ),
-                                            );
+                                            topology_map_data
+                                                .connected_clients_map
+                                                .insert(*client_mac, existing_client_info);
                                             continue;
                                         }
                                     } else {
                                         // Just update the TS
-                                        existing_nodes_map.insert(
+                                        topology_map_data.connected_clients_map.insert(
                                             *client_mac,
-                                            (
-                                                node_mac,
-                                                *last_seen_ts,
-                                                existing_client_ssid,
-                                                existing_client_band,
+                                            ClinetParentInfo::new(
+                                                node.mac,
+                                                client_connected_info.last_seen_timestamp,
+                                                existing_client_info.ssid,
+                                                existing_client_info.band,
                                             ),
                                         );
                                     }
                                 } else {
                                     // Create new entry, generate connected event
-                                    existing_nodes_map.insert(
+                                    topology_map_data.connected_clients_map.insert(
                                         *client_mac,
-                                        (node_mac, *last_seen_ts, ssid.clone(), band.clone()),
+                                        ClinetParentInfo::new(
+                                            node.mac,
+                                            client_connected_info.last_seen_timestamp,
+                                            client_connected_info.ssid.clone(),
+                                            client_connected_info.band.clone(),
+                                        ),
                                     );
-                                    clients_join_list.push((
+                                    clients_join_list.push(ClientJoinInfo::new(
                                         *client_mac,
-                                        ssid.clone(),
-                                        band.clone(),
+                                        client_connected_info.ssid.clone(),
+                                        client_connected_info.band.clone(),
                                     ));
                                 }
                             }
@@ -897,13 +1044,21 @@ impl CGWUCentralTopologyMap {
                             // migrate twice - if it's missing from current
                             // state report, we still have to make sure
                             // it's not connected to another AP.
-                            if let Some((_, _, old_clients_data)) =
-                                topology_map_data.topology_nodes.get(&node_mac)
+                            if let Some(old_clients_data) =
+                                topology_map_data.data.topology_nodes.get(&node.mac)
                             {
-                                for old_client_data_mac in old_clients_data.keys() {
+                                for old_client_data_mac in old_clients_data
+                                    .client_connections_list
+                                    .child_connections_map
+                                    .keys()
+                                {
                                     // Tricky way to skip found macs;
                                     // We don't want to have double-borrow;
-                                    if connected_child_clients_map.contains_key(old_client_data_mac)
+                                    if node
+                                        .node_data
+                                        .client_connections_list
+                                        .child_connections_map
+                                        .contains_key(old_client_data_mac)
                                     {
                                         continue;
                                     }
@@ -916,29 +1071,22 @@ impl CGWUCentralTopologyMap {
                                     // but was present in previous one:
                                     //   - check if by any chance the client's migrated
                                     //     to some other AP, or just plain disconnected
-                                    if let Some((
-                                        existing_client_parent_node_mac,
-                                        existing_client_node_last_seen_ts,
-                                        existing_client_ssid,
-                                        existing_client_band,
-                                    )) = existing_nodes_map.remove(old_client_data_mac)
+                                    if let Some(existing_client_info) = topology_map_data
+                                        .connected_clients_map
+                                        .remove(old_client_data_mac)
                                     {
-                                        if existing_client_parent_node_mac == node_mac {
+                                        if existing_client_info.parent_ap_mac == node.mac {
                                             // Parent mac is the same == disconnected event
                                             // And we keep track only for disconnected events,
                                             // the migration was reported by another AP.
-                                            clients_leave_list
-                                                .push((*old_client_data_mac, existing_client_band));
-                                        } else {
-                                            existing_nodes_map.insert(
+                                            clients_leave_list.push(ClientLeaveInfo::new(
                                                 *old_client_data_mac,
-                                                (
-                                                    existing_client_parent_node_mac,
-                                                    existing_client_node_last_seen_ts,
-                                                    existing_client_ssid,
-                                                    existing_client_band,
-                                                ),
-                                            );
+                                                existing_client_info.band,
+                                            ));
+                                        } else {
+                                            topology_map_data
+                                                .connected_clients_map
+                                                .insert(*old_client_data_mac, existing_client_info);
                                         }
                                     }
                                 }
@@ -978,11 +1126,13 @@ impl CGWUCentralTopologyMap {
                         }
 
                         Self::add_node(
-                            topology_map_data,
-                            node_mac,
-                            node_origin,
-                            node_connections,
-                            connected_child_clients_map,
+                            &mut topology_map_data.data,
+                            node.mac,
+                            TopologyMapNodeData::new(
+                                node.node_data.origin_node,
+                                node.node_data.connection_map,
+                                node.node_data.client_connections_list,
+                            ),
                         );
                     } else {
                         // Skip UCentral-device (not this device/node) controlled
@@ -990,20 +1140,23 @@ impl CGWUCentralTopologyMap {
                         // We only add nodes that we explicitly created.
                         // On the next iteration of state data our lldp-peer-partners
                         // will update topomap on their own, if we didn't here.
-                        if let Some((CGWUCentralTopologyMapNodeOrigin::UCentralDevice, _, _)) =
-                            topology_map_data.topology_nodes.get(&node_mac)
-                        {
-                            continue;
+                        if let Some(node) = topology_map_data.data.topology_nodes.get(&node.mac) {
+                            if node.origin_node == CGWUCentralTopologyMapNodeOrigin::UCentralDevice
+                            {
+                                continue;
+                            }
                         }
 
                         // It's clear that this node is created by us in this iteration of
                         // lldp parsing, so it's safe to add it.
                         Self::add_node(
-                            topology_map_data,
-                            node_mac,
-                            node_origin,
-                            node_connections,
-                            connected_child_clients_map,
+                            &mut topology_map_data.data,
+                            node.mac,
+                            TopologyMapNodeData::new(
+                                node.node_data.origin_node,
+                                node.node_data.connection_map,
+                                node.node_data.client_connections_list,
+                            ),
                         );
                     }
                 }
@@ -1051,34 +1204,30 @@ impl CGWUCentralTopologyMap {
         let timestamp = cgw_get_timestamp_16_digits();
 
         let mut lock = self.data.write().await;
-        if let Some((ref mut topology_map_data, ref mut existing_nodes_map)) = lock.get_mut(&gid) {
+        if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
             if let CGWUCentralEventType::RealtimeEvent(rt) = evt.evt_type {
                 if let CGWUCentralEventRealtimeEventType::WirelessClientJoin(rt_j) = &rt.evt_type {
-                    if let Some((
-                        existing_client_parent_node_mac,
-                        existing_client_node_last_seen_ts,
-                        existing_client_ssid,
-                        existing_client_band,
-                    )) = existing_nodes_map.remove(&rt_j.client)
+                    if let Some(existing_client_info) =
+                        topology_map_data.connected_clients_map.remove(&rt_j.client)
                     {
                         // We know that existing node for some reason has not _our_ parent mac,
                         // means it's either we're late in seeing this MAC (it's long go
                         // migrated), or this is an actual migration event detected:
                         //   * compare current TS with existing, if current is higher
-                        if existing_client_parent_node_mac != evt.serial {
-                            if rt.timestamp >= existing_client_node_last_seen_ts {
+                        if existing_client_info.parent_ap_mac != evt.serial {
+                            if rt.timestamp >= existing_client_info.last_seen_timestamp {
                                 // Update TS, update mac of AP - owner, generate
                                 // migrate event
-                                existing_nodes_map.insert(
+                                topology_map_data.connected_clients_map.insert(
                                     rt_j.client,
-                                    (
+                                    ClinetParentInfo::new(
                                         evt.serial,
                                         rt.timestamp,
                                         rt_j.ssid.clone(),
                                         rt_j.band.clone(),
                                     ),
                                 );
-                                clients_migrate_list.push((
+                                clients_migrate_list.push(ClientMigrateInfo::new(
                                     rt_j.client,
                                     evt.serial,
                                     rt_j.ssid.clone(),
@@ -1087,28 +1236,26 @@ impl CGWUCentralTopologyMap {
 
                                 // Since it's a migrate event, also __remove__ client
                                 // from client list of a node which client's migrated.
-                                if let Some((_, _, ref mut old_clients_data)) = topology_map_data
+                                if let Some(ref mut old_clients_data) = topology_map_data
+                                    .data
                                     .topology_nodes
-                                    .get_mut(&existing_client_parent_node_mac)
+                                    .get_mut(&existing_client_info.parent_ap_mac)
                                 {
-                                    let _ = old_clients_data.remove(&rt_j.client);
+                                    let _ = old_clients_data
+                                        .client_connections_list
+                                        .child_connections_map
+                                        .remove(&rt_j.client);
                                 }
                             } else {
-                                existing_nodes_map.insert(
-                                    rt_j.client,
-                                    (
-                                        existing_client_parent_node_mac,
-                                        existing_client_node_last_seen_ts,
-                                        existing_client_ssid,
-                                        existing_client_band,
-                                    ),
-                                );
+                                topology_map_data
+                                    .connected_clients_map
+                                    .insert(rt_j.client, existing_client_info);
                             }
                         } else {
                             // Just update the TS
-                            existing_nodes_map.insert(
+                            topology_map_data.connected_clients_map.insert(
                                 rt_j.client,
-                                (
+                                ClinetParentInfo::new(
                                     evt.serial,
                                     rt.timestamp,
                                     rt_j.ssid.clone(),
@@ -1118,46 +1265,44 @@ impl CGWUCentralTopologyMap {
                         }
                     } else {
                         // Create new entry, generate connected event
-                        existing_nodes_map.insert(
+                        topology_map_data.connected_clients_map.insert(
                             rt_j.client,
-                            (
+                            ClinetParentInfo::new(
                                 evt.serial,
                                 rt.timestamp,
                                 rt_j.ssid.clone(),
                                 rt_j.band.clone(),
                             ),
                         );
-                        clients_join_list.push((rt_j.client, rt_j.ssid.clone(), rt_j.band.clone()));
+                        clients_join_list.push(ClientJoinInfo::new(
+                            rt_j.client,
+                            rt_j.ssid.clone(),
+                            rt_j.band.clone(),
+                        ));
                     }
                 } else if let CGWUCentralEventRealtimeEventType::WirelessClientLeave(rt_l) =
                     rt.evt_type
                 {
                     // Unconditionally remove this client from our clients list.
-                    if let Some((_, _, ref mut old_clients_data)) =
-                        topology_map_data.topology_nodes.get_mut(&evt.serial)
+                    if let Some(ref mut old_clients_data) =
+                        topology_map_data.data.topology_nodes.get_mut(&evt.serial)
                     {
-                        let _ = old_clients_data.remove(&rt_l.client);
+                        let _ = old_clients_data
+                            .client_connections_list
+                            .child_connections_map
+                            .remove(&rt_l.client);
                     }
 
-                    if let Some((
-                        existing_client_parent_node_mac,
-                        existing_client_node_last_seen_ts,
-                        existing_client_ssid,
-                        existing_client_band,
-                    )) = existing_nodes_map.remove(&rt_l.client)
+                    if let Some(existing_client_info) =
+                        topology_map_data.connected_clients_map.remove(&rt_l.client)
                     {
-                        if existing_client_parent_node_mac == evt.serial {
-                            clients_leave_list.push((rt_l.client, existing_client_band));
+                        if existing_client_info.parent_ap_mac == evt.serial {
+                            clients_leave_list
+                                .push(ClientLeaveInfo::new(rt_l.client, existing_client_info.band));
                         } else {
-                            existing_nodes_map.insert(
-                                rt_l.client,
-                                (
-                                    existing_client_parent_node_mac,
-                                    existing_client_node_last_seen_ts,
-                                    existing_client_ssid,
-                                    existing_client_band,
-                                ),
-                            );
+                            topology_map_data
+                                .connected_clients_map
+                                .insert(rt_l.client, existing_client_info);
                         }
                     }
                 }
@@ -1195,9 +1340,7 @@ impl CGWUCentralTopologyMap {
     fn add_node(
         map_data: &mut CGWUCentralTopologyMapData,
         new_node_mac: MacAddress,
-        new_origin: CGWUCentralTopologyMapNodeOrigin,
-        mut new_connections: CGWUCentralTopologyMapConnections,
-        connected_child_clients_map: HashMap<MacAddress, ClientsConnectedList>,
+        mut new_node_data: TopologyMapNodeData,
     ) {
         // This operation only covers non-ucentral-controlled devices,
         // so it shouldn't affect UCentral-controlled node's add perf;
@@ -1245,26 +1388,24 @@ impl CGWUCentralTopologyMap {
         //
         //  However, all this should be done fast, as we're interested in
         //  only in restoring missing links on a per-port basis.
-        if let Some((CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer, old_node_connections, _)) =
-            map_data.topology_nodes.remove(&new_node_mac)
-        {
-            for (old_port, old_conn_data) in old_node_connections.links_list.into_iter() {
-                // We want to fill missing port links on old node:
-                //   * check if _new_ links have old port entry;
-                //   * if not - most likely information about this link
-                //     originates from some other UCentral device -
-                //     means we have to _restore_ it here
-                new_connections
-                    .links_list
-                    .entry(old_port)
-                    .or_insert(old_conn_data);
+        if let Some(node) = map_data.topology_nodes.remove(&new_node_mac) {
+            if node.origin_node == CGWUCentralTopologyMapNodeOrigin::StateLLDPPeer {
+                for (old_port, old_conn_data) in node.connection_map.links_list.into_iter() {
+                    // We want to fill missing port links on old node:
+                    //   * check if _new_ links have old port entry;
+                    //   * if not - most likely information about this link
+                    //     originates from some other UCentral device -
+                    //     means we have to _restore_ it here
+                    new_node_data
+                        .connection_map
+                        .links_list
+                        .entry(old_port)
+                        .or_insert(old_conn_data);
+                }
             }
         }
 
-        map_data.topology_nodes.insert(
-            new_node_mac,
-            (new_origin, new_connections, connected_child_clients_map),
-        );
+        map_data.topology_nodes.insert(new_node_mac, new_node_data);
     }
 
     fn clear_related_nodes(
@@ -1297,10 +1438,8 @@ impl CGWUCentralTopologyMap {
         //
         // First, try to fill parent / child macs into a vec for later
         // traversal / checks.
-        if let Some((_origin, connections, _connected_child_nodes_map)) =
-            map_data.topology_nodes.get(topology_node_mac)
-        {
-            for link in connections.links_list.values() {
+        if let Some(node) = map_data.topology_nodes.get(topology_node_mac) {
+            for link in node.connection_map.links_list.values() {
                 for child_mac in link.child_lldp_nodes.keys() {
                     child_node_macs.push(*child_mac);
                 }
@@ -1325,8 +1464,8 @@ impl CGWUCentralTopologyMap {
             // child nodes (including <unknown lldp switch> and
             // grandchildren UC_DEVICE_2).
 
-            if let Some((_, child_connections, _)) = map_data.topology_nodes.get_mut(&child_mac) {
-                for child_links in child_connections.links_list.values_mut() {
+            if let Some(node) = map_data.topology_nodes.get_mut(&child_mac) {
+                for child_links in node.connection_map.links_list.values_mut() {
                     if let Some(child_parent_mac) = child_links.parent_topology_node_mac {
                         if child_parent_mac == *topology_node_mac {
                             child_links.parent_topology_node_mac = None;
@@ -1334,7 +1473,7 @@ impl CGWUCentralTopologyMap {
                     }
                 }
 
-                for child_links in child_connections.links_list.values() {
+                for child_links in node.connection_map.links_list.values() {
                     //   (parent)   lldp      (child, parent)     lldp   (child)
                     // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
                     //                     ^^^^^^^^^^^^^^^^^^^^^
@@ -1369,8 +1508,8 @@ impl CGWUCentralTopologyMap {
             // parent nodes (including <unknown lldp switch> and
             // grandparent UC_DEVICE_1).
 
-            if let Some((_, parent_connections, _)) = map_data.topology_nodes.get(&parent_mac) {
-                for parent_links in parent_connections.links_list.values() {
+            if let Some(node) = map_data.topology_nodes.get(&parent_mac) {
+                for parent_links in node.connection_map.links_list.values() {
                     //   (parent)   lldp      (child, parent)     lldp   (child)
                     // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
                     //                     ^^^^^^^^^^^^^^^^^^^^^
@@ -1395,19 +1534,19 @@ impl CGWUCentralTopologyMap {
             let mut child_node_should_be_removed = true;
 
             for grandchild_mac in grandchild_macs.iter() {
-                if let Some((CGWUCentralTopologyMapNodeOrigin::UCentralDevice, _, _)) =
-                    map_data.topology_nodes.get(grandchild_mac)
-                {
-                    //   (parent)   lldp      (child, parent)     lldp   (child)
-                    // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
-                    //                                                   ^^^^^^^^^^^
-                    // <chields_parent_node_origin> is pointing to UC_DEVICE_2 origin
-                    // and since it's a UCentral device, we can't delete
-                    // the UC_DEVICE_1 child (<unknown lldp switch>),
-                    // because the information about <unknown lldp switch>
-                    // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
-                    child_node_should_be_removed = false;
-                    break;
+                if let Some(node) = map_data.topology_nodes.get(grandchild_mac) {
+                    if node.origin_node == CGWUCentralTopologyMapNodeOrigin::UCentralDevice {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        //                                                   ^^^^^^^^^^^
+                        // <chields_parent_node_origin> is pointing to UC_DEVICE_2 origin
+                        // and since it's a UCentral device, we can't delete
+                        // the UC_DEVICE_1 child (<unknown lldp switch>),
+                        // because the information about <unknown lldp switch>
+                        // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
+                        child_node_should_be_removed = false;
+                        break;
+                    }
                 }
             }
 
@@ -1426,20 +1565,20 @@ impl CGWUCentralTopologyMap {
             let mut parent_node_should_be_removed = true;
 
             for grandparent_mac in grandparent_macs.iter() {
-                if let Some((CGWUCentralTopologyMapNodeOrigin::UCentralDevice, _, _)) =
-                    map_data.topology_nodes.get(grandparent_mac)
-                {
-                    //   (parent)   lldp      (child, parent)     lldp   (child)
-                    // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
-                    // ^^^^^^^^^^^
-                    // <grandparent_node_origin> is pointing to UC_DEVICE_1 origin
-                    // and since it's a UCentral device, we can't delete
-                    // the UC_DEVICE_2 parent (<unknown lldp switch>),
-                    // because the information about <unknown lldp switch>
-                    // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
-                    parent_node_should_be_removed = false;
+                if let Some(node) = map_data.topology_nodes.get(grandparent_mac) {
+                    if node.origin_node == CGWUCentralTopologyMapNodeOrigin::UCentralDevice {
+                        //   (parent)   lldp      (child, parent)     lldp   (child)
+                        // UC_DEVICE_1 ------> <unknown lldp switch> ------> UC_DEVICE_2
+                        // ^^^^^^^^^^^
+                        // <grandparent_node_origin> is pointing to UC_DEVICE_1 origin
+                        // and since it's a UCentral device, we can't delete
+                        // the UC_DEVICE_2 parent (<unknown lldp switch>),
+                        // because the information about <unknown lldp switch>
+                        // can be received from either UC_DEVICE_1 or UC_DEVICE_2.
+                        parent_node_should_be_removed = false;
 
-                    break;
+                        break;
+                    }
                 }
             }
 
@@ -1458,8 +1597,8 @@ impl CGWUCentralTopologyMap {
         for node_to_remove in nodes_to_remove {
             let mut node_should_be_removed = false;
 
-            if let Some((origin, _, _)) = map_data.topology_nodes.get(&node_to_remove) {
-                match origin {
+            if let Some(origin) = map_data.topology_nodes.get(&node_to_remove) {
+                match origin.origin_node {
                     CGWUCentralTopologyMapNodeOrigin::UCentralDevice => (),
                     _ => node_should_be_removed = true,
                 }

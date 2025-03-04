@@ -1,4 +1,4 @@
-use crate::cgw_app_args::CGWGRPCArgs;
+use cgw_common::cgw_app_args::CGWGRPCArgs;
 
 pub mod cgw_remote {
     tonic::include_proto!("cgw.remote");

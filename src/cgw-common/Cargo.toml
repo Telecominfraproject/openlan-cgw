@@ -1,0 +1,34 @@
+[package]
+name = "cgw-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.144", features = ["derive"] }
+serde_json = { version = "1.0.85" }
+env_logger = { version = "0.11.3" }
+log = { version = "0.4.20" }
+tokio = { version = "1.34.0", features = ["full"] }
+tokio-stream = { version = "0.1.15", features = ["full"] }
+tokio-tungstenite = { version = "0.23.0" }
+tokio-rustls = { version = "0.26.0" }
+tokio-postgres = { version = "0.7.10", features = ["with-eui48-1"] }
+tokio-postgres-rustls = { version = "0.12.0" }
+tokio-pg-mapper = { version = "0.2.0" }
+tungstenite = { version = "0.23.0" }
+warp = { version = "0.3.7" }
+rdkafka = { version = "0.36.2", features = ["ssl"] }
+derive_more = { version = "0.99.17" }
+eui48 = { version = "1.1.0", features = ["serde"] }
+tonic = { version = "0.11.0" }
+prometheus = { version = "0.13.4", features = ["process"] }
+url = { version = "2.5.2" }
+base64 = { version = "0.22.0" }
+rustls-pki-types = { version = "1.7.0" }
+x509-parser = { version = "0.16.0" }
+rustls-pemfile = { version = "2.1.2" }
+jsonschema = { version = "0.18.0" }
+lazy_static = { version = "1.4.0" }
+flate2 = { version = "1.0.28" }
+reqwest = { version = "0.12.5", features = ["json"] }
+nix = { version = "0.29.0", features = ["net"] }

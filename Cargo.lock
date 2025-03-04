@@ -425,6 +425,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "cgw-common"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "env_logger",
+ "eui48",
+ "flate2",
+ "jsonschema",
+ "lazy_static",
+ "log",
+ "nix",
+ "prometheus",
+ "rdkafka",
+ "reqwest",
+ "rustls-pemfile",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-pg-mapper",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
+ "tokio-rustls 0.26.0",
+ "tokio-stream",
+ "tokio-tungstenite 0.23.0",
+ "tonic",
+ "tungstenite 0.23.0",
+ "url",
+ "warp",
+ "x509-parser",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3099,6 +3133,7 @@ name = "ucentral-cgw"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "cgw-common",
  "chrono",
  "derive_more",
  "env_logger",

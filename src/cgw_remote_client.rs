@@ -4,7 +4,7 @@ pub mod cgw_remote {
 
 use tonic::transport::{channel::Channel, Uri};
 
-use crate::cgw_errors::Result;
+use cgw_common::cgw_errors::Result;
 use cgw_remote::{remote_client::RemoteClient, EnqueueRequest};
 
 use tokio::time::Duration;

@@ -1,8 +1,10 @@
-use crate::cgw_app_args::CGWDBArgs;
-
-use crate::cgw_tls::cgw_tls_create_db_connect;
-use crate::{
+use cgw_common::{
+    cgw_app_args::CGWDBArgs,
     cgw_errors::{Error, Result},
+    cgw_tls::cgw_tls_create_db_connect,
+};
+
+use crate::{
     cgw_metrics::{CGWMetrics, CGWMetricsHealthComponent, CGWMetricsHealthComponentStatus},
 };
 

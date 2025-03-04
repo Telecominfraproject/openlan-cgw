@@ -1,4 +1,4 @@
-use crate::cgw_errors::Result;
+use cgw_common::cgw_errors::Result;
 
 use prometheus::{IntGauge, Registry};
 use std::{collections::HashMap, fmt, sync::Arc};

@@ -6,11 +6,8 @@ use std::{
 };
 
 use url::Url;
-
-use crate::{
-    cgw_errors::{Error, Result},
-    AppCoreLogLevel,
-};
+use crate::cgw_errors::{Error, Result};
+use crate::AppCoreLogLevel;
 
 const CGW_DEFAULT_ID: i32 = 0;
 const CGW_DEFAULT_GROUPS_CAPACITY: i32 = 1000;

@@ -4,100 +4,149 @@
 # The request messages for which these results are generated can be found in the
 # 'cnc_api.yaml' file.
 infrastructure_group_create_response:
-  description: Response to corresponding 'infrastructure_group_create'
+  description:
+    Response to corresponding 'infrastructure_group_create'
     or 'infrastructure_group_create_to_shard' request(s).
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_create_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
-    description: The underlying unique identifier of the request, to which
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
       this response is being generated.
     type: string
     format: uuid
   success:
     type: boolean
   error_message:
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_create_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_delete_response:
-  description: Response to corresponding 'infrastructure_group_delete' request.
+  description:
+    Response to corresponding 'infrastructure_group_delete' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_delete_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
-    description: The underlying unique identifier of the request, to which
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
       this response is being generated.
     type: string
     format: uuid
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_delete_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_infras_add_response:
-  description: Response to corresponding 'infrastructure_group_infras_add' request.
+  description:
+    Response to corresponding 'infrastructure_group_infras_add' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_infras_add_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   failed_infras:
-    description:
+    description: MANDATORY field. Can be empty.
       Array of infras (MAC address / mac serial, any form is accepted) that
       should were not added (failed to) to specified infra group.
       Potential cause - infra is a duplicate (already member of specified group),
@@ -119,42 +168,62 @@ infrastructure_group_infras_add_response:
       Can be present even if request failed.
     type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_add_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_infras_del_response:
-  description: Response to corresponding 'infrastructure_group_infras_del' request.
+  description:
+    Response to corresponding 'infrastructure_group_infras_del' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_infras_del_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   failed_infras:
-    description:
+    description: MANDATORY field. Can be empty.
       Array of infras (MAC address / mac serial, any form is accepted) that
       should were not removed (failed to) from specified infra group.
       Potential cause - infra is not member of specified group.
@@ -174,40 +243,60 @@ infrastructure_group_infras_del_response:
       Can be present even if request failed.
     type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_del_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_infra_message_enqueue_response:
-  description: Response to corresponding 'infrastructure_group_infra_message_enqueue' request.
+  description:
+    Response to corresponding 'infrastructure_group_infra_message_enqueue' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_infra_message_enqueue_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   kafka_partition_key:
     description: CGW can return a special string value - kafka partition key,
       that can be used by generating consecutive cnc request,
@@ -221,18 +310,30 @@ infrastructure_group_infra_message_enqueue_response:
       Can be present even if request failed.
     type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_infra_message_enqueue_response message.
-    type: string
-
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infra_request_result:
   description:
@@ -240,19 +341,23 @@ infra_request_result:
     This result is generated whenever underlying infra finishes and responds
     to the request with status 'result' message that CGW handles internally.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infra_request_result
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   cloud-header:
     description:
       The infrastructure group and infra cloud header.
@@ -261,116 +366,177 @@ infra_request_result:
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infra_request_result message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been received by the CGW on the socket level.
+    type: integer
 
 rebalance_groups_response:
   description: Response to corresponding 'rebalance_groups' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - rebalance_groups_response
   reporter_shard_id:
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
-    description: ID of the shard that handled request and generated this response.
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct rebalance_groups_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_set_cloud_header_response:
-  description: Response to corresponding 'infrastructure_group_set_cloud_header' request.
+  description:
+    Response to corresponding 'infrastructure_group_set_cloud_header' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_set_cloud_header_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
   success:
     type: boolean
   error_message:
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_set_cloud_header_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
 
 infrastructure_group_infras_set_cloud_header_response:
-  description: Response to corresponding 'infrastructure_group_infras_set_cloud_header' request.
+  description:
+    Response to corresponding 'infrastructure_group_infras_set_cloud_header' request.
   type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
     type: string
     enum:
       - infrastructure_group_infras_set_cloud_header_response
   reporter_shard_id:
-    description: ID of the shard that handled request and generated this response.
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
     type: integer
   uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
     type: string
     format: uuid
-    description: The underlying unique identifier of the request, to which
-      this response is being generated.
   success:
     type: boolean
   error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
     type: string
-    description: Error message reporting why the request failed.
-      Non-empty only if 'success' is false (e.g. request failed).
   failed_infras:
-    description:
+    description: MANDATORY field. Can be empty.
       Array of infras (MAC address / mac serial, any form is accepted) that
       should were not added (failed to) to specified infras cloud header.
       Potential cause - infra is a member of some other group (different from infra_group_id specified in current request)
@@ -379,14 +545,28 @@ infrastructure_group_infras_set_cloud_header_response:
     items:
       type: string
   consumer_metadata:
-    description: This field is optional. It contais two fields "sender_id" and "sender_partition" from origin request
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
     type: object
     value:
       sender_partition:
-        description: Optional field - the sender partition message was sent from, and CGW should send current message to this partition
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
         type: integer
       sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
         type: integer
   timestamp:
-    description: 16 digits timestamp got once CGW construct infrastructure_group_infras_set_cloud_header_response message.
-    type: string
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer
+

@@ -5,9 +5,11 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::cgw_errors::{Error, Result};
+use cgw_common::{
+    cgw_errors::{Error, Result},
+    cgw_ucentral_parser::{CGWUCentralCommand, CGWUCentralCommandType},
+};
 use crate::cgw_nb_api_listener::ConsumerMetadata;
-use crate::cgw_ucentral_parser::{CGWUCentralCommand, CGWUCentralCommandType};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum CGWUCentralMessagesQueueState {

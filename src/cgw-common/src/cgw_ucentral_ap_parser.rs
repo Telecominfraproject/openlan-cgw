@@ -5,16 +5,17 @@ use serde_json::{Map, Value};
 use std::io::prelude::*;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::cgw_errors::{Error, Result};
-
-use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
-    CGWUCentralEventRealtimeEvent, CGWUCentralEventRealtimeEventType,
-    CGWUCentralEventRealtimeEventWClientJoin, CGWUCentralEventRealtimeEventWClientLeave,
-    CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
-    CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
-    CGWUCentralEventType, CGWUCentralJRPCMessage,
+use crate::{
+    cgw_errors::{Error, Result},
+    cgw_ucentral_parser::{
+        CGWUCentralEvent, CGWUCentralEventConnect, CGWUCentralEventConnectParamsCaps,
+        CGWUCentralEventRealtimeEvent, CGWUCentralEventRealtimeEventType,
+        CGWUCentralEventRealtimeEventWClientJoin, CGWUCentralEventRealtimeEventWClientLeave,
+        CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
+        CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
+        CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
+        CGWUCentralEventType, CGWUCentralJRPCMessage,
+    }
 };
 
 fn parse_lldp_data(

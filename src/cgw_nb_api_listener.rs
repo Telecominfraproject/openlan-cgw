@@ -211,6 +211,7 @@ pub struct APClientJoinMessage {
     pub band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub sequence_number: u64,
     pub timestamp: i64,
 }
 
@@ -223,6 +224,7 @@ pub struct APClientLeaveMessage {
     pub band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub sequence_number: u64,
     pub timestamp: i64,
 }
 
@@ -236,6 +238,7 @@ pub struct APClientMigrateMessage {
     pub to_band: String,
     #[serde(default, rename = "cloud-header")]
     pub cloud_header: Option<String>,
+    pub sequence_number: u64,
     pub timestamp: i64,
 }
 
@@ -616,6 +619,7 @@ pub fn cgw_construct_client_join_msg(
     ssid: String,
     band: String,
     cloud_header: Option<String>,
+    sequence_number: u64,
     timestamp: i64,
 ) -> Result<String> {
     let client_join_msg = APClientJoinMessage {
@@ -626,6 +630,7 @@ pub fn cgw_construct_client_join_msg(
         ssid,
         band,
         cloud_header,
+        sequence_number,
         timestamp,
     };
 
@@ -638,6 +643,7 @@ pub fn cgw_construct_client_leave_msg(
     infra_group_infra: MacAddress,
     band: String,
     cloud_header: Option<String>,
+    sequence_number: u64,
     timestamp: i64,
 ) -> Result<String> {
     let client_join_msg = APClientLeaveMessage {
@@ -647,6 +653,7 @@ pub fn cgw_construct_client_leave_msg(
         infra_group_infra,
         band,
         cloud_header,
+        sequence_number,
         timestamp,
     };
 
@@ -660,6 +667,7 @@ pub fn cgw_construct_client_migrate_msg(
     to_ssid: String,
     to_band: String,
     cloud_header: Option<String>,
+    sequence_number: u64,
     timestamp: i64,
 ) -> Result<String> {
     let client_migrate_msg = APClientMigrateMessage {
@@ -670,6 +678,7 @@ pub fn cgw_construct_client_migrate_msg(
         to_ssid,
         to_band,
         cloud_header,
+        sequence_number,
         timestamp,
     };
 

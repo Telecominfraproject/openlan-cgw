@@ -148,6 +148,7 @@ struct TopologyMapItemData {
     //     (as per current implementation).
     // Track key:client mac, values:parent AP mac, last seen timestamp, ssid and band
     pub connected_clients_map: HashMap<MacAddress, ClinetParentInfo>,
+    pub sequence_number: u64,
 }
 
 impl TopologyMapItemData {
@@ -158,6 +159,7 @@ impl TopologyMapItemData {
         TopologyMapItemData {
             data,
             connected_clients_map,
+            sequence_number: 1u64,
         }
     }
 }
@@ -554,17 +556,18 @@ impl CGWUCentralTopologyMap {
                     }
                 }
             }
-        }
 
-        if !clients_leave_list.is_empty() {
-            Self::handle_clients_leave(
-                *topology_node_mac,
-                clients_leave_list,
-                gid,
-                conn_server.clone(),
-                timestamp,
-            )
-            .await;
+            if !clients_leave_list.is_empty() {
+                Self::handle_clients_leave(
+                    *topology_node_mac,
+                    clients_leave_list,
+                    gid,
+                    topology_map_data,
+                    conn_server.clone(),
+                    timestamp,
+                )
+                .await;
+            }
         }
     }
 
@@ -575,6 +578,7 @@ impl CGWUCentralTopologyMap {
         node_mac: MacAddress,
         clients_list: ClientsJoinList,
         gid: i32,
+        topology_map_item_data: &mut TopologyMapItemData,
 
         // TODO: remove this Arc:
         // Dirty hack for now: pass Arc ref of srv to topomap;
@@ -598,6 +602,8 @@ impl CGWUCentralTopologyMap {
             let cloud_header: Option<String> =
                 cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
+            topology_map_item_data.sequence_number += 1;
+
             let msg = cgw_construct_client_join_msg(
                 gid,
                 client_info.mac,
@@ -605,6 +611,7 @@ impl CGWUCentralTopologyMap {
                 client_info.ssid,
                 client_info.band,
                 cloud_header,
+                topology_map_item_data.sequence_number,
                 timestamp,
             );
             if let Ok(r) = msg {
@@ -626,7 +633,7 @@ impl CGWUCentralTopologyMap {
         node_mac: MacAddress,
         clients_list: ClientsLeaveList,
         gid: i32,
-
+        topology_map_item_data: &mut TopologyMapItemData,
         // TODO: remove this Arc:
         // Dirty hack for now: pass Arc ref of srv to topomap;
         // Future rework and refactoring would require to separate
@@ -649,12 +656,15 @@ impl CGWUCentralTopologyMap {
             let cloud_header: Option<String> =
                 cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
+            topology_map_item_data.sequence_number += 1;
+
             let msg = cgw_construct_client_leave_msg(
                 gid,
                 client.mac,
                 node_mac,
                 client.band,
                 cloud_header,
+                topology_map_item_data.sequence_number,
                 timestamp,
             );
             if let Ok(r) = msg {
@@ -675,6 +685,7 @@ impl CGWUCentralTopologyMap {
     async fn handle_clients_migrate(
         clients_list: ClientsMigrateList,
         gid: i32,
+        topology_map_item_data: &mut TopologyMapItemData,
 
         // TODO: remove this Arc:
         // Dirty hack for now: pass Arc ref of srv to topomap;
@@ -698,6 +709,8 @@ impl CGWUCentralTopologyMap {
             let cloud_header: Option<String> =
                 cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
+            topology_map_item_data.sequence_number += 1;
+
             let msg = cgw_construct_client_migrate_msg(
                 gid,
                 client.mac,
@@ -705,6 +718,7 @@ impl CGWUCentralTopologyMap {
                 client.ssid,
                 client.band,
                 cloud_header,
+                topology_map_item_data.sequence_number,
                 timestamp,
             );
             if let Ok(r) = msg {
@@ -1097,6 +1111,7 @@ impl CGWUCentralTopologyMap {
                                     *topology_node_mac,
                                     clients_join_list,
                                     gid,
+                                    topology_map_data,
                                     conn_server.clone(),
                                     timestamp,
                                 )
@@ -1108,6 +1123,7 @@ impl CGWUCentralTopologyMap {
                                     *topology_node_mac,
                                     clients_leave_list,
                                     gid,
+                                    topology_map_data,
                                     conn_server.clone(),
                                     timestamp,
                                 )
@@ -1118,6 +1134,7 @@ impl CGWUCentralTopologyMap {
                                 Self::handle_clients_migrate(
                                     clients_migrate_list,
                                     gid,
+                                    topology_map_data,
                                     conn_server.clone(),
                                     timestamp,
                                 )
@@ -1204,7 +1221,7 @@ impl CGWUCentralTopologyMap {
         let timestamp = cgw_get_timestamp_16_digits();
 
         let mut lock = self.data.write().await;
-        if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
+        if let Some(topology_map_data) = lock.item.get_mut(&gid) {
             if let CGWUCentralEventType::RealtimeEvent(rt) = evt.evt_type {
                 if let CGWUCentralEventRealtimeEventType::WirelessClientJoin(rt_j) = &rt.evt_type {
                     if let Some(existing_client_info) =
@@ -1307,33 +1324,41 @@ impl CGWUCentralTopologyMap {
                     }
                 }
             }
-        }
 
-        if !clients_join_list.is_empty() {
-            Self::handle_clients_join(
-                *topology_node_mac,
-                clients_join_list,
-                gid,
-                conn_server.clone(),
-                timestamp,
-            )
-            .await;
-        }
-
-        if !clients_leave_list.is_empty() {
-            Self::handle_clients_leave(
-                *topology_node_mac,
-                clients_leave_list,
-                gid,
-                conn_server.clone(),
-                timestamp,
-            )
-            .await;
-        }
-
-        if !clients_migrate_list.is_empty() {
-            Self::handle_clients_migrate(clients_migrate_list, gid, conn_server.clone(), timestamp)
+            if !clients_join_list.is_empty() {
+                Self::handle_clients_join(
+                    *topology_node_mac,
+                    clients_join_list,
+                    gid,
+                    topology_map_data,
+                    conn_server.clone(),
+                    timestamp,
+                )
                 .await;
+            }
+
+            if !clients_leave_list.is_empty() {
+                Self::handle_clients_leave(
+                    *topology_node_mac,
+                    clients_leave_list,
+                    gid,
+                    topology_map_data,
+                    conn_server.clone(),
+                    timestamp,
+                )
+                .await;
+            }
+
+            if !clients_migrate_list.is_empty() {
+                Self::handle_clients_migrate(
+                    clients_migrate_list,
+                    gid,
+                    topology_map_data,
+                    conn_server.clone(),
+                    timestamp,
+                )
+                .await;
+            }
         }
     }
 

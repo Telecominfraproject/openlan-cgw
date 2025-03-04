@@ -14,24 +14,30 @@ infra_join:
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   infra_public_ip:
     description:
+      MANDATORY field.
       Peer address of the connected infra, as seen on the socket level
       of the CGW.
     type: string
   connect_message_payload:
     description:
+      MANDATORY field.
       Payload of infra CONNECT message
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.
@@ -52,15 +58,19 @@ infra_leave:
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.
@@ -82,19 +92,23 @@ unassigned_infra_join:
     type: integer
   group_owner_shard_id:
     description:
+      MANDATORY field.
       ID of the shard that is the actual owner of the infra group.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   infra_public_ip:
     description:
+      MANDATORY field.
       Peer address of the connected infra, as seen on the socket level
       of the CGW.
     type: string
   connect_message_payload:
     description:
+      MANDATORY field.
       Payload of infra CONNECT message
     type: string
   timestamp:
@@ -117,6 +131,7 @@ unassigned_infra_leave:
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   timestamp:
@@ -139,15 +154,19 @@ foreign_infra_connection:
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.
@@ -169,9 +188,12 @@ infrastructure_group_infra_capabilities_changed:
       ID of the shard that handled request and generated this response.
     type: integer
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that successfully connected to CGW.
     type: string
   changes:
@@ -183,6 +205,7 @@ infrastructure_group_infra_capabilities_changed:
       properties:
         changed:
           description:
+            MANDATORY field.
             String-value representing value that changed
           type: string
         old:
@@ -191,8 +214,9 @@ infrastructure_group_infra_capabilities_changed:
           type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.
@@ -210,28 +234,40 @@ ap_client_join:
     enum:
     - ap_client_join
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that connected the WiFi ssid of the infra.
     type: string
   client:
     description:
+      MANDATORY field.
       MAC (serial) of the infra client that joined.
     type: string
   ssid:
     description:
+      MANDATORY field.
       SSID that the underlying infra client joined.
     type: string
   band:
     description:
+      MANDATORY field.
       Band on which the underlying infra client joined.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
+  sequence_number:
+    description:
+      MANDATORY field.
+      Represent the sequence number of topology change.
+    type: integer
   timestamp:
     description: MANDATORY field.
       (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
@@ -248,24 +284,35 @@ ap_client_leave:
     enum:
     - ap_client_leave
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   infra_group_infra:
     description:
+      MANDATORY field.
       MAC (serial) of the infra that disconnected the WiFi ssid of the infra.
     type: string
   client:
     description:
+      MANDATORY field.
       MAC (serial) of the infra client that disconnected.
     type: string
   band:
     description:
+      MANDATORY field.
       Band on which the underlying infra client disconnected.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
+  sequence_number:
+    description:
+      MANDATORY field.
+      Represent the sequence number of topology change.
+    type: integer
   timestamp:
     description: MANDATORY field.
       (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
@@ -283,28 +330,40 @@ ap_client_migrate:
     enum:
     - ap_client_migrate
   infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which infra belongs to.
     type: integer
   to_infra_group_infra_device:
     description:
+      MANDATORY field.
       MAC (serial) of the destination infra to which the WiFi client is migrating to.
     type: string
   client:
     description:
+      MANDATORY field.
       MAC (serial) of the infra client that joined.
     type: string
   to_ssid:
     description:
+      MANDATORY field.
       Destination SSID that the underlying infra client is migrating to.
     type: string
   to_band:
     description:
+      MANDATORY field.
       Destination band on which the underlying infra is migrating on.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
       This field is optional and might be empty JSON object or missed.
     type: string
+  sequence_number:
+    description:
+      MANDATORY field.
+      Represent the sequence number of topology change.
+    type: integer
   timestamp:
     description: MANDATORY field.
       (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
@@ -322,6 +381,7 @@ infrastructure_state_event_message:
     - infrastructure_state_event_message
   event_type:
     description:
+      MANDATORY field.
       The UCentral State/Healthcheck event type.
     type: string
   reporter_shard_id:
@@ -330,12 +390,14 @@ infrastructure_state_event_message:
     type: integer
   payload:
     description:
+      MANDATORY field.
       Payload of infra State or Healthcheck (UCentral) event message.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.
@@ -354,6 +416,7 @@ infrastructure_realtime_event_message:
     - infrastructure_realtime_event_message
   event_type:
     description:
+      MANDATORY field.
       The UCentral Real-time event type (e.g. Log, Alarm, WifiScan, etc...).
     type: string
   reporter_shard_id:
@@ -362,12 +425,14 @@ infrastructure_realtime_event_message:
     type: integer
   payload:
     description:
+      MANDATORY field.
       Payload of infra Real-time (UCentral) event message.
     type: string
   cloud-header:
     description:
+      OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   timestamp:
     description: MANDATORY field.

@@ -21,7 +21,6 @@ use crate::AppArgs;
 use crate::{
     cgw_connection_processor::{CGWConnectionProcessor, CGWConnectionProcessorReqMsg},
     cgw_db_accessor::CGWDBInfrastructureGroup,
-    cgw_devices_cache::CGWDevicesCache,
     cgw_metrics::{
         CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType, CGWMetricsHealthComponent,
         CGWMetricsHealthComponentStatus,
@@ -33,7 +32,6 @@ use crate::{
 
 use cgw_common::{
     cgw_errors::{Error, Result},
-    cgw_tls::cgw_tls_get_cn_from_stream,
     cgw_ucentral_parser::{
         cgw_ucentral_parse_command_message, CGWUCentralCommand, CGWUCentralCommandType,
         CGWUCentralConfigValidators,
@@ -42,6 +40,7 @@ use cgw_common::{
         cgw_detect_device_changes, CGWDevice, CGWDeviceCapabilities, CGWDeviceState, CGWDeviceType,
         OldNew,
     },
+    cgw_devices_cache::CGWDevicesCache,
 };
 
 use std::str::FromStr;
@@ -185,6 +184,7 @@ pub struct CGWConnectionServer {
     pub infras_capacity: i32,
     pub local_shard_partition_key: RwLock<Option<String>>,
     pub last_update_timestamp: RwLock<i64>,
+    pub proxy_mode: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1497,6 +1497,7 @@ impl CGWConnectionServer {
             infras_capacity: app_args.cgw_group_infras_capacity,
             local_shard_partition_key: RwLock::new(None),
             last_update_timestamp: RwLock::new(0i64),
+            proxy_mode: app_args.proxy_mode,
         });
 
         let server_clone = server.clone();
@@ -2841,39 +2842,47 @@ impl CGWConnectionServer {
 
     pub async fn ack_connection(
         self: Arc<Self>,
-        socket: TcpStream,
+        stream: TcpStream,
         tls_acceptor: tokio_rustls::TlsAcceptor,
         addr: SocketAddr,
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process_internal_mbox)
         let server_clone = self.clone();
+        let proxy_mode = server_clone.proxy_mode;
 
         self.wss_rx_tx_runtime.spawn(async move {
-            // Accept the TLS connection.
-            let (client_cn, tls_stream) = match tls_acceptor.accept(socket).await {
-                Ok(stream) => match cgw_tls_get_cn_from_stream(&stream).await {
-                    Ok(cn) => (cn, stream),
-                    Err(e) => {
-                        error!("Failed to read client CN! Error: {e}");
-                        return;
-                    }
-                },
-                Err(e) => {
-                    error!("Failed to accept connection: Error {e}");
-                    return;
-                }
-            };
+            //   // Accept the TLS connection.
+            //   let (client_cn, stream) = match tls_acceptor.accept(socket).await {
+            //     Ok(stream) => match cgw_tls_get_cn_from_stream(&stream).await {
+            //         Ok(cn) => (cn, stream),
+            //         Err(e) => {
+            //             error!("Failed to read client CN! Error: {e}");
+            //             return;
+            //         }
+            //     },
+            //     Err(e) => {
+            //         error!("Failed to accept connection: Error {e}");
+            //         return;
+            //     }
+            // };
+
+            let client_cn = MacAddress::from_str("02:00:00:00:00:00")
+                .unwrap_or_else(|_| MacAddress::from_str("02:00:00:00:00:00").unwrap());
 
             let allow_mismatch = server_clone.allow_mismatch;
-            let conn_processor = CGWConnectionProcessor::new(server_clone, addr);
+            let conn_processor = CGWConnectionProcessor::new(server_clone, addr, proxy_mode);
             if let Err(e) = conn_processor
-                .start(tls_stream, client_cn, allow_mismatch)
+                .start(stream, client_cn, allow_mismatch)
                 .await
             {
                 error!("Failed to start connection processor! Error: {e}");
             }
         });
+
+        if let Err(e) = self.cgw_remote_discovery.set_device_cache_last_update_timestamp().await {
+            error!("Can't create CGW Remote Discovery client! Failed to update Redis device cache timestamp! Error: {e}");
+        }
     }
 
     pub async fn cleanup_redis(&self) {

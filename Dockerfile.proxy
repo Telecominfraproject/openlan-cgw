@@ -1,6 +1,6 @@
 # Stage 1: Create a rust build image
 FROM rust:1.77.0 AS builder
-LABEL Description="OpenLan CGW (Build) environment"
+LABEL Description="OpenLan CGW Proxy (Build) environment"
 
 # Setup a specific compilation target to the Rust toolchain.
 RUN rustup target add x86_64-unknown-linux-gnu
@@ -23,34 +23,33 @@ WORKDIR /usr/src/openlan-cgw
 # Mount the Cargo.toml and Cargo.lock files
 # Mount the build.rs and src directory
 # Mount cargo registry and git db cache and target cache
-# Build CGW application
+# Build proxy-cgw application
 # Copy binary to default location before cache unmounted
-RUN --mount=type=bind,source=src,target=src                                       \
-    --mount=type=bind,source=build.rs,target=build.rs                             \
-    --mount=type=bind,source=Cargo.toml,target=Cargo.toml                         \
-    --mount=type=bind,source=Cargo.lock,target=Cargo.lock                         \
-    --mount=type=cache,target=/usr/src/openlan-cgw/target                         \
-    --mount=type=cache,target=/usr/local/cargo/git/db                             \
-    --mount=type=cache,target=/usr/local/cargo/registry                           \
-    cargo build --bin ucentral-cgw --target x86_64-unknown-linux-gnu --release && \
-    cp target/x86_64-unknown-linux-gnu/release/ucentral-cgw /usr/local/bin
+RUN --mount=type=bind,source=src,target=src                                     \
+    --mount=type=bind,source=build.rs,target=build.rs                           \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml                       \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock                       \
+    --mount=type=cache,target=/usr/src/openlan-cgw/target                       \
+    --mount=type=cache,target=/usr/local/cargo/git/db                           \
+    --mount=type=cache,target=/usr/local/cargo/registry                         \
+    cargo build --bin proxy-cgw --target x86_64-unknown-linux-gnu --release &&  \
+    cp target/x86_64-unknown-linux-gnu/release/proxy-cgw /usr/local/bin
 
-CMD ["echo", "ucentral-cgw build finished successfully!"]
+CMD ["echo", "proxy-cgw build finished successfully!"]
 
 # Stage 2: Create a runtime image
-FROM rust:1.77.0 AS cgw-img
+FROM rust:1.77.0
 
-#ARG CGW_CONTAINER_BUILD_REV="<unknown>"
 ARG GITHUB_SHA="<unknown>"
 ARG GITHUB_BRANCH="<unknown>"
 ARG GITHUB_TIME="0"
-ENV CGW_CONTAINER_BUILD_REV=$GITHUB_SHA
-ENV CGW_CONTAINER_BUILD_BRANCH=$GITHUB_BRANCH
-ENV CGW_CONTAINER_BUILD_TIME=$GITHUB_TIME
+ENV PROXY_CONTAINER_BUILD_REV=$GITHUB_SHA
+ENV PROXY_CONTAINER_BUILD_BRANCH=$GITHUB_BRANCH
+ENV PROXY_CONTAINER_BUILD_TIME=$GITHUB_TIME
 
-LABEL Description="OpenLan CGW environment"
+LABEL Description="OpenLan CGW Proxy environment"
 
-# # Create a non-root user and group
+# Create a non-root user and group
 RUN adduser cgw_runner && addgroup cgw_users_group
 
 # Add `cgw_runner` user to `cgw_users_group`
@@ -68,6 +67,6 @@ VOLUME [ "/etc/cgw/certs" ]
 
 # Copy libs and CGW binaries
 COPY --from=builder /lib/x86_64-linux-gnu/ /lib/x86_64-linux-gnu/
-COPY --from=builder /usr/local/bin/ucentral-cgw /usr/local/bin/ucentral-cgw
+COPY --from=builder /usr/local/bin/proxy-cgw /usr/local/bin/proxy-cgw
 
-CMD ["ucentral-cgw"]
+CMD ["proxy-cgw"]

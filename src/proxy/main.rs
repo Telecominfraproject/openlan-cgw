@@ -1,24 +1,11 @@
 #![warn(rust_2018_idioms)]
-mod cgw_connection_processor;
-mod cgw_connection_server;
-mod cgw_db_accessor;
-mod cgw_kafka_init;
-mod cgw_metrics;
-mod cgw_nb_api_listener;
-mod cgw_remote_client;
-mod cgw_remote_discovery;
-mod cgw_remote_server;
-mod cgw_ucentral_messages_queue_manager;
-mod cgw_ucentral_topology_map;
-mod cgw_runtime;
+mod proxy_connection_processor;
+mod proxy_connection_server;
+mod proxy_runtime;
+mod proxy_remote_discovery;
 
 #[macro_use]
 extern crate log;
-
-#[macro_use]
-extern crate lazy_static;
-
-use cgw_kafka_init::cgw_init_kafka_topics;
 
 use tokio::{
     net::TcpListener,
@@ -31,12 +18,8 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use rlimit::{setrlimit, Resource};
 
-use cgw_connection_server::CGWConnectionServer;
-
-use cgw_remote_server::CGWRemoteServer;
-
-use cgw_metrics::CGWMetrics;
-use cgw_runtime::cgw_initialize_runtimes;
+use proxy_connection_server::ProxyConnectionServer;
+use proxy_runtime::proxy_initialize_runtimes;
 
 use cgw_common::{
     cgw_errors::{Error, Result},
@@ -48,9 +31,8 @@ use cgw_common::{
 };
 
 pub struct AppCore {
-    cgw_server: Arc<CGWConnectionServer>,
+    proxy_server: Arc<ProxyConnectionServer>,
     main_runtime_handle: Arc<Handle>,
-    grpc_server_runtime_handle: Arc<Runtime>,
     conn_ack_runtime_handle: Arc<Runtime>,
     args: AppArgs,
 }
@@ -64,34 +46,25 @@ impl AppCore {
         let c_ack_runtime_handle = Arc::new(
             Builder::new_multi_thread()
                 .worker_threads(1)
-                .thread_name("cgw-c-ack")
-                .thread_stack_size(stack_size)
-                .enable_all()
-                .build()?,
-        );
-        let rpc_runtime_handle = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(1)
-                .thread_name("grpc-recv-t")
+                .thread_name("proxy-c-ack")
                 .thread_stack_size(stack_size)
                 .enable_all()
                 .build()?,
         );
 
-        let cgw_server = match CGWConnectionServer::new(&app_args).await {
+        let proxy_server = match ProxyConnectionServer::new(&app_args).await {
             Ok(s) => s,
             Err(e) => {
-                error!("Failed to create CGW server! Error: {e}");
+                error!("Failed to create Proxy server! Error: {e}");
                 return Err(e);
             }
         };
 
         Ok(AppCore {
-            cgw_server,
+            proxy_server,
             main_runtime_handle: current_runtime,
             conn_ack_runtime_handle: c_ack_runtime_handle,
             args: app_args,
-            grpc_server_runtime_handle: rpc_runtime_handle,
         })
     }
 
@@ -110,22 +83,12 @@ impl AppCore {
         let main_runtime_handle: Arc<Handle> = self.main_runtime_handle.clone();
         let core_clone = self.clone();
 
-        let cgw_remote_server = CGWRemoteServer::new(self.args.cgw_id, &self.args.grpc_args);
-        let cgw_srv_clone = self.cgw_server.clone();
-        let cgw_con_server = self.cgw_server.clone();
-        self.grpc_server_runtime_handle.spawn(async move {
-            debug!("cgw_remote_server.start entry");
-            cgw_remote_server.start(cgw_srv_clone).await;
-            debug!("cgw_remote_server.start exit");
-        });
-
         main_runtime_handle.spawn(async move { server_loop(core_clone).await });
 
         loop {
             tokio::select! {
                 // Cleanup if notified of received SIGHUP, SIGINT or SIGTERM
                 _ = notifier.notified() => {
-                    cgw_con_server.cleanup_redis().await;
                     break;
                 },
                 _ = async {
@@ -175,7 +138,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
             let mut conn_idx: i64 = 0;
             loop {
                 let app_core_clone = app_core_clone.clone();
-                let cgw_server_clone = app_core_clone.cgw_server.clone();
+                let proxy_server_clone = app_core_clone.proxy_server.clone();
                 let tls_acceptor_clone = tls_acceptor.clone();
 
                 // Asynchronously wait for an inbound socket.
@@ -201,7 +164,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                 info!("Accept (ACK) connection: {conn_idx}, remote address: {remote_addr}");
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
-                    cgw_server_clone
+                    proxy_server_clone
                         .ack_connection(socket, tls_acceptor_clone, remote_addr)
                         .await;
                 });
@@ -223,8 +186,8 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
 
 fn setup_logger(log_level: AppCoreLogLevel) {
     match log_level {
-        AppCoreLogLevel::Debug => ::std::env::set_var("RUST_LOG", "ucentral_cgw=debug"),
-        AppCoreLogLevel::Info => ::std::env::set_var("RUST_LOG", "ucentral_cgw=info"),
+        AppCoreLogLevel::Debug => ::std::env::set_var("RUST_LOG", "proxy_cgw=debug"),
+        AppCoreLogLevel::Info => ::std::env::set_var("RUST_LOG", "proxy_cgw=info"),
     }
     env_logger::init();
 }
@@ -243,25 +206,15 @@ async fn main() -> Result<()> {
     // Configure logger
     setup_logger(args.log_level);
 
-    // Initialize Kafka topics
-    if let Err(e) = cgw_init_kafka_topics(&args.kafka_args, &args.redis_args).await {
-        error!("Failed to initialize kafka topics! Error: {e}");
-        return Err(e);
-    }
-
     // Initialize runtimes
-    if let Err(e) = cgw_initialize_runtimes(args.wss_args.wss_t_num) {
-        error!("Failed to initialize CGW runtimes! Error: {e}");
+    if let Err(e) = proxy_initialize_runtimes(args.wss_args.wss_t_num) {
+        error!("Failed to initialize Proxy runtimes! Error: {e}");
         return Err(e);
-    }
-
-    if args.feature_topomap_enabled {
-        warn!("CGW_FEATURE_TOPOMAP_ENABLE is set, TOPOMAP feature (unstable) will be enabled (realtime events / state processing) - heavy performance drop with high number of devices connected could be observed");
     }
 
     info!(
-        "Starting CGW application, rev tag: {}",
-        env::var("CGW_CONTAINER_BUILD_REV").unwrap_or("<CGW-unknown-tag>".to_string())
+        "Starting Proxy application, rev tag: {}",
+        env::var("PROXY_CONTAINER_BUILD_REV").unwrap_or("<PROXY-unknown-tag>".to_string())
     );
 
     // Create a Notify instance to notify the main task of a shutdown signal
@@ -275,11 +228,6 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Make sure metrics are available <before> any of the components
-    // starts up;
-    CGWMetrics::get_ref()
-        .start(args.metrics_args.metrics_port)
-        .await?;
     let app = Arc::new(AppCore::new(args).await?);
 
     app.run(shutdown_notify).await;

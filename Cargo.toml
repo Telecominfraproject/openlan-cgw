@@ -4,6 +4,14 @@ name = "ucentral-cgw"
 version = "0.0.1"
 edition = "2021"
 
+[[bin]]
+name = "ucentral-cgw"
+path = "src/main.rs"
+
+[[bin]]
+name = "proxy-cgw"
+path = "src/proxy/main.rs"
+
 [dependencies]
 serde = { version = "1.0.144", features = ["derive"] }
 serde_json = { version = "1.0.85" }

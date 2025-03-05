@@ -21,6 +21,8 @@ DEFAULT_BROKER_SERVER_KEY: Final[str] = "kafka.keystore.key"
 DEFAULT_BROKER_CLIENT_CERT: Final[str] = "kafka.truststore.pem"
 CGW_IMAGE_BASE_NAME: Final[str] = "openlan-cgw-img"
 CGW_CONTAINER_BASE_NAME: Final[str] = "openlan_cgw"
+PROXY_IMAGE_BASE_NAME: Final[str] = "openlan-proxy-cgw-img"
+PROXY_CONTAINER_BASE_NAME: Final[str] = "openlan_proxy"
 
 # CGW params
 DEFAULT_CGW_BASE_ID: Final[int] = 0
@@ -44,6 +46,8 @@ DEFAULT_WSS_T_NUM: Final[int] = 4
 DEFAULT_WSS_CAS: Final[str] = "cas.pem"
 DEFAULT_WSS_CERT: Final[str] = "cert.pem"
 DEFAULT_WSS_KEY: Final[str] = "key.pem"
+
+DEFAULT_PROXY_BASE_PORT: Final[int] = 443
 
 # Kafka params
 DEFAULT_KAFKA_HOST: Final[str] = "docker-broker-1"
@@ -206,8 +210,13 @@ def get_cgw_image_base_name() -> str:
     """
     return CGW_IMAGE_BASE_NAME
 
+def get_proxy_image_base_name() -> str:
+    """
+    Returns CGW Docker image base name
+    """
+    return PROXY_IMAGE_BASE_NAME
 
-def get_cgw_image_tag() -> str:
+def get_cgw_image_tag(is_proxy: bool = False) -> str:
     """
     Returns CGW Docker image tag
     """
@@ -232,11 +241,12 @@ def get_cgw_image_tag() -> str:
             check=True
         ).stdout.strip()
 
-        # Append '-dirty' if there are uncommitted changes
+        # Append '-dirty' or '-proxy-dirty' based on is_proxy
+        dirty = "-proxy-dirty" if is_proxy else "-dirty"
         if status_output:
-            tag = f"{commit_hash}-dirty"
+            tag = f"{commit_hash}{dirty}"
         else:
-            tag = commit_hash
+            tag = f"{commit_hash}{'-proxy' if is_proxy else ''}"
 
     except subprocess.CalledProcessError as e:
         print(f"Error: {e.stderr.strip()}")
@@ -250,6 +260,11 @@ def get_cgw_container_base_name() -> str:
     """
     return CGW_CONTAINER_BASE_NAME
 
+def get_proxy_container_base_name() -> str:
+    """
+    Returns CGW Docker container base name
+    """
+    return PROXY_CONTAINER_BASE_NAME
 
 def get_cgw_instances_num() -> int:
     """
@@ -296,11 +311,21 @@ def generate_docker_compose_file(instances_num: int,
     # 4. Get certs realpath
     certs_realpath = get_realpath(DEFAULT_CERTS_PATH)
 
+    proxy_image_tag = get_cgw_image_tag(True)
+    # proxy_image_tag = proxy_image_tag + "-proxy"
+
+    proxy_image_name = get_proxy_image_base_name()
+    
+    proxy_container_name = get_proxy_container_base_name()
+
     print(f'Generate Docker Compose file!')
     print(f'\tNumber of CGW instances: {instances_num}')
     print(f'\tCGW image name         : {image_name}')
     print(f'\tCGW image tag          : {image_tag}')
     print(f'\tCGW container name     : {container_name}')
+    print(f'\tProxy image name       : {proxy_image_name}')
+    print(f'\tProxy image tag        : {proxy_image_tag}')
+    print(f'\tProxy container name   : {proxy_container_name}')
 
     # 4. Load the Jinja2 template
     env = Environment(loader=FileSystemLoader(searchpath="."))
@@ -356,7 +381,11 @@ def generate_docker_compose_file(instances_num: int,
                              broker_server_key=DEFAULT_BROKER_SERVER_KEY,
                              broker_client_cert=DEFAULT_BROKER_CLIENT_CERT,
                              broker_config_path=DEFAULT_BROKER_CONFIG_PATH,
-                             client_properties_file=BROKER_CLIENT_PROPERTIES_FILE_NAME)
+                             client_properties_file=BROKER_CLIENT_PROPERTIES_FILE_NAME,
+                             proxy_image_tag=proxy_image_tag,
+                             proxy_image_name=proxy_image_name,
+                             proxy_container_name=proxy_container_name,
+                             proxy_default_base_port=DEFAULT_PROXY_BASE_PORT)
 
     # 6. Save the rendered template as docker-compose.yml
     with open(docker_compose_multi_cgw_file, "w") as f:

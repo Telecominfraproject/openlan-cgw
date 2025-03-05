@@ -1,4 +1,4 @@
-use cgw_common::cgw_device::CGWDevice;
+use crate::cgw_device::CGWDevice;
 use eui48::MacAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map;

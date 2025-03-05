@@ -17,7 +17,7 @@ use cgw_common::{
     cgw_errors::{Error, Result},
     cgw_ucentral_parser::{
         cgw_ucentral_event_parse, cgw_ucentral_parse_connect_event, CGWUCentralCommandType,
-        CGWUCentralEventType,
+        CGWUCentralEventType, cgw_proxy_parse_connect_event,
     },
     cgw_device::{CGWDeviceCapabilities, CGWDeviceType},
 };
@@ -40,8 +40,8 @@ use tokio_rustls::server::TlsStream;
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 use tungstenite::Message::{Close, Ping, Text};
 
-type SStream = SplitStream<WebSocketStream<TlsStream<TcpStream>>>;
-type SSink = SplitSink<WebSocketStream<TlsStream<TcpStream>>, Message>;
+type SStream = SplitStream<WebSocketStream<TcpStream>>;
+type SSink = SplitSink<WebSocketStream<TcpStream>, Message>;
 
 #[derive(Debug, Serialize)]
 pub struct ForeignConnection {
@@ -114,10 +114,11 @@ pub struct CGWConnectionProcessor {
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
     pub device_type: CGWDeviceType,
+    pub proxy_mode: bool,
 }
 
 impl CGWConnectionProcessor {
-    pub fn new(server: Arc<CGWConnectionServer>, addr: SocketAddr) -> Self {
+    pub fn new(server: Arc<CGWConnectionServer>, addr: SocketAddr, proxy_mode: bool) -> Self {
         let conn_processor: CGWConnectionProcessor = CGWConnectionProcessor {
             cgw_server: server.clone(),
             serial: MacAddress::default(),
@@ -126,6 +127,7 @@ impl CGWConnectionProcessor {
             feature_topomap_enabled: server.feature_topomap_enabled,
             // Default to AP, it's safe, as later-on it will be changed
             device_type: CGWDeviceType::CGWDeviceAP,
+            proxy_mode: proxy_mode,
         };
 
         conn_processor
@@ -133,12 +135,12 @@ impl CGWConnectionProcessor {
 
     pub async fn start(
         mut self,
-        tls_stream: TlsStream<TcpStream>,
+        stream: TcpStream,
         client_cn: MacAddress,
         allow_mismatch: bool,
     ) -> Result<()> {
         let ws_stream = tokio::select! {
-            _val = tokio_tungstenite::accept_async(tls_stream) => {
+            _val = tokio_tungstenite::accept_async(stream) => {
                 match _val {
                     Ok(s) => s,
                     Err(e) => {
@@ -157,6 +159,27 @@ impl CGWConnectionProcessor {
         };
 
         let (sink, mut stream) = ws_stream.split();
+        
+        if self.proxy_mode {
+            debug!("Parse Proxy Connect Event");
+            if let Some(Ok(first_msg)) = stream.next().await {
+                debug!("Received first message: {:?}", first_msg);
+            
+                match cgw_proxy_parse_connect_event(first_msg) {
+                    Ok(proxy_event) => {
+                        debug!("Successfully parsed proxy event: {:?}", proxy_event);
+                        // Set self.addr using the peer_address from the proxy event
+                        self.addr = proxy_event.peer_address;
+                        self.serial = proxy_event.serial;
+                    },
+                    Err(e) => {
+                        warn!("Failed to parse proxy connect event: {}", e);
+                    }
+                }
+            } else {
+                warn!("No initial message received from proxy connection");
+            }
+        }
 
         // check if we have any pending msgs (we expect connect at this point, protocol-wise)
         // TODO: rework to ignore any WS-related frames until we get a connect message,
@@ -192,6 +215,8 @@ impl CGWConnectionProcessor {
                 ));
             }
         };
+
+        let mut caps: CGWDeviceCapabilities = Default::default();
 
         debug!("Parse Connect Event");
         let evt = match cgw_ucentral_parse_connect_event(message.clone()) {
@@ -231,19 +256,18 @@ impl CGWConnectionProcessor {
             evt.serial.to_hex_string()
         );
 
-        let mut caps: CGWDeviceCapabilities = Default::default();
         match evt.evt_type {
-            CGWUCentralEventType::Connect(c) => {
-                caps.firmware = c.firmware;
-                caps.compatible = c.capabilities.compatible;
-                caps.model = c.capabilities.model;
-                caps.platform = c.capabilities.platform;
-                caps.label_macaddr = c.capabilities.label_macaddr;
-            }
-            _ => warn!(
-                "Device {} is not abiding the protocol! First message expected to receive: CONNECT!",
-                evt.serial
-            ),
+        CGWUCentralEventType::Connect(c) => {
+        caps.firmware = c.firmware;
+        caps.compatible = c.capabilities.compatible;
+        caps.model = c.capabilities.model;
+        caps.platform = c.capabilities.platform;
+        caps.label_macaddr = c.capabilities.label_macaddr;
+        }
+        _ => warn!(
+        "Device {} is not abiding the protocol! First message expected to receive: CONNECT!",
+        evt.serial
+        ),
         }
 
         self.serial = evt.serial;
@@ -265,7 +289,7 @@ impl CGWConnectionProcessor {
         let orig_connect_msg = message.into_text().unwrap_or_default();
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(
-            evt.serial,
+            self.serial,
             self.addr,
             caps,
             mbox_tx,
@@ -282,7 +306,7 @@ impl CGWConnectionProcessor {
                 CGWConnectionProcessorReqMsg::AddNewConnectionAck(gid) => {
                     debug!(
                         "WebSocket connection established! Address: {}, serial: {} gid {gid}",
-                        self.addr, evt.serial
+                        self.addr, self.serial
                     );
                     self.group_id = gid;
                 }
@@ -294,7 +318,7 @@ impl CGWConnectionProcessor {
             }
         } else {
             info!("Connection server declined connection! WebSocket connection for address: {}, serial: {} cannot be established!",
-                  self.addr, evt.serial);
+                  self.addr, self.serial);
             return Err(Error::ConnectionProcessor("WebSocket connection declined"));
         }
 
@@ -318,9 +342,9 @@ impl CGWConnectionProcessor {
         // If no - create new message queue for device
         {
             let queue_lock = CGW_MESSAGES_QUEUE.read().await;
-            if queue_lock.check_messages_queue_exists(&evt.serial).await {
+            if queue_lock.check_messages_queue_exists(&self.serial).await {
                 queue_lock
-                    .set_device_queue_state(&evt.serial, CGWUCentralMessagesQueueState::RxTx)
+                    .set_device_queue_state(&self.serial, CGWUCentralMessagesQueueState::RxTx)
                     .await;
             }
         }

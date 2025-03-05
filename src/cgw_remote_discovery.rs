@@ -1,19 +1,18 @@
 use crate::{
     cgw_db_accessor::{CGWDBAccessor, CGWDBInfra, CGWDBInfrastructureGroup},
-    cgw_devices_cache::CGWDevicesCache,
     cgw_metrics::{
         CGWMetrics, CGWMetricsCounterOpType, CGWMetricsCounterType, CGWMetricsHealthComponent,
         CGWMetricsHealthComponentStatus,
     },
     cgw_remote_client::CGWRemoteClient,
-    AppArgs,
 };
 
 use cgw_common::{
     cgw_errors::{Error, Result},
-    cgw_app_args::CGWRedisArgs,
+    cgw_app_args::{AppArgs, CGWRedisArgs},
     cgw_tls::cgw_read_root_certs_dir,
     cgw_device::{CGWDevice, CGWDeviceState, CGWDeviceType},
+    cgw_devices_cache::CGWDevicesCache,
 };
 
 use std::{

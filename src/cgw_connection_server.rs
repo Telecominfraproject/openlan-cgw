@@ -612,7 +612,9 @@ impl CGWNBApiParsedMsg {
                 error!("Failed to construct infra_group_device_add message!");
             }
 
-            warn!("Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}!");
+            warn!(
+                "Unexpected: tried to add infra list to nonexisting group, gid {gid}, uuid {uuid}!"
+            );
             return;
         }
 
@@ -635,7 +637,7 @@ impl CGWNBApiParsedMsg {
 
                 successful_infras = success_infras;
                 is_success = true;
-            },
+            }
             Err(Error::RemoteDiscoveryFailedInfras(failed_infras_result)) => {
                 // We have a full list of macs we've tried to <add> to GID;
                 // Remove elements from cloned list based on where there
@@ -658,9 +660,11 @@ impl CGWNBApiParsedMsg {
                 failed_infras = failed_infras_result;
                 error_message = Some(format!("Failed to create few MACs from infras list (partial create), gid {gid}, uuid {uuid}"));
                 warn!("Failed to create few MACs from infras list (partial create)!");
-            },
+            }
             _ => {
-                error_message = Some(format!("Unknown error during infrastructure creation, gid {gid}, uuid {uuid}"));
+                error_message = Some(format!(
+                    "Unknown error during infrastructure creation, gid {gid}, uuid {uuid}"
+                ));
                 warn!("Unknown error during infrastructure creation!");
             }
         }
@@ -724,10 +728,8 @@ impl CGWNBApiParsedMsg {
                             .get_group_infra_cloud_header(dev_gid, &infra)
                             .await;
 
-                        let cloud_header = cgw_construct_cloud_header(
-                            group_cloud_header,
-                            infras_cloud_header,
-                        );
+                        let cloud_header =
+                            cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
 
                         // Send capabilities changed message
                         if let Ok(resp) = cgw_construct_infra_capabilities_changed_msg(
@@ -748,7 +750,10 @@ impl CGWNBApiParsedMsg {
                             error!("Failed to construct device_capabilities_changed message!");
                         }
                     } else {
-                        debug!("Capabilities for device: {} was not changed", infra.to_hex_string());
+                        debug!(
+                            "Capabilities for device: {} was not changed",
+                            infra.to_hex_string()
+                        );
                     }
                 } else {
                     // Device is not connected, update its status
@@ -824,7 +829,7 @@ impl CGWNBApiParsedMsg {
                     .notify_devices_on_gid_change(infras_list.clone(), 0i32);
 
                 is_success = true;
-            },
+            }
             Err(infras) => {
                 if let Error::RemoteDiscoveryFailedInfras(failed_infras_result) = infras {
                     // We have a full list of macs we've tried to <del> from GID;
@@ -850,7 +855,9 @@ impl CGWNBApiParsedMsg {
                     error_message = Some(format!("Failed to destroy few MACs from infras list (partial delete), gid {gid}, uuid {uuid}"));
                 } else {
                     // Handle other possible error types
-                    error_message = Some(format!("Unknown error occurred while deleting MACs, gid {gid}, uuid {uuid}"));
+                    error_message = Some(format!(
+                        "Unknown error occurred while deleting MACs, gid {gid}, uuid {uuid}"
+                    ));
                 }
             }
         };
@@ -866,7 +873,12 @@ impl CGWNBApiParsedMsg {
             consumer_metadata,
             timestamp,
         ) {
-            server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                partition,
+            );
         } else {
             error!("Failed to construct infra_group_device_del message!");
         }
@@ -918,40 +930,56 @@ impl CGWNBApiParsedMsg {
 
         // 1. Parse message from NB
         let parse_result = cgw_ucentral_parse_command_message(&msg.clone());
-        if parse_result.is_err() {
-            // Parsing error
-            if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                server.local_cgw_id,
-                uuid,
-                false,
-                Some(format!("Failed to parse command message to device: {device_mac}, uuid {uuid}")),
-                local_shard_partition_key.clone(),
-                consumer_metadata,
-                timestamp,
-            ) {
-                server.enqueue_mbox_message_from_cgw_to_nb_api(
-                    gid,
-                    resp,
-                    CGWKafkaProducerTopic::CnCRes,
-                    partition,
-                );
-            } else {
-                error!("Failed to construct device_enqueue message!");
-            }
-            error!("Failed to parse UCentral command!");
-            return;
-        }
-
-        // 2. Get device information
-        let parsed_cmd = match parse_result {
+        let parsed_cmd: CGWUCentralCommand = match parse_result {
             Ok(cmd) => cmd,
-            Err(_) => return,
+            Err(_e) => {
+                // Parsing error
+                if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                    server.local_cgw_id,
+                    uuid,
+                    false,
+                    Some(format!(
+                        "Failed to parse command message to device: {device_mac}, uuid {uuid}"
+                    )),
+                    local_shard_partition_key.clone(),
+                    consumer_metadata,
+                    timestamp,
+                ) {
+                    server.enqueue_mbox_message_from_cgw_to_nb_api(
+                        gid,
+                        resp,
+                        CGWKafkaProducerTopic::CnCRes,
+                        partition,
+                    );
+                } else {
+                    error!("Failed to construct device_enqueue message!");
+                }
+                error!("Failed to parse UCentral command!");
+                return;
+            }
         };
 
+        // 2. Get device information
         let devices_cache = server.devices_cache.read().await;
         let infra = match devices_cache.get_device(&device_mac) {
             Some(device) => device,
             None => {
+                // CGW does not know anyting about destination infra!
+                // Send response to NB.
+                if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                    server.local_cgw_id,
+                    uuid,
+                    false,
+                    Some(format!("Failed to process infrastructure_group_infra_msg! CGW does not know anything about infara {device_mac}!")),
+                    local_shard_partition_key.clone(),
+                    consumer_metadata.clone(),
+                    timestamp,
+                ) {
+                    server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
+                } else {
+                    error!("Failed to construct infra_enqueue message!");
+                }
+
                 error!("Failed to validate config message! Device {device_mac} does not exist in cache!");
                 return;
             }
@@ -959,6 +987,25 @@ impl CGWNBApiParsedMsg {
 
         // 3. Process the command
         if parsed_cmd.cmd_type == CGWUCentralCommandType::Configure {
+            // Device type: if type is unknown - skipp infrastructure group infra msg processing
+            // The device type is known only after receiving CONNECT message from infra.
+            // The device type presented in Capabilites section
+            if infra.get_device_type() == CGWDeviceType::CGWDeviceUnknown {
+                if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                    server.local_cgw_id,
+                    uuid,
+                    false,
+                    Some(format!("Configure message uuid {uuid} skipped! Infra {device_mac} has not sent connect message yet")),
+                    local_shard_partition_key.clone(),
+                    consumer_metadata.clone(),
+                    timestamp,
+                ) {
+                    server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
+                } else {
+                    error!("Failed to construct infra_enqueue message!");
+                }
+            }
+
             let validation_result = server
                 .config_validator
                 .validate_config_message(&msg, infra.get_device_type());
@@ -976,7 +1023,7 @@ impl CGWNBApiParsedMsg {
                 ) {
                     server.enqueue_mbox_message_from_cgw_to_nb_api(gid, resp, CGWKafkaProducerTopic::CnCRes, partition);
                 } else {
-                    error!("Failed to construct device_enqueue message!");
+                    error!("Failed to construct infra_enqueue message!");
                 }
                 return;
             }

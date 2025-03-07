@@ -2024,13 +2024,15 @@ impl CGWConnectionServer {
                         let connmap_r_lock = self.connmap.map.read().await;
 
                         for (infra_mac, _) in connmap_r_lock.iter() {
-                            if !self
-                                .devices_cache
-                                .read()
-                                .await
-                                .check_device_exists(infra_mac)
-                            {
-                                infras_list.push(*infra_mac);
+                            match self.devices_cache.read().await.get_device(infra_mac) {
+                                Some(infra) => {
+                                    if infra.get_device_group_id() == 0 {
+                                        infras_list.push(*infra_mac);
+                                    }
+                                },
+                                None => {
+                                    infras_list.push(*infra_mac);
+                                },
                             }
                         }
 

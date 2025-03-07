@@ -603,11 +603,10 @@ impl CGWConnectionProcessor {
                                 } else {
                                     error!("Failed to construct infra_realtime_event message!");
                                 }
-                            },
+                            }
                             CGWUCentralEventType::Unknown => {
                                 error!("Received unknown event type! Message payload: {kafka_msg}");
                             }
-                            
                         }
                     }
 

@@ -833,7 +833,7 @@ pub fn cgw_ucentral_ap_parse_message(
             warn!("Received malformed JSONRPC msg!");
             Error::UCentralParser("JSONRPC field is missing in message")
         })?;
-        let mut event_type: CGWUCentralEventType = CGWUCentralEventType::Unknown;
+        let event_type: CGWUCentralEventType;
         if method == "connect" {
             let params = map
                 .get("params")
@@ -899,6 +899,8 @@ pub fn cgw_ucentral_ap_parse_message(
             event_type = CGWUCentralEventType::Recovery;
         } else if method == "venue_broadcast" {
             event_type = CGWUCentralEventType::VenueBroadcast;
+        } else {
+            event_type = CGWUCentralEventType::Generic(method.to_string());
         }
 
         return Ok(CGWUCentralEvent {

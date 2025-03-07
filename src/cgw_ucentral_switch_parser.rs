@@ -255,6 +255,8 @@ pub fn cgw_ucentral_switch_parse_message(
             event_type = CGWUCentralEventType::Recovery;
         } else if method == "venue_broadcast" {
             event_type = CGWUCentralEventType::VenueBroadcast;
+        } else {
+            event_type = CGWUCentralEventType::Generic(method.to_string());
         }
 
         return Ok(CGWUCentralEvent {

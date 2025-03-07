@@ -111,6 +111,7 @@ pub struct CGWConnectionProcessor {
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
     pub device_type: CGWDeviceType,
+    pub connect_message: String,
 }
 
 impl CGWConnectionProcessor {
@@ -123,6 +124,7 @@ impl CGWConnectionProcessor {
             feature_topomap_enabled: server.feature_topomap_enabled,
             // Default to AP, it's safe, as later-on it will be changed
             device_type: CGWDeviceType::CGWDeviceAP,
+            connect_message: String::default(),
         };
 
         conn_processor
@@ -259,14 +261,14 @@ impl CGWConnectionProcessor {
         // cgw_connection_server has an authoritative decision whether
         // we can proceed.
         debug!("Sending ACK request for device serial: {}", self.serial);
-        let orig_connect_msg = message.into_text().unwrap_or_default();
+        self.connect_message = message.into_text().unwrap_or_default();
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(
             evt.serial,
             self.addr,
             caps,
             mbox_tx,
-            orig_connect_msg,
+            self.connect_message.clone(),
         );
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
@@ -682,7 +684,7 @@ impl CGWConnectionProcessor {
                                 self.serial,
                                 self.addr,
                                 self.cgw_server.get_local_id(),
-                                String::default(),
+                                self.connect_message.clone(),
                                 cloud_header,
                                 timestamp,
                             ) {
@@ -702,7 +704,7 @@ impl CGWConnectionProcessor {
                                 self.serial,
                                 self.addr,
                                 self.cgw_server.get_local_id(),
-                                String::default(),
+                                self.connect_message.clone(),
                                 timestamp,
                             ) {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(

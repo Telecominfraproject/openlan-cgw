@@ -906,15 +906,39 @@ pub fn cgw_ucentral_ap_parse_message(
             decompressed: None,
         });
     } else if map.contains_key("result") {
+        let mut id: u64 = 0;
+        let mut id_found: bool = false;
+
+        // Try to find ID in message root scope.
+        if map.contains_key("id") {
+            id = map["id"]
+                .as_u64()
+                .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+            id_found = true;
+        }
+
         if let Value::Object(result) = &map["result"] {
-            if !result.contains_key("id") {
+            // Try to find ID in message result scope.
+            if result.contains_key("id") {
+                id = result["id"]
+                    .as_u64()
+                    .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+                id_found = true;
+            } else if let Some(Value::Object(state)) = result.get("state") {
+                // Try to find ID in message state scope.
+                if state.contains_key("id") {
+                    id = result["id"]
+                        .as_u64()
+                        .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
+                    id_found = true;
+                }
+            }
+
+            if !id_found {
                 warn!("Received JRPC <result> without id!");
                 return Err(Error::UCentralParser("Received JRPC <result> without id"));
             }
 
-            let id = result["id"]
-                .as_u64()
-                .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
             let reply_event = CGWUCentralEvent {
                 serial: Default::default(),
                 evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),

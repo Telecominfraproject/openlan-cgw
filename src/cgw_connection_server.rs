@@ -2961,6 +2961,7 @@ impl CGWConnectionServer {
                         None => None,
                     };
 
+                    // Requests does not receive Reply - so payload is None
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
                         self.local_cgw_id,
                         req.uuid,
@@ -2969,6 +2970,7 @@ impl CGWConnectionServer {
                         false,
                         Some(format!("Request failed due to infra {} disconnect", infra)),
                         req.consumer_metadata,
+                        None,
                         timestamp,
                     ) {
                         self.enqueue_mbox_message_from_cgw_to_nb_api(

@@ -142,6 +142,7 @@ pub struct InfraGroupInfraRequestResult {
     pub success: bool,
     pub error_message: Option<String>,
     pub consumer_metadata: Option<ConsumerMetadata>,
+    pub payload: Option<String>,
     pub timestamp: i64,
 }
 
@@ -701,6 +702,7 @@ pub fn cgw_construct_infra_request_result_msg(
     success: bool,
     error_message: Option<String>,
     consumer_metadata: Option<ConsumerMetadata>,
+    payload: Option<String>,
     timestamp: i64,
 ) -> Result<String> {
     let infra_request_result = InfraGroupInfraRequestResult {
@@ -712,6 +714,7 @@ pub fn cgw_construct_infra_request_result_msg(
         success,
         error_message,
         consumer_metadata,
+        payload,
         timestamp,
     };
 

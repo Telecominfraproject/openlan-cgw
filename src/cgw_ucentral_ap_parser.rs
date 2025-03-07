@@ -942,7 +942,7 @@ pub fn cgw_ucentral_ap_parse_message(
 
             let reply_event = CGWUCentralEvent {
                 serial: Default::default(),
-                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id }),
+                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id, payload: message.to_string() }),
                 decompressed: None,
             };
 

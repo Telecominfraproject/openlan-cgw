@@ -195,6 +195,7 @@ pub struct CGWUCentralEventState {
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventReply {
     pub id: u64,
+    pub payload: String,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]

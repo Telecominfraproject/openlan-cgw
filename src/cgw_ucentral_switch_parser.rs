@@ -8,7 +8,7 @@ use crate::cgw_ucentral_parser::{
     CGWUCentralEvent, CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
     CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
     CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
-    CGWUCentralEventType, CGWUCentralJRPCMessage,
+    CGWUCentralEventType, CGWUCentralJRPCMessage, CGWUCentralReplyType,
 };
 
 fn parse_lldp_data(
@@ -270,7 +270,7 @@ pub fn cgw_ucentral_switch_parse_message(
 
         // Try to find ID in message root scope.
         if map.contains_key("id") {
-           id = map["id"]
+            id = map["id"]
                 .as_u64()
                 .ok_or_else(|| Error::UCentralParser("Failed to parse id"))?;
             id_found = true;
@@ -298,9 +298,43 @@ pub fn cgw_ucentral_switch_parse_message(
                 return Err(Error::UCentralParser("Received JRPC <result> without id"));
             }
 
+            let mut reply_type: Option<CGWUCentralReplyType> = None;
+            if let Value::Object(status) = &result["status"] {
+                if let Some(status_result) = status.get("result") {
+                    match status_result.as_str() {
+                        Some(type_str) => {
+                            match CGWUCentralReplyType::try_from(type_str.to_string()) {
+                                Ok(t) => {
+                                    reply_type = Some(t);
+                                }
+                                Err(_e) => {
+                                    warn!("Received JRPC <result> with unexpected result: {type_str}!");
+                                    return Err(Error::UCentralParser(
+                                        "Received JRPC <result> with unexpected result",
+                                    ));
+                                }
+                            }
+                        }
+                        None => {
+                            warn!(
+                                "Failed to convert JRPC <result> status result to string: {:?}!",
+                                status_result
+                            );
+                            return Err(Error::UCentralParser(
+                                "Received JRPC <result> with unexpected result",
+                            ));
+                        }
+                    }
+                }
+            }
+
             let reply_event = CGWUCentralEvent {
                 serial: Default::default(),
-                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply { id, payload: message.to_string() }),
+                evt_type: CGWUCentralEventType::Reply(CGWUCentralEventReply {
+                    id,
+                    payload: message.to_string(),
+                    reply_type,
+                }),
                 decompressed: None,
             };
 

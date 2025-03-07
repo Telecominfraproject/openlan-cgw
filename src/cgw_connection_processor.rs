@@ -14,7 +14,7 @@ use crate::{
     },
     cgw_ucentral_parser::{
         cgw_ucentral_event_parse, cgw_ucentral_parse_connect_event, CGWUCentralCommandType,
-        CGWUCentralEventType,
+        CGWUCentralEventType, CGWUCentralReplyType,
     },
     cgw_ucentral_topology_map::CGWUCentralTopologyMap,
 };
@@ -448,6 +448,13 @@ impl CGWConnectionProcessor {
                                         "Pending request ID {} is not equal received reply ID {}!",
                                         pending_req_id, content.id
                                     );
+                                }
+
+                                if let Some(reply_type) = content.reply_type {
+                                    if reply_type == CGWUCentralReplyType::Pending {
+                                        warn!("CGW Receive Reply for req id: {}, with result type: {}. Waiting for result Done result!", content.id, reply_type);
+                                        return Ok(CGWConnectionState::IsActive);
+                                    }
                                 }
 
                                 let partition = match pending_req_consumer_metadata.clone() {

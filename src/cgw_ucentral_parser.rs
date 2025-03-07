@@ -244,6 +244,7 @@ pub enum CGWUCentralEventType {
     VenueBroadcast,
     RealtimeEvent(CGWUCentralEventRealtimeEvent),
     Reply(CGWUCentralEventReply),
+    Generic(String),
     Unknown,
 }
 
@@ -268,6 +269,7 @@ impl std::fmt::Display for CGWUCentralEventType {
                 write!(f, "realtime_event")
             }
             CGWUCentralEventType::Reply(_) => write!(f, "reply"),
+            CGWUCentralEventType::Generic(_) => write!(f, "generic"),
             CGWUCentralEventType::Unknown => write!(f, "unknown"),
         }
     }

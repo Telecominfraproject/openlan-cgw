@@ -552,9 +552,34 @@ impl CGWConnectionProcessor {
                                     error!("Failed to construct infra_realtime_event message!");
                                 }
                             }
+                            CGWUCentralEventType::Generic(generic_type) => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    generic_type,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                    cloud_header,
+                                    timestamp,
+                                ) {
+                                    self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                        self.group_id,
+                                        resp,
+                                        CGWKafkaProducerTopic::InfraRealtime,
+                                        None,
+                                    )
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
+                                }
+                            },
                             CGWUCentralEventType::Unknown => {
                                 error!("Received unknown event type! Message payload: {kafka_msg}");
                             }
+                            
                         }
                     }
 

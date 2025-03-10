@@ -1919,9 +1919,7 @@ impl CGWRemoteDiscovery {
         &self,
         cache: Arc<RwLock<CGWDevicesCache>>,
     ) -> Result<()> {
-        // flush cache
         let mut devices_cache = cache.write().await;
-        devices_cache.flush_all();
 
         let mut con = self.redis_infra_cache_client.clone();
         let key = format!("shard_id_{}|*", self.local_shard_id);
@@ -1987,7 +1985,7 @@ impl CGWRemoteDiscovery {
 
             match serde_json::from_str(&device_str) {
                 Ok(dev) => {
-                    devices_cache.add_device(&device_mac, &dev);
+                    devices_cache.replace_device(&device_mac, &dev);
                     CGWMetrics::get_ref()
                         .change_group_counter(
                             dev.get_device_group_id(),

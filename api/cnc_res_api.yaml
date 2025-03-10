@@ -391,6 +391,10 @@ infra_request_result:
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
         type: integer
+  payload:
+     description: OPTIONAL field.
+      The original infra result response message. It might be empty if infra doesn't send response or
+      original request tiemed out.
   timestamp:
     description: MANDATORY field.
       (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time

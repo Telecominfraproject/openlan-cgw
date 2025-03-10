@@ -195,6 +195,8 @@ pub struct CGWUCentralEventState {
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct CGWUCentralEventReply {
     pub id: u64,
+    pub payload: String,
+    pub reply_type: Option<CGWUCentralReplyType>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -244,6 +246,7 @@ pub enum CGWUCentralEventType {
     VenueBroadcast,
     RealtimeEvent(CGWUCentralEventRealtimeEvent),
     Reply(CGWUCentralEventReply),
+    Generic(String),
     Unknown,
 }
 
@@ -268,7 +271,35 @@ impl std::fmt::Display for CGWUCentralEventType {
                 write!(f, "realtime_event")
             }
             CGWUCentralEventType::Reply(_) => write!(f, "reply"),
+            CGWUCentralEventType::Generic(_) => write!(f, "generic"),
             CGWUCentralEventType::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum CGWUCentralReplyType {
+    Pending,
+    Done,
+}
+
+impl std::fmt::Display for CGWUCentralReplyType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CGWUCentralReplyType::Pending => write!(f, "Pending"),
+            CGWUCentralReplyType::Done => write!(f, "Done"),
+        }
+    }
+}
+
+impl TryFrom<String> for CGWUCentralReplyType {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        match value.as_str() {
+            "pending" => Ok(CGWUCentralReplyType::Pending),
+            "done" => Ok(CGWUCentralReplyType::Done),
+            _ => Err(Error::UCentralParser("Message to string cast failed")),
         }
     }
 }

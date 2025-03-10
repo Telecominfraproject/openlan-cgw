@@ -14,7 +14,7 @@ use crate::{
     },
     cgw_ucentral_parser::{
         cgw_ucentral_event_parse, cgw_ucentral_parse_connect_event, CGWUCentralCommandType,
-        CGWUCentralEventType,
+        CGWUCentralEventType, CGWUCentralReplyType,
     },
     cgw_ucentral_topology_map::CGWUCentralTopologyMap,
 };
@@ -111,6 +111,7 @@ pub struct CGWConnectionProcessor {
     pub group_id: i32,
     pub feature_topomap_enabled: bool,
     pub device_type: CGWDeviceType,
+    pub connect_message: String,
 }
 
 impl CGWConnectionProcessor {
@@ -123,6 +124,7 @@ impl CGWConnectionProcessor {
             feature_topomap_enabled: server.feature_topomap_enabled,
             // Default to AP, it's safe, as later-on it will be changed
             device_type: CGWDeviceType::CGWDeviceAP,
+            connect_message: String::default(),
         };
 
         conn_processor
@@ -259,14 +261,14 @@ impl CGWConnectionProcessor {
         // cgw_connection_server has an authoritative decision whether
         // we can proceed.
         debug!("Sending ACK request for device serial: {}", self.serial);
-        let orig_connect_msg = message.into_text().unwrap_or_default();
+        self.connect_message = message.into_text().unwrap_or_default();
         let (mbox_tx, mut mbox_rx) = unbounded_channel::<CGWConnectionProcessorReqMsg>();
         let msg = CGWConnectionServerReqMsg::AddNewConnection(
             evt.serial,
             self.addr,
             caps,
             mbox_tx,
-            orig_connect_msg,
+            self.connect_message.clone(),
         );
         self.cgw_server
             .enqueue_mbox_message_to_cgw_server(msg)
@@ -448,6 +450,13 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
+                                if let Some(reply_type) = content.reply_type {
+                                    if reply_type == CGWUCentralReplyType::Pending {
+                                        warn!("CGW Receive Reply for req id: {}, with result type: {}. Waiting for result Done result!", content.id, reply_type);
+                                        return Ok(CGWConnectionState::IsActive);
+                                    }
+                                }
+
                                 let partition = match pending_req_consumer_metadata.clone() {
                                     Some(data) => data.sender_partition,
                                     None => None,
@@ -459,10 +468,11 @@ impl CGWConnectionProcessor {
                                     self.cgw_server.get_local_id(),
                                     pending_req_uuid,
                                     pending_req_id,
-                                    cloud_header,
+                                    cloud_header.clone(),
                                     true,
                                     None,
                                     pending_req_consumer_metadata,
+                                    Some(content.payload),
                                     timestamp,
                                 ) {
                                     self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -473,6 +483,24 @@ impl CGWConnectionProcessor {
                                     );
                                 } else {
                                     error!("Failed to construct infra_request_result message!");
+                                }
+
+                                // Send InfraRealtime event in addition to infra request result
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                    cloud_header,
+                                    timestamp,
+                                ) {
+                                    self.cgw_server
+                                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                                            self.group_id,
+                                            resp,
+                                            CGWKafkaProducerTopic::InfraRealtime,
+                                        )?;
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
                                 }
                             }
                             CGWUCentralEventType::RealtimeEvent(_) => {
@@ -537,6 +565,30 @@ impl CGWConnectionProcessor {
 
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                    cloud_header,
+                                    timestamp,
+                                ) {
+                                    self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
+                                        self.group_id,
+                                        resp,
+                                        CGWKafkaProducerTopic::InfraRealtime,
+                                        None,
+                                    )
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
+                                }
+                            }
+                            CGWUCentralEventType::Generic(generic_type) => {
+                                if self.group_id == 0 {
+                                    // This infra is unassigned - CGW SHOULD NOT
+                                    // send State/Infra Realtime event to NB
+                                    return Ok(CGWConnectionState::IsActive);
+                                }
+
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    generic_type,
                                     kafka_msg,
                                     self.cgw_server.get_local_id(),
                                     cloud_header,
@@ -638,7 +690,7 @@ impl CGWConnectionProcessor {
                                 self.serial,
                                 self.addr,
                                 self.cgw_server.get_local_id(),
-                                String::default(),
+                                self.connect_message.clone(),
                                 cloud_header,
                                 timestamp,
                             ) {
@@ -658,7 +710,7 @@ impl CGWConnectionProcessor {
                                 self.serial,
                                 self.addr,
                                 self.cgw_server.get_local_id(),
-                                String::default(),
+                                self.connect_message.clone(),
                                 timestamp,
                             ) {
                                 self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -877,6 +929,7 @@ impl CGWConnectionProcessor {
                             None => None,
                         };
 
+                        // Requests does not receive Reply - so payload is None
                         if let Ok(resp) = cgw_construct_infra_request_result_msg(
                             self.cgw_server.get_local_id(),
                             req.uuid,
@@ -887,6 +940,7 @@ impl CGWConnectionProcessor {
                                 "Request flushed from infra queue {device_mac} due to previous request timeout!"
                             )),
                             consumer_partition,
+                            None,
                             timestamp,
                         ) {
                             // Currently Device Queue Manager does not store infras GID
@@ -908,6 +962,7 @@ impl CGWConnectionProcessor {
                         None => None,
                     };
                     fsm_state = CGWUCentralMessageProcessorState::Idle;
+                    // Requests does not receive Reply - so payload is None
                     if let Ok(resp) = cgw_construct_infra_request_result_msg(
                         self.cgw_server.get_local_id(),
                         pending_req_uuid,
@@ -916,6 +971,7 @@ impl CGWConnectionProcessor {
                         false,
                         Some("Request timed out".to_string()),
                         pending_req_consumer_metadata,
+                        None,
                         timestamp,
                     ) {
                         self.cgw_server.enqueue_mbox_message_from_cgw_to_nb_api(

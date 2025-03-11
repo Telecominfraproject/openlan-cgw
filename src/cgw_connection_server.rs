@@ -3,10 +3,11 @@ use crate::cgw_device::{
     OldNew,
 };
 use crate::cgw_nb_api_listener::{
-    cgw_construct_cloud_header, cgw_construct_foreign_infra_connection_msg,
-    cgw_construct_infra_capabilities_changed_msg, cgw_construct_infra_enqueue_response,
-    cgw_construct_infra_group_create_response, cgw_construct_infra_group_delete_response,
-    cgw_construct_infra_group_infras_add_response, cgw_construct_infra_group_infras_del_response,
+    cgw_construct_cgw_alert_message, cgw_construct_cloud_header,
+    cgw_construct_foreign_infra_connection_msg, cgw_construct_infra_capabilities_changed_msg,
+    cgw_construct_infra_enqueue_response, cgw_construct_infra_group_create_response,
+    cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
+    cgw_construct_infra_group_infras_del_response,
     cgw_construct_infra_group_infras_set_cloud_header_response,
     cgw_construct_infra_group_set_cloud_header_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
@@ -1597,7 +1598,7 @@ impl CGWConnectionServer {
         }
     }
 
-    fn parse_nbapi_msg(&self, payload: &str) -> Option<CGWNBApiParsedMsg> {
+    fn parse_nbapi_msg(&self, payload: &str) -> Result<CGWNBApiParsedMsg> {
         #[derive(Debug, Serialize, Deserialize)]
         struct InfraGroupCreate {
             r#type: String,
@@ -1710,28 +1711,50 @@ impl CGWConnectionServer {
             consumer_metadata: Option<ConsumerMetadata>,
         }
 
-        let map: Map<String, Value> = serde_json::from_str(payload).ok()?;
+        let map: Map<String, Value> = serde_json::from_str(payload)?;
 
-        let rc = map.get("type")?;
-        let msg_type = rc.as_str()?;
+        let rc = map.get("type").ok_or(Error::ConnectionServer(
+            "parse_nbapi_msg: failed to get message type!".to_string(),
+        ))?;
+        let msg_type = rc.as_str().ok_or(Error::ConnectionServer(format!(
+            "parse_nbapi_msg: failed to convert message type {rc} to string!"
+        )))?;
 
-        let rc = map.get("infra_group_id")?;
-        let group_id: i32 = rc.as_i64()? as i32;
+        let rc = map.get("infra_group_id").ok_or(Error::ConnectionServer(
+            "parse_nbapi_msg: failed to get infra_group_id!".to_string(),
+        ))?;
+        let group_id: i32 = rc.as_i64().ok_or(Error::ConnectionServer(format!(
+            "parse_nbapi_msg: failed to convert infra_group_id {rc} as i32!"
+        )))? as i32;
 
         let rc = map.get("consumer_metadata");
         let consumer_metadata: Option<ConsumerMetadata> = match rc {
-            Some(value) => serde_json::from_value(value.clone()).ok()?,
+            Some(value) => match serde_json::from_value(value.clone()) {
+                Ok(metadata) => metadata,
+                Err(e) => {
+                    return Err(Error::ConnectionServer(format!(
+                        "Failed to parse {msg_type} message consumer_metadata! Error: {e}"
+                    )));
+                }
+            },
             None => None,
         };
 
         match msg_type {
             "infrastructure_group_create" => {
-                let json_msg: InfraGroupCreate = serde_json::from_str(payload).ok()?;
+                let json_msg: InfraGroupCreate = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                            "Failed to parse infrastructure_group_create message! Error: {e}"
+                        )));
+                    }
+                };
                 let cloud_header: Option<String> = match json_msg.group_cloud_header {
-                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    Some(ref header) => Some(serde_json::to_string(header)?),
                     None => None,
                 };
-                return Some(CGWNBApiParsedMsg::new(
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupCreate(
@@ -1741,12 +1764,17 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_create_to_shard" => {
-                let json_msg: InfraGroupCreateToShard = serde_json::from_str(payload).ok()?;
+                let json_msg: InfraGroupCreateToShard = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!("Failed to parse infrastructure_group_create_to_shard message! Error: {e}")));
+                    }
+                };
                 let cloud_header: Option<String> = match json_msg.group_cloud_header {
-                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    Some(ref header) => Some(serde_json::to_string(header)?),
                     None => None,
                 };
-                return Some(CGWNBApiParsedMsg::new(
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupCreateToShard(
@@ -1757,20 +1785,34 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_delete" => {
-                let json_msg: InfraGroupDelete = serde_json::from_str(payload).ok()?;
-                return Some(CGWNBApiParsedMsg::new(
+                let json_msg: InfraGroupDelete = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                            "Failed to parse infrastructure_group_delete message! Error: {e}"
+                        )));
+                    }
+                };
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupDelete(consumer_metadata),
                 ));
             }
             "infrastructure_group_infras_add" => {
-                let json_msg: InfraGroupInfrasAdd = serde_json::from_str(payload).ok()?;
+                let json_msg: InfraGroupInfrasAdd = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                            "Failed to parse infrastructure_group_infras_add message! Error: {e}"
+                        )));
+                    }
+                };
                 let cloud_header: Option<String> = match json_msg.infras_cloud_header {
-                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    Some(ref header) => Some(serde_json::to_string(header)?),
                     None => None,
                 };
-                return Some(CGWNBApiParsedMsg::new(
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfrasAdd(
@@ -1781,8 +1823,15 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infras_del" => {
-                let json_msg: InfraGroupInfrasDel = serde_json::from_str(payload).ok()?;
-                return Some(CGWNBApiParsedMsg::new(
+                let json_msg: InfraGroupInfrasDel = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                            "Failed to parse infrastructure_group_infras_del message! Error: {e}"
+                        )));
+                    }
+                };
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfrasDel(
@@ -1792,33 +1841,50 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infra_message_enqueue" => {
-                let json_msg: InfraGroupMsgJSON = serde_json::from_str(payload).ok()?;
-                return Some(CGWNBApiParsedMsg::new(
+                let json_msg: InfraGroupMsgJSON = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!("Failed to parse infrastructure_group_infra_message_enqueue message! Error: {e}")));
+                    }
+                };
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfraMsg(
                         json_msg.infra_group_infra,
-                        serde_json::to_string(&json_msg.msg).ok()?,
+                        serde_json::to_string(&json_msg.msg)?,
                         json_msg.timeout,
                         consumer_metadata,
                     ),
                 ));
             }
             "rebalance_groups" => {
-                let json_msg: RebalanceGroups = serde_json::from_str(payload).ok()?;
-                return Some(CGWNBApiParsedMsg::new(
+                let json_msg: RebalanceGroups = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                            "Failed to parse rebalance_groups message! Error: {e}"
+                        )));
+                    }
+                };
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::RebalanceGroups(consumer_metadata),
                 ));
             }
             "infrastructure_group_set_cloud_header" => {
-                let json_msg: InfraGroupSetCloudHeader = serde_json::from_str(payload).ok()?;
+                let json_msg: InfraGroupSetCloudHeader = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!("Failed to parse infrastructure_group_set_cloud_header message! Error: {e}")));
+                    }
+                };
                 let cloud_header: Option<String> = match json_msg.group_cloud_header {
-                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    Some(ref header) => Some(serde_json::to_string(header)?),
                     None => None,
                 };
-                return Some(CGWNBApiParsedMsg::new(
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupSetCloudHeader(
@@ -1828,13 +1894,17 @@ impl CGWConnectionServer {
                 ));
             }
             "infrastructure_group_infras_set_cloud_header" => {
-                let json_msg: InfraGroupInfrasSetCloudHeader =
-                    serde_json::from_str(payload).ok()?;
+                let json_msg: InfraGroupInfrasSetCloudHeader = match serde_json::from_str(payload) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!("Failed to parse infrastructure_group_infras_set_cloud_header message! Error: {e}")));
+                    }
+                };
                 let cloud_header: Option<String> = match json_msg.infras_cloud_header {
-                    Some(ref header) => Some(serde_json::to_string(header).ok()?),
+                    Some(ref header) => Some(serde_json::to_string(header)?),
                     None => None,
                 };
-                return Some(CGWNBApiParsedMsg::new(
+                return Ok(CGWNBApiParsedMsg::new(
                     json_msg.uuid,
                     group_id,
                     CGWNBApiParsedMsgType::InfrastructureGroupInfrasSetCloudHeader(
@@ -1849,7 +1919,9 @@ impl CGWConnectionServer {
             }
         }
 
-        None
+        Err(Error::ConnectionServer(format!(
+            "Unknown type {msg_type} received!"
+        )))
     }
 
     fn notify_device_on_foreign_connection(self: Arc<Self>, mac: MacAddress, shard_id_owner: i32) {
@@ -2087,17 +2159,14 @@ impl CGWConnectionServer {
                 ) = msg;
 
                 let parsed_msg = match self.parse_nbapi_msg(&payload) {
-                    Some(val) => val,
-                    None => {
-                        warn!("Failed to parse recv msg with key {key}, discarded!");
+                    Ok(val) => val,
+                    Err(e) => {
+                        warn!("Failed to parse recv msg with key {key}, discarded! Error: {e}");
 
-                        if let Ok(resp) = cgw_construct_infra_enqueue_response(
+                        if let Ok(resp) = cgw_construct_cgw_alert_message(
                             self.local_cgw_id,
-                            Uuid::default(),
-                            false,
-                            Some(format!("Failed to parse NB API message with key {key}")),
-                            local_shard_partition_key.clone(),
-                            None,
+                            e.to_string(),
+                            payload,
                             timestamp,
                         ) {
                             self.enqueue_mbox_message_from_cgw_to_nb_api(
@@ -2294,30 +2363,32 @@ impl CGWConnectionServer {
                     self.local_cgw_id
                 );
 
-                if let Some(msg) = self.parse_nbapi_msg(&payload) {
-                    msg.handle(self.clone()).await;
-                } else {
-                    if let Ok(resp) = cgw_construct_infra_enqueue_response(
-                        self.local_cgw_id,
-                        Uuid::default(),
-                        false,
-                        Some(format!("Failed to parse NB API message with key {key}")),
-                        local_shard_partition_key.clone(),
-                        None,
-                        timestamp,
-                    ) {
-                        self.enqueue_mbox_message_from_cgw_to_nb_api(
-                            -1,
-                            resp,
-                            CGWKafkaProducerTopic::CnCRes,
-                            None,
-                        );
-                    } else {
-                        error!("Failed to construct infra_enqueue message!");
+                match self.parse_nbapi_msg(&payload) {
+                    Ok(msg) => {
+                        msg.handle(self.clone()).await;
                     }
+                    Err(e) => {
+                        error!("Failed to parse NB API message with key {key}! Error: {e}");
 
-                    error!("Failed to parse msg from NBAPI (malformed?)!");
-                    continue;
+                        if let Ok(resp) = cgw_construct_cgw_alert_message(
+                            self.local_cgw_id,
+                            e.to_string(),
+                            payload,
+                            timestamp,
+                        ) {
+                            self.enqueue_mbox_message_from_cgw_to_nb_api(
+                                -1,
+                                resp,
+                                CGWKafkaProducerTopic::CnCRes,
+                                None,
+                            );
+                        } else {
+                            error!("Failed to construct infra_enqueue message!");
+                        }
+
+                        error!("Failed to parse msg from NBAPI (malformed?)!");
+                        continue;
+                    }
                 }
             }
 

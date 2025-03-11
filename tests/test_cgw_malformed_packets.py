@@ -18,7 +18,6 @@ class TestCgwMalformedPackets:
             f'kafka consumer is not connected to Kafka'
 
         uuid_val = uuid.uuid4()
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         group_id = 100
 
         message = MalformedMessage()
@@ -26,7 +25,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.group_create(uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -34,11 +33,8 @@ class TestCgwMalformedPackets:
                 'Failed to receive create group result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
+                'cgw_alert')
 
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infra group create passed while expected to be failed! Malformed packet was sent!')
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -52,7 +48,6 @@ class TestCgwMalformedPackets:
         assert test_context.kafka_consumer.is_connected(), \
             f'kafka consumer is not connected to Kafka'
 
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         uuid_val = uuid.uuid4()
         group_id = 100
 
@@ -62,7 +57,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.group_create_to_shard(default_shard_id, uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive create group result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -70,11 +65,7 @@ class TestCgwMalformedPackets:
                 'Failed to receive create group result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
-
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infra group create passed while expected to be failed! Malformed packet was sent!')
+                'cgw_alert')
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -88,7 +79,6 @@ class TestCgwMalformedPackets:
         assert test_context.kafka_consumer.is_connected(), \
             f'kafka consumer is not connected to Kafka'
 
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         uuid_val = uuid.uuid4()
         group_id = 100
 
@@ -97,7 +87,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.group_delete(uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive delete group result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -105,11 +95,7 @@ class TestCgwMalformedPackets:
                 'Failed to receive delete group result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
-
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infra group delete passed while expected to be failed! Malformed packet was sent!')
+                'cgw_alert')
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -123,7 +109,6 @@ class TestCgwMalformedPackets:
         assert test_context.kafka_consumer.is_connected(), \
             f'kafka consumer is not connected to Kafka'
 
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         uuid_val = uuid.uuid4()
         group_id = 100
 
@@ -133,7 +118,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.add_dev_to_group([infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive infras add result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -141,11 +126,7 @@ class TestCgwMalformedPackets:
                 'Failed to receive infras add result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
-
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infras add passed while expected to be failed! Malformed packet was sent!')
+                'cgw_alert')
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -159,7 +140,6 @@ class TestCgwMalformedPackets:
         assert test_context.kafka_consumer.is_connected(), \
             f'kafka consumer is not connected to Kafka'
 
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         uuid_val = uuid.uuid4()
         group_id = 100
 
@@ -169,7 +149,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.remove_dev_from_group([infra_mac], uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive infras del result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -177,11 +157,7 @@ class TestCgwMalformedPackets:
                 'Failed to receive infras del result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
-
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infras del passed while expected to be failed! Malformed packet was sent!')
+                'cgw_alert')
 
     @pytest.mark.usefixtures("test_context",
                              "cgw_probe",
@@ -195,7 +171,6 @@ class TestCgwMalformedPackets:
         assert test_context.kafka_consumer.is_connected(), \
             f'kafka consumer is not connected to Kafka'
 
-        expected_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
         uuid_val = uuid.uuid4()
         group_id = 100
 
@@ -205,7 +180,7 @@ class TestCgwMalformedPackets:
         # Create single group
         test_context.kafka_producer.conn.send(test_context.default_producer_topic(),
                                               message.to_device(infra_mac, uuid_val.int), bytes(str(group_id), encoding="utf-8"))
-        ret_msg = test_context.kafka_consumer.get_result_msg(expected_uuid.int)
+        ret_msg = test_context.kafka_consumer.get_msg_by_type('cgw_alert')
         if not ret_msg:
             print('Failed to receive infra message result, was expecting ' +
                   str(uuid_val.int) + ' uuid reply')
@@ -213,8 +188,4 @@ class TestCgwMalformedPackets:
                 'Failed to receive infra message result when expected')
 
         assert (ret_msg.value['type'] ==
-                'infrastructure_group_infra_message_enqueue_response')
-
-        if ret_msg.value['success'] is True:
-            raise Exception(
-                'Infra message passed while expected to be failed! Malformed packet was sent!')
+                'cgw_alert')

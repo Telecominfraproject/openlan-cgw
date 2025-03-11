@@ -64,7 +64,7 @@ impl std::fmt::Display for CGWKafkaProducerTopic {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConsumerMetadata {
     pub sender_partition: Option<i32>,
-    pub sender_id: i32,
+    pub sender_id: String,
 }
 
 #[derive(Debug, Serialize)]

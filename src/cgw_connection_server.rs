@@ -2029,10 +2029,10 @@ impl CGWConnectionServer {
                                     if infra.get_device_group_id() == 0 {
                                         infras_list.push(*infra_mac);
                                     }
-                                },
+                                }
                                 None => {
                                     infras_list.push(*infra_mac);
-                                },
+                                }
                             }
                         }
 

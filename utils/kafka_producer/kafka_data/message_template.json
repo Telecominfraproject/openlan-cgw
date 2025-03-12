@@ -9,7 +9,7 @@
         },
         "consumer_metadata": {
             "sender_partition": 1,
-            "sender_id": 100
+            "sender_id": "organization-service-f681ecaa-f314-4ec9-b296-a8044d0d5470"
         }
     },
     "add_group_to_shard": {

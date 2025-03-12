@@ -52,7 +52,7 @@ infrastructure_group_create:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_create_to_shard:
   description:
@@ -109,7 +109,7 @@ infrastructure_group_create_to_shard:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_delete:
   description:
@@ -155,7 +155,7 @@ infrastructure_group_delete:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_infras_add:
   description:
@@ -212,7 +212,7 @@ infrastructure_group_infras_add:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_infras_del:
   description:
@@ -266,7 +266,7 @@ infrastructure_group_infras_del:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_infra_message_enqueue:
   description:
@@ -337,7 +337,7 @@ infrastructure_group_infra_message_enqueue:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 rebalance_groups:
   description:
@@ -383,7 +383,7 @@ rebalance_groups:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_set_cloud_header:
   description:
@@ -431,7 +431,7 @@ infrastructure_group_set_cloud_header:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 
 infrastructure_group_infras_set_cloud_header:
   description:
@@ -487,5 +487,5 @@ infrastructure_group_infras_set_cloud_header:
         description: OPTIONAL field.
           The unique identifier of the sender (kafka consumer id, for example),
           that uniquely identifies the single consumer within consumer group.
-        type: integer
+        type: string
 

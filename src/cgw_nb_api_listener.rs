@@ -64,7 +64,7 @@ impl std::fmt::Display for CGWKafkaProducerTopic {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConsumerMetadata {
     pub sender_partition: Option<i32>,
-    pub sender_id: i32,
+    pub sender_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -311,7 +311,31 @@ pub struct InfraGroupInfrasSetCloudHeaderResponse {
     pub timestamp: i64,
 }
 
-/* End */
+#[derive(Debug, Serialize)]
+pub struct CGWAlert {
+    pub r#type: &'static str,
+    pub reporter_shard_id: i32,
+    pub trace: String,
+    pub payload: String,
+    pub timestamp: i64,
+}
+
+pub fn cgw_construct_cgw_alert_message(
+    reporter_shard_id: i32,
+    trace: String,
+    payload: String,
+    timestamp: i64,
+) -> Result<String> {
+    let alert_message = CGWAlert {
+        r#type: "cgw_alert",
+        reporter_shard_id,
+        trace,
+        payload,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&alert_message)?)
+}
 
 pub fn cgw_construct_infra_state_event_message(
     event_type: String,

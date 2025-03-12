@@ -436,6 +436,24 @@ impl CGWConnectionProcessor {
                                 }
                             }
                             CGWUCentralEventType::Reply(content) => {
+                                // Send InfraRealtime event in addition to infra request result
+                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
+                                    event_type_str,
+                                    kafka_msg,
+                                    self.cgw_server.get_local_id(),
+                                    cloud_header.clone(),
+                                    timestamp,
+                                ) {
+                                    self.cgw_server
+                                        .enqueue_mbox_message_from_device_to_nb_api_c(
+                                            self.group_id,
+                                            resp,
+                                            CGWKafkaProducerTopic::InfraRealtime,
+                                        )?;
+                                } else {
+                                    error!("Failed to construct infra_realtime_event message!");
+                                }
+
                                 if *fsm_state != CGWUCentralMessageProcessorState::ResultPending {
                                     error!(
                                         "Unexpected FSM state: {}! Expected: ResultPending",
@@ -468,7 +486,7 @@ impl CGWConnectionProcessor {
                                     self.cgw_server.get_local_id(),
                                     pending_req_uuid,
                                     pending_req_id,
-                                    cloud_header.clone(),
+                                    cloud_header,
                                     true,
                                     None,
                                     pending_req_consumer_metadata,
@@ -483,24 +501,6 @@ impl CGWConnectionProcessor {
                                     );
                                 } else {
                                     error!("Failed to construct infra_request_result message!");
-                                }
-
-                                // Send InfraRealtime event in addition to infra request result
-                                if let Ok(resp) = cgw_construct_infra_realtime_event_message(
-                                    event_type_str,
-                                    kafka_msg,
-                                    self.cgw_server.get_local_id(),
-                                    cloud_header,
-                                    timestamp,
-                                ) {
-                                    self.cgw_server
-                                        .enqueue_mbox_message_from_device_to_nb_api_c(
-                                            self.group_id,
-                                            resp,
-                                            CGWKafkaProducerTopic::InfraRealtime,
-                                        )?;
-                                } else {
-                                    error!("Failed to construct infra_realtime_event message!");
                                 }
                             }
                             CGWUCentralEventType::RealtimeEvent(_) => {

@@ -359,8 +359,7 @@ infra_request_result:
     type: string
     format: uuid
   cloud-header:
-    description:
-      OPTIONAL field.
+    description: OPTIONAL field.
       The infrastructure group and infra cloud header.
       This field might be empty JSON object or missed.
     type: string

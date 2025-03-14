@@ -3,7 +3,9 @@ use crate::{
     cgw_device::CGWDeviceType,
     cgw_nb_api_listener::{
         cgw_construct_client_join_msg, cgw_construct_client_leave_msg,
-        cgw_construct_client_migrate_msg, cgw_construct_cloud_header, cgw_get_timestamp_16_digits,
+        cgw_construct_client_migrate_msg, cgw_construct_cloud_header,
+        cgw_construct_ucentral_topomap_infra_join_msg,
+        cgw_construct_ucentral_topomap_infra_leave_msg, cgw_get_timestamp_16_digits,
         CGWKafkaProducerTopic,
     },
     cgw_ucentral_parser::{
@@ -21,7 +23,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use eui48::MacAddress;
@@ -460,16 +462,13 @@ impl CGWUCentralTopologyMap {
         lock.item.remove(&gid);
     }
 
-    pub async fn insert_device(&self, topology_node_mac: &MacAddress, platform: &str, gid: i32) {
-        // TODO: rework to use device / accept device, rather then trying to
-        // parse string once again.
-        if CGWDeviceType::from_str(platform).is_err() {
-            warn!(
-                "Tried to insert {topology_node_mac} into topomap, but failed to parse it's platform string"
-            );
-            return;
-        }
-
+    pub async fn insert_device(
+        &self,
+        topology_node_mac: &MacAddress,
+        gid: i32,
+        conn_server: Arc<CGWConnectionServer>,
+        timestamp: i64,
+    ) {
         let map_connections = CGWUCentralTopologyMapConnections {
             links_list: HashMap::new(),
         };
@@ -485,6 +484,8 @@ impl CGWUCentralTopologyMap {
             let _ = v.data.topology_nodes.remove(topology_node_mac);
         }
 
+        let mut sequence_number: u64 = 1;
+
         // Try to insert new topomap node, however it's possible that it's the
         // first insert:
         //   - if first time GID is being manipulated - we also have to create
@@ -499,6 +500,8 @@ impl CGWUCentralTopologyMap {
                     CGWUCentralTopologyChildConnections::default(),
                 ),
             );
+            topology_map_data.sequence_number += 1;
+            sequence_number = topology_map_data.sequence_number;
         } else {
             let mut topology_map_data: CGWUCentralTopologyMapData = CGWUCentralTopologyMapData {
                 topology_nodes: HashMap::new(),
@@ -515,6 +518,31 @@ impl CGWUCentralTopologyMap {
                 gid,
                 TopologyMapItemData::new(topology_map_data, HashMap::new()),
             );
+        }
+
+        let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
+        let infras_cloud_header: Option<String> = conn_server
+            .get_group_infra_cloud_header(gid, topology_node_mac)
+            .await;
+
+        let cloud_header: Option<String> =
+            cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
+        let msg = cgw_construct_ucentral_topomap_infra_join_msg(
+            gid,
+            *topology_node_mac,
+            cloud_header,
+            sequence_number,
+            timestamp,
+        );
+        if let Ok(r) = msg {
+            let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
+                gid,
+                r,
+                CGWKafkaProducerTopic::Topology,
+            );
+        } else {
+            warn!("Failed to convert topomap infra join event to string!");
         }
     }
 
@@ -536,6 +564,34 @@ impl CGWUCentralTopologyMap {
 
         if let Some(ref mut topology_map_data) = lock.item.get_mut(&gid) {
             Self::clear_related_nodes(&mut topology_map_data.data, topology_node_mac);
+
+            topology_map_data.sequence_number += 1;
+
+            let group_cloud_header: Option<String> = conn_server.get_group_cloud_header(gid).await;
+            let infras_cloud_header: Option<String> = conn_server
+                .get_group_infra_cloud_header(gid, topology_node_mac)
+                .await;
+
+            let cloud_header: Option<String> =
+                cgw_construct_cloud_header(group_cloud_header, infras_cloud_header);
+
+            let msg = cgw_construct_ucentral_topomap_infra_leave_msg(
+                gid,
+                *topology_node_mac,
+                cloud_header,
+                topology_map_data.sequence_number,
+                timestamp,
+            );
+            if let Ok(r) = msg {
+                let _ = conn_server.enqueue_mbox_message_from_device_to_nb_api_c(
+                    gid,
+                    r,
+                    CGWKafkaProducerTopic::Topology,
+                );
+            } else {
+                warn!("Failed to convert ropomap infra leave event to string!");
+            }
+
             if let Some(removed_clients_list) = topology_map_data
                 .data
                 .topology_nodes

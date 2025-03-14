@@ -243,6 +243,28 @@ pub struct APClientMigrateMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct UCentralTopomapInfraJoin {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra: MacAddress,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
+    pub sequence_number: u64,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UCentralTopomapInfraLeave {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub infra_group_infra: MacAddress,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
+    pub sequence_number: u64,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InfraJoinMessage {
     pub r#type: &'static str,
     pub infra_group_id: i32,
@@ -848,6 +870,44 @@ pub fn cgw_construct_cloud_header(
     };
 
     cloud_header
+}
+
+pub fn cgw_construct_ucentral_topomap_infra_join_msg(
+    infra_group_id: i32,
+    infra_group_infra: MacAddress,
+    cloud_header: Option<String>,
+    sequence_number: u64,
+    timestamp: i64,
+) -> Result<String> {
+    let infra_leave_msg = UCentralTopomapInfraJoin {
+        r#type: "ucantral_topomap_infra_join",
+        infra_group_id,
+        infra_group_infra,
+        cloud_header,
+        sequence_number,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&infra_leave_msg)?)
+}
+
+pub fn cgw_construct_ucentral_topomap_infra_leave_msg(
+    infra_group_id: i32,
+    infra_group_infra: MacAddress,
+    cloud_header: Option<String>,
+    sequence_number: u64,
+    timestamp: i64,
+) -> Result<String> {
+    let infra_leave_msg = UCentralTopomapInfraLeave {
+        r#type: "ucantral_topomap_infra_leave",
+        infra_group_id,
+        infra_group_infra,
+        cloud_header,
+        sequence_number,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&infra_leave_msg)?)
 }
 
 pub fn cgw_get_timestamp_16_digits() -> i64 {

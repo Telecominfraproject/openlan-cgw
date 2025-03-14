@@ -16,6 +16,8 @@ def main(args: Args):
                                         args.count, args.time_to_send_s, args.interval_s)
     if args.header_group or args.header_infras:
         producer.handle_cloud_header(args.header_group, args.header_infras)
+    if args.topomap_timeout:
+        producer.handle_topomap_generate_timeout_set(args.topomap_timeout)
 
 
 if __name__ == "__main__":

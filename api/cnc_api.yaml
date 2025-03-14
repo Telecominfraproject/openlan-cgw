@@ -489,3 +489,49 @@ infrastructure_group_infras_set_cloud_header:
           that uniquely identifies the single consumer within consumer group.
         type: string
 
+infrastructure_group_topomap_generate_timeout_set_request:
+  description:
+    Set infrastructure group topology map generate event timeout.
+    Request generates corresponding 'infrastructure_group_topomap_generate_timeout_set_response' response.
+  type:
+    description: MANDATORY field.
+      Type parsed by CGW for matching.
+    type: string
+    enum:
+      - infrastructure_group_topomap_generate_timeout_set_response
+  infra_group_id:
+    description: MANDATORY field.
+      The infrastructure group id which header is being altered.
+      Request fails if group id is nonexistent.
+  timeout:
+    description: MANDATORY field.
+      The infrastructure group topology map generate event timeout value.
+    type: integer
+  uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request.
+      The caller can expect a response with the same UUID value,
+      effectively matching a request with a response, due to
+      async nature of the Kafka bus.
+    type: string
+    format: uuid
+  consumer_metadata:
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
+    type: object
+    value:
+      sender_partition:
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
+        type: integer
+      sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
+        type: string

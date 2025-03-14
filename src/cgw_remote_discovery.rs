@@ -10,6 +10,7 @@ use crate::{
     },
     cgw_remote_client::CGWRemoteClient,
     cgw_tls::cgw_read_root_certs_dir,
+    cgw_ucentral_topology_map::CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT,
     AppArgs,
 };
 
@@ -46,6 +47,7 @@ static REDIS_KEY_GID_VALUE_INFRAS_CAPACITY: &str = "infras_capacity";
 static REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED: &str = "infras_assigned";
 static REDIS_KEY_GID_GROUP_CLOUD_HEADER: &str = "group_cloud_header";
 static REDIS_KEY_GID_INFRA_CLOUD_HEADER: &str = "infra_cloud_header";
+static REDIS_KEY_GID_TOPOMAP_GENERATE_TIMEOUT: &str = "topomap_generate_timeout";
 
 const CGW_REDIS_DEVICES_CACHE_DB: u32 = 1;
 
@@ -982,7 +984,9 @@ impl CGWRemoteDiscovery {
             .arg(REDIS_KEY_GID_VALUE_INFRAS_CAPACITY)
             .arg(infras_capacity.to_string())
             .arg(REDIS_KEY_GID_VALUE_INFRAS_ASSIGNED)
-            .arg(infras_assigned.to_string());
+            .arg(infras_assigned.to_string())
+            .arg(REDIS_KEY_GID_TOPOMAP_GENERATE_TIMEOUT)
+            .arg(CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT.to_string());
 
         if let Some(group_header) = cloud_header {
             cmd.arg(REDIS_KEY_GID_GROUP_CLOUD_HEADER)
@@ -2096,6 +2100,76 @@ impl CGWRemoteDiscovery {
         };
 
         Ok(last_update_timestamp)
+    }
+
+    pub async fn update_infra_group_topomap_generate_timeout_redis(
+        &self,
+        group_id: i32,
+        timeout: u32,
+    ) -> Result<u32> {
+        let mut con = self.redis_client.clone();
+
+        // Get old timeout value
+        let old_timeout_value: u32 = match redis::cmd("HGET")
+            .arg(format!("{REDIS_KEY_GID}{group_id}"))
+            .arg(REDIS_KEY_GID_TOPOMAP_GENERATE_TIMEOUT)
+            .query_async(&mut con)
+            .await
+        {
+            Ok(old_timeout) => old_timeout,
+            Err(e) => {
+                if e.is_io_error() {
+                    Self::set_redis_health_state_not_ready(e.to_string()).await;
+                }
+
+                warn!("Failed to get infras topomap generate timeout value for GID {group_id}, return default value: {CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT}! Error: {e}");
+
+                CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT
+            }
+        };
+
+        let res: RedisResult<()> = redis::cmd("HSET")
+            .arg(format!("{REDIS_KEY_GID}{group_id}"))
+            .arg(REDIS_KEY_GID_TOPOMAP_GENERATE_TIMEOUT)
+            .arg(timeout)
+            .query_async(&mut con)
+            .await;
+        if let Err(e) = res {
+            if e.is_io_error() {
+                Self::set_redis_health_state_not_ready(e.to_string()).await;
+            }
+            error!("Failed to set infra group topomap generate timeout! Error: {e}");
+            return Err(Error::RemoteDiscovery(
+                "Failed to set infra group topomap generate timeout",
+            ));
+        }
+
+        Ok(old_timeout_value)
+    }
+
+    pub async fn get_infra_group_topomap_generate_timeout_redis(&self, group_id: i32) -> u32 {
+        let mut con = self.redis_client.clone();
+
+        // Get old timeout value
+        let old_timeout_value: u32 = match redis::cmd("HGET")
+            .arg(format!("{REDIS_KEY_GID}{group_id}"))
+            .arg(REDIS_KEY_GID_TOPOMAP_GENERATE_TIMEOUT)
+            .query_async(&mut con)
+            .await
+        {
+            Ok(old_timeout) => old_timeout,
+            Err(e) => {
+                if e.is_io_error() {
+                    Self::set_redis_health_state_not_ready(e.to_string()).await;
+                }
+
+                warn!("Failed to get infras topomap generate timeout value for GID {group_id}, return default value: {CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT}! Error: {e}");
+
+                CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT
+            }
+        };
+
+        old_timeout_value
     }
 
     pub async fn set_redis_health_state_not_ready(error_message: String) {

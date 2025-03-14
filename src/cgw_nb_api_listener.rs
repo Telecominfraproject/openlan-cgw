@@ -320,6 +320,21 @@ pub struct CGWAlert {
     pub timestamp: i64,
 }
 
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGenerateTimeoutSetResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
+    pub old_timeout: u32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
+    pub timestamp: i64,
+}
+
 pub fn cgw_construct_cgw_alert_message(
     reporter_shard_id: i32,
     trace: String,
@@ -839,6 +854,33 @@ pub fn cgw_construct_cloud_header(
     };
 
     cloud_header
+}
+
+pub fn cgw_construct_infra_group_topomap_generate_timeout_set_response(
+    infra_group_id: i32,
+    reporter_shard_id: i32,
+    old_timeout: u32,
+    uuid: Uuid,
+    success: bool,
+    error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
+    cloud_header: Option<String>,
+    timestamp: i64,
+) -> Result<String> {
+    let topomap_generate_timeout_set = InfraGroupTopomapGenerateTimeoutSetResponse {
+        r#type: "infrastructure_group_topomap_generate_timeout_set_response",
+        infra_group_id,
+        reporter_shard_id,
+        old_timeout,
+        uuid,
+        success,
+        error_message,
+        consumer_metadata,
+        cloud_header,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&topomap_generate_timeout_set)?)
 }
 
 pub fn cgw_get_timestamp_16_digits() -> i64 {

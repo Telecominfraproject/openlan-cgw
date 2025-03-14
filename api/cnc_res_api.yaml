@@ -574,3 +574,66 @@ infrastructure_group_infras_set_cloud_header_response:
       the response had been generated.
     type: integer
 
+infrastructure_group_topomap_generate_timeout_set_response:
+  description:
+    Response to corresponding 'infrastructure_group_topomap_generate_timeout_set' request.
+  type:
+    description: MANDATORY field. Type should be parsed by NB services for matching.
+    type: string
+    enum:
+      - infrastructure_group_topomap_generate_timeout_set_response
+  reporter_shard_id:
+    description: MANDATORY field.
+      ID of the shard that handled request and generated this response.
+    type: integer
+  infra_group_id:
+    description: MANDATORY field.
+      Infrastructure group ID to which original request was directed to.
+    type: integer
+  old_timeout:
+    description: MANDATORY field.
+      Represend old topology map generate timeout value that was overwritten with corresponding request.
+    type: integer
+  uuid:
+    description: MANDATORY field.
+      The underlying unique identifier of the request, to which
+    type: string
+    format: uuid
+  success:
+    type: boolean
+  error_message:
+    description: MANDATORY field (could be empty / null).
+      Error message reporting why the request failed.
+      Filled only if 'success' is false (e.g. request failed).
+      Empty otherwise.
+    type: string
+  consumer_metadata:
+    description: OPTIONAL field.
+      Information (metadata) about the original caller of the API.
+      Only sender_partition is used directly - CGW will try to post
+      respons / reply messages to response topic within specified
+      partition id.
+      Complete object is carried on back in the reply body.
+      Can be used later on to find out original caller, if kafka
+      broker rebalanced partitions mapping of the underlying consumers.
+    type: object
+    value:
+      sender_partition:
+        description: OPTIONAL field.
+          The partition to which CGW should post messages (replies) back to.
+        type: integer
+      sender_id:
+        description: OPTIONAL field.
+          The unique identifier of the sender (kafka consumer id, for example),
+          that uniquely identifies the single consumer within consumer group.
+        type: string
+  cloud-header:
+    description: OPTIONAL field.
+      The infrastructure group cloud header.
+      This field is optional and might be empty JSON object or missed.
+    type: string
+  timestamp:
+    description: MANDATORY field.
+      (unix-epoch-time) 16 digits (microseconds) timestamp that indicates exact time
+      the response had been generated.
+    type: integer

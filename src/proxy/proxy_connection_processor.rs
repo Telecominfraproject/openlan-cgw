@@ -227,14 +227,14 @@ impl ProxyConnectionProcessor {
         }
 
         let mut last_contact = Instant::now();
-        
+
         // References to the CGW connection that can be updated
         let mut cgw_sink: Option<CGWSink> = None;
         let mut cgw_stream: Option<CGWSource> = None;
 
         loop {
             let mut wakeup_reason: WakeupReason = WakeupReason::Unspecified;
-    
+
             // Check for messages from the proxy server (mbox)
             if let Some(val) = mbox_rx.recv().now_or_never() {
                 wakeup_reason = WakeupReason::MboxRx(val);
@@ -274,7 +274,7 @@ impl ProxyConnectionProcessor {
                     }
                 }
             }
-    
+
             // Handle the wakeup reason
             match wakeup_reason {
                 WakeupReason::ClientWSSMessage(res) => {
@@ -296,7 +296,7 @@ impl ProxyConnectionProcessor {
                                         debug!("Forwarding message from client {} to CGW", self.serial);
                                         if let Err(e) = cgw_sink_inner.send(msg).await {
                                             error!("Failed to forward client message to CGW: {}", e);
-                                            
+
                                             // Attempt to reconnect if connection failed
                                             if let Some(addr) = self.peer_addr {
                                                 debug!("Attempting to reconnect to CGW at {}", addr);
@@ -344,7 +344,7 @@ impl ProxyConnectionProcessor {
                         },
                         Err(e) => {
                             error!("Error receiving message from CGW for client {}: {}", self.serial, e);
-                            
+
                             // Attempt to reconnect if needed
                             if let Some(addr) = self.peer_addr {
                                 debug!("Connection error, attempting to reconnect to CGW at {}", addr);
@@ -367,16 +367,16 @@ impl ProxyConnectionProcessor {
                             },
                             ProxyConnectionProcessorReqMsg::SetPeer(peer_addr) => {
                                 debug!("Received peer address update for client {}: {}", self.serial, peer_addr);
-                                
+
                                 // peer_addr is already stored in the handle_set_peer method
                                 // Establish connection to the new peer
                                 match self.handle_set_peer(peer_addr, &mut cgw_sink, &mut cgw_stream, original_connect_message.clone()).await {
                                     Ok(_) => {
-                                        debug!("Successfully established connection to peer {} for client {}", 
+                                        debug!("Successfully established connection to peer {} for client {}",
                                                peer_addr, self.serial);
                                     },
                                     Err(e) => {
-                                        error!("Failed to establish connection to peer {} for client {}: {}", 
+                                        error!("Failed to establish connection to peer {} for client {}: {}",
                                                peer_addr, self.serial, e);
                                     }
                                 }
@@ -406,7 +406,7 @@ impl ProxyConnectionProcessor {
                 },
                 WakeupReason::BrokenCGWConnection => {
                     warn!("CGW connection broken for client {}", self.serial);
-                    
+
                     // Attempt to reconnect if needed
                     if let Some(addr) = self.peer_addr {
                         debug!("Connection broken, attempting to reconnect to CGW at {}", addr);
@@ -427,21 +427,21 @@ impl ProxyConnectionProcessor {
                 }
             }
         }
-    
+
         // Connection is being closed, notify the proxy server
         debug!("Proxy connection for client {} is ending", self.serial);
         self.send_connection_close_event().await;
     }
 
-    async fn handle_set_peer(&mut self, 
-        peer_addr: SocketAddr, 
+    async fn handle_set_peer(&mut self,
+        peer_addr: SocketAddr,
         cgw_sink: &mut Option<CGWSink>,
         cgw_stream: &mut Option<CGWSource>,
-        original_connect_message: Message) -> Result<bool> 
+        original_connect_message: Message) -> Result<bool>
     {
         // Update the stored peer address
         self.peer_addr = Some(peer_addr);
-        
+
         // If we already have an active connection, close it first
         if cgw_sink.is_some() && cgw_stream.is_some() {
             debug!("Closing existing CGW connection for client {} before establishing new one", self.serial);

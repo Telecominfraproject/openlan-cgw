@@ -557,7 +557,7 @@ pub struct AppArgs {
 
     /// CGW Validation schema URI args
     pub validation_schema: CGWValidationSchemaArgs,
-    
+
     /// Proxy mode status (enabled/disabled)
     pub proxy_mode: bool,
 }
@@ -640,7 +640,7 @@ impl AppArgs {
         let mut redis_args = CGWRedisArgs::parse()?;
         let metrics_args = CGWMetricsArgs::parse()?;
         let validation_schema = CGWValidationSchemaArgs::parse()?;
-        
+
         let proxy_var: String =
         env::var("CGW_PROXY_MODE").unwrap_or(CGW_DEFAULT_PROXY_MODE.to_string());
         let proxy_mode = proxy_var == "yes";

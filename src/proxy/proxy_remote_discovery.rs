@@ -23,6 +23,7 @@ use tokio::sync::RwLock;
 // Used in remote lookup
 static REDIS_KEY_SHARD_ID_PREFIX: &str = "shard_id_";
 static REDIS_KEY_SHARD_ID_FIELDS_NUM: usize = 12;
+static REDIS_KEY_SHARD_DEVICE_CACHE_LAST_UPDATE_TIMESTAMP: &str = "_device_cache_last_update_timestamp";
 
 // Used in group assign / reassign
 static REDIS_KEY_GID: &str = "group_id_";
@@ -567,5 +568,101 @@ impl ProxyRemoteDiscovery {
                 ))
             }
         }
+    }
+
+    pub async fn check_redis_updated(&self, last_sync_timestamp: &mut i64) -> Result<bool> {
+        let remote_cgws = self.remote_cgws_map.read().await;
+        let original_timestamp = *last_sync_timestamp;
+        let mut newest_timestamp = original_timestamp;
+        let mut changes_detected = false;
+
+        for (shard_id, _shard_info) in remote_cgws.iter() {
+            // Get the last update timestamp for shard
+            let shard_update_timestamp = match self.get_shard_device_cache_last_update_timestamp(*shard_id).await {
+                Ok(timestamp) => timestamp,
+                Err(e) => {
+                    warn!("Failed to get update timestamp for shard {}: {}", shard_id, e);
+                    continue;
+                }
+            };
+
+            if shard_update_timestamp > original_timestamp {
+                changes_detected = true;
+                debug!("Detected update in shard {}: timestamp {} > original sync {}", 
+                      shard_id, shard_update_timestamp, original_timestamp);
+            }
+
+            if shard_update_timestamp > newest_timestamp {
+                newest_timestamp = shard_update_timestamp;
+            }
+        }
+
+        // Update to newest timestamp if changes were detected
+        if changes_detected {
+            *last_sync_timestamp = newest_timestamp;
+            debug!("Updated last_sync_timestamp to {}", newest_timestamp);
+        }
+
+        Ok(changes_detected)
+    }
+
+    async fn get_shard_device_cache_last_update_timestamp(&self, shard_id: i32) -> Result<i64> {
+        let mut con = self.redis_infra_cache_client.clone();
+        let key = format!("{}{}{}", 
+            REDIS_KEY_SHARD_ID_PREFIX, 
+            shard_id,
+            REDIS_KEY_SHARD_DEVICE_CACHE_LAST_UPDATE_TIMESTAMP
+        );
+
+        let last_update_timestamp: i64 = match redis::cmd("GET")
+            .arg(key)
+            .query_async(&mut con)
+            .await
+        {
+            Ok(timestamp) => timestamp,
+            Err(e) => {
+                warn!("Failed to get Redis shard {} last update timestamp! Error: {}", shard_id, e);
+                return Err(Error::RemoteDiscovery(
+                    format!("Failed to get Redis shard {} device cache last update timestamp", shard_id)
+                ));
+            }
+        };
+
+        Ok(last_update_timestamp)
+    }
+
+    pub async fn get_available_cgw_ids(&self) -> Result<Vec<i32>> {
+        debug!("Getting available CGW IDs");
+        let remote_cgws = self.remote_cgws_map.read().await;
+
+        if remote_cgws.is_empty() {
+            warn!("No CGW instances found in remote_cgws_map");
+            return Err(Error::RemoteDiscovery("No CGW instances available"));
+        }
+
+        // Filter available CGWs based on capacity and threshold
+        let mut available_cgws: Vec<i32> = remote_cgws
+            .iter()
+            .filter(|(_, shard)| {
+                // Only include CGWs that have capacity to handle more groups
+                shard.assigned_groups_num < shard.capacity && 
+                // Allow some buffer using threshold 
+                (shard.capacity - shard.assigned_groups_num) > shard.threshold
+            })
+            .map(|(id, _)| *id)
+            .collect();
+
+        if available_cgws.is_empty() {
+            // If no CGWs meet the capacity/threshold criteria, include all CGW IDs
+            // as a fallback, so devices can still connect somewhere
+            warn!("No CGWs with available capacity found, returning all CGW IDs");
+            available_cgws = remote_cgws.keys().cloned().collect();
+        }
+
+        // Sort the CGW IDs for consistent round-robin selection
+        available_cgws.sort();
+        debug!("Found {} available CGW IDs: {:?}", available_cgws.len(), available_cgws);
+
+        Ok(available_cgws)
     }
 }

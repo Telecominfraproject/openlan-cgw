@@ -97,6 +97,9 @@ pub struct ProxyConnectionServer {
     // Internal CGW Devices cache
     // Key: device MAC, Value: Device
     devices_cache: Arc<RwLock<CGWDevicesCache>>,
+    
+    next_cgw_id: i32,
+    last_sync_timestamp: Timestamp,
 }
 
 impl ProxyConnectionServer {
@@ -236,18 +239,37 @@ impl ProxyConnectionServer {
 
     async fn process(self: Arc<Self>, mut rx_mbox: ProxyConnectionServerMboxRx) {
         debug!("process entry");
-
+    
         let buf_capacity = 1000;
         let mut buf: Vec<ProxyConnectionServerReqMsg> = Vec::with_capacity(buf_capacity);
         let mut num_of_msg_read = 0;
-
+        let mut should_resync = false;
+        let mut last_tick = tokio::time::Instant::now();
+        let tick_interval = Duration::from_secs(10);
+    
         loop {
+            // Handle Redis updates that might require a resync
+            if let Ok(true) = self.proxy_remote_discovery.check_redis_updated(&mut self.last_sync_timestamp).await {
+                should_resync = true;
+                info!("Redis update detected, scheduling resync");
+            }
+
+            // Handle periodic tick for connection management
+            let now = tokio::time::Instant::now();
+            if now.duration_since(last_tick) >= tick_interval {
+                last_tick = now;
+                debug!("Running periodic connection management");
+
+                if let Err(e) = self.manage_device_connections(&mut should_resync).await {
+                    error!("Error in device connection management: {}", e);
+                    // Don't reset should_resync if there was an error, so we can try again
+                }
+            }
+
+            // Handle incoming messages
             if num_of_msg_read < buf_capacity {
                 // Try to recv_many, but don't sleep too much
-                // in case if no messaged pending and we have
-                // TODO: rework?
-                // Currently recv_many may sleep if previous read >= 1,
-                // but no new messages pending
+                // in case if no messaged pending
                 let rd_num = tokio::select! {
                     v = rx_mbox.recv_many(&mut buf, buf_capacity - num_of_msg_read) => {
                         v
@@ -257,7 +279,7 @@ impl ProxyConnectionServer {
                     }
                 };
                 num_of_msg_read += rd_num;
-
+    
                 // We read some messages, try to continue and read more
                 // If none read - break from recv, process all buffers that've
                 // been filled-up so far (both local and remote).
@@ -270,12 +292,12 @@ impl ProxyConnectionServer {
                     continue;
                 }
             }
-
+    
             let mut connmap_w_lock = self.connmap.map.write().await;
-
+    
             while !buf.is_empty() {
                 let msg = buf.remove(0);
-
+    
                 if let ProxyConnectionServerReqMsg::AddNewConnection(
                     device_mac,
                     ip_addr,
@@ -299,20 +321,19 @@ impl ProxyConnectionServer {
                             }
                         });
                     }
-
+    
                     // clone a sender handle, as we still have to send ACK back using underlying
                     // tx mbox handle
                     let conn_processor_mbox_tx_clone = conn_processor_mbox_tx.clone();
-                    let ip_addr_clone = ip_addr.clone();
                     let device_mac_clone = device_mac.clone();
                     let server_clone = self.clone();
-
+    
                     info!(
                         "Connection map: connection with {} established, new num_of_connections: {}",
                         device_mac,
                         connmap_w_lock.len() + 1
                     );
-
+    
                     // Insert the new connection info with default values
                     let con_info = ConnectionInfo {
                         mbox_tx: conn_processor_mbox_tx,
@@ -320,7 +341,7 @@ impl ProxyConnectionServer {
                         connected_to_group_id: -1,
                     };
                     connmap_w_lock.insert(device_mac, con_info);
-
+    
                     tokio::spawn(async move {
                         let msg: ProxyConnectionProcessorReqMsg =
                         ProxyConnectionProcessorReqMsg::AddNewConnectionAck;
@@ -328,28 +349,15 @@ impl ProxyConnectionServer {
                         if let Err(e) = conn_processor_mbox_tx_clone.send(msg) {
                             error!("Failed to send NewConnection message! Error: {e}");
                         } else {
-                            // If successfully sent the ACK message, now look up the CGW info using our new function
-                            if let Some((cgw_address, cgw_id, group_id)) = server_clone.get_cgw_address_for_device(&device_mac_clone).await {
-                                // Send the SetPeer message with the dynamic address
-                                debug!("\n\n\n CGW ADDDREEESSSSS {})", cgw_address);
-                                let peer_msg = ProxyConnectionProcessorReqMsg::SetPeer(cgw_address);
-
-                                if let Err(e) = conn_processor_mbox_tx_clone.send(peer_msg) {
-                                    error!("Failed to send SetPeer message! Error: {e}");
-                                } else {
-                                    // Only update connmap if both messages were sent successfully
-                                    // Create updated connection info for the update
-                                    let updated_con_info = ConnectionInfo {
-                                        mbox_tx: conn_processor_mbox_tx_clone,
-                                        connected_to_cgw_id: Some(cgw_id),
-                                        connected_to_group_id: group_id,
-                                    };
-                                    server_clone.connmap_update(device_mac_clone, updated_con_info).await;
-                                    debug!("Device {} connected to CGW ID {} (group {})", device_mac_clone, cgw_id, group_id);
-                                }
-                            } else {
-                                error!("Failed to get CGW address for device {}", device_mac_clone);
-                            }
+                            let updated_con_info = ConnectionInfo {
+                                mbox_tx: conn_processor_mbox_tx_clone,
+                                connected_to_cgw_id: None,
+                                connected_to_group_id: 0,
+                            };
+                            server_clone.connmap_update(device_mac_clone, updated_con_info).await;
+                            debug!("Device {} connected, pending group assignment", device_mac_clone);
+                            // Trigger resync on next tick
+                            should_resync = true;
                         }
                     });
                 } else if let ProxyConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
@@ -361,10 +369,104 @@ impl ProxyConnectionServer {
                     connmap_w_lock.remove(&device_mac);
                 }
             }
-
+    
             buf.clear();
             num_of_msg_read = 0;
         }
+    }
+
+    async fn manage_device_connections(&self, should_resync: &mut bool) -> Result<()> {
+        if !*should_resync {
+            return Ok(());
+        }
+
+        info!("Managing device connections, resync required");
+        let devices_cache_read = self.devices_cache.read().await;
+        let mut connmap_w_lock = self.connmap.map.write().await;
+
+        for (mac, conn_info) in connmap_w_lock.iter_mut() {
+            // Handle unassigned connections
+            if conn_info.connected_to_group_id == 0 {
+                if let Some(device) = devices_cache_read.get_device(mac) {
+                    // Device found in cache, get group ID and owner
+                    let device_group_id = device.get_device_group_id();
+                    if let Some(group_owner_id) = self.proxy_remote_discovery.get_infra_group_owner_id(device_group_id).await {
+                        if let Err(e) = self.set_peer_connection(mac, conn_info, group_owner_id, device_group_id).await {
+                            error!("Failed to set peer for device {}: {}", mac, e);
+                            continue;
+                        }
+                        debug!("Assigned device {} to group {} on CGW {}", mac, device_group_id, group_owner_id);
+                    } else {
+                        warn!("No CGW assigned for group ID {} of device {}", device_group_id, mac);
+                    }
+                }
+                // If device not in cache
+                if let None = devices_cache_read.get_device(mac) {
+                    if let None = conn_info.connected_to_cgw_id {
+                        match self.get_round_robin_cgw_id().await {
+                            Ok(round_robin_cgw_id) => {
+                                if let Err(e) = self.set_peer_connection(mac, conn_info, round_robin_cgw_id, 0).await {
+                                    error!("Failed to set round-robin peer for device {}: {}", mac, e);
+                                    continue;
+                                }
+                                debug!("Assigned unregistered device {} to round-robin CGW {}", mac, round_robin_cgw_id);
+                            },
+                            Err(e) => {
+                                error!("Failed to get round-robin CGW ID: {}", e);
+                            }
+                        }
+                    } else {
+                        // Already has CGW assigned, skip
+                        continue;
+                    }
+                }
+            } else {
+                // Handle assigned connections (group_id != 0)
+                // Check if device exists in cache
+                if let None = devices_cache_read.get_device(mac) {
+                    // Device was in group but not in cache anymore
+                    // Get round-robin CGW ID
+                    match self.get_round_robin_cgw_id().await {
+                        Ok(round_robin_cgw_id) => {
+                            // Set peer connection
+                            if let Err(e) = self.set_peer_connection(mac, conn_info, round_robin_cgw_id, 0).await {
+                                error!("Failed to reset peer for removed device {}: {}", mac, e);
+                                continue;
+                            }
+                            debug!("Device {} no longer in cache, reassigned to round-robin CGW {}", mac, round_robin_cgw_id);
+                        },
+                        Err(e) => {
+                            error!("Failed to get round-robin CGW ID: {}", e);
+                        }
+                    }
+                } else if let Some(cached_device) = devices_cache_read.get_device(mac) {
+                    // Device exists in cache
+                    let device_group_id = cached_device.get_device_group_id();
+                    // Check if group ID changed
+                    if conn_info.connected_to_group_id != device_group_id {
+                        if let Some(group_owner_id) = self.proxy_remote_discovery.get_infra_group_owner_id(device_group_id).await {
+                            if let Err(e) = self.set_peer_connection(mac, conn_info, group_owner_id, device_group_id).await {
+                                error!("Failed to update peer for device {} with new group {}: {}", mac, device_group_id, e);
+                                continue;
+                            }
+                            debug!("Updated device {} from group {} to group {} on CGW {}", 
+                                   mac, conn_info.connected_to_group_id, device_group_id, group_owner_id);
+                        } else {
+                            warn!("No CGW assigned for updated group ID {} of device {}", device_group_id, mac);
+                        }
+                    } else {
+                        // Group hasn't changed, skip
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Reset the resync flag after processing
+        *should_resync = false;
+
+        info!("Device connection management completed");
+        Ok(())
     }
 
     async fn connmap_update(&self, device_mac: MacAddress, con_info: ConnectionInfo) {
@@ -420,5 +522,69 @@ impl ProxyConnectionServer {
             }
         }
     }
-    
+
+    async fn set_peer_connection(&self, 
+        mac: &MacAddress, 
+        conn_info: &mut ConnectionInfo, 
+        cgw_id: i32, 
+        group_id: i32
+    ) -> Result<()> {
+        conn_info.connected_to_cgw_id = Some(cgw_id);
+        conn_info.connected_to_group_id = group_id;
+
+        let peer_msg = ProxyConnectionProcessorReqMsg::SetPeer(mac);
+        if let Err(e) = conn_info.mbox_tx.send(peer_msg) {
+            error!("Failed to send ConnectToPeer message for device {}: {}", mac, e);
+            return Err(Error::ConnectionServer(format!(
+                "Failed to send ConnectToPeer message for device {}: {}", mac, e
+            )));
+        }
+
+        Ok(())
+    }
+
+    async fn get_round_robin_cgw_id(&self) -> Result<i32> {
+        // Get available CGW IDs from discovery service
+        let available_cgw_ids = match self.proxy_remote_discovery.get_available_cgw_ids().await {
+            Ok(ids) => ids,
+            Err(e) => {
+                return Err(Error::ConnectionServer(format!(
+                    "Failed to get available CGW IDs: {}", e
+                )));
+            }
+        };
+
+        if available_cgw_ids.is_empty() {
+            return Err(Error::ConnectionServer(
+                "No available CGW IDs for round-robin assignment".to_string()
+            ));
+        }
+
+        // Get the current number of connections in each CGW
+        let mut cgw_connection_counts = HashMap::new();
+        let connmap = self.connmap.map.read().await;
+
+        // Count how many connections are assigned to each CGW
+        for (_, conn_info) in connmap.iter() {
+            if let Some(cgw_id) = conn_info.connected_to_cgw_id {
+                *cgw_connection_counts.entry(cgw_id).or_insert(0) += 1;
+            }
+        }
+
+        // Find the CGW with the fewest connections
+        let mut min_connections = i32::MAX;
+        let mut selected_cgw_id = available_cgw_ids[0]; // Default to first CGW
+        
+        for &cgw_id in &available_cgw_ids {
+            let connection_count = *cgw_connection_counts.get(&cgw_id).unwrap_or(&0);
+            if connection_count < min_connections {
+                min_connections = connection_count;
+                selected_cgw_id = cgw_id;
+            }
+        }
+
+        debug!("Selected CGW {} with {} existing connections", selected_cgw_id, min_connections);
+
+        Ok(selected_cgw_id)
+    }
 }

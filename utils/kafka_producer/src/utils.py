@@ -315,3 +315,4 @@ class Args:
     send_to_macs: MacRange
     header_group: List[int]
     header_infras: List[Tuple[int, MacRange]]
+    add_groups_to_shard: List[Tuple[int, int]]

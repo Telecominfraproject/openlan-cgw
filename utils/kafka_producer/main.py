@@ -6,6 +6,11 @@ from src.log import logger
 
 def main(args: Args):
     producer = Producer(args.db, args.topic)
+    if args.add_groups_to_shard:
+        producer.connect()
+        for (group, shard) in args.add_groups_to_shard:
+            print("gid: " + str(group) + ", shard id:", shard)
+            producer.handle_single_group_create(group=group, uuid_val=1, shard_id=shard)
     if args.add_groups or args.del_groups:
         producer.handle_group_creation(args.add_groups, args.del_groups)
     if args.assign_to_group or args.remove_from_group:

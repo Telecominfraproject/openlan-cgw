@@ -64,6 +64,9 @@ def parse_args():
     parser.add_argument("-ih", "--infras-header", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
                         help="set group infras header")
+    parser.add_argument("-GI", "--new-group-to-shard", metavar=("GROUP-ID"), type=int,
+                        nargs=2, action="append",
+                        help="create a new group and assign it to specific shard (by id)")
 
     parsed_args = parser.parse_args()
 
@@ -98,7 +101,8 @@ def parse_args():
         group_id=parsed_args.send_to_group,
         send_to_macs=parsed_args.send_to_mac,
         header_group=[],
-        header_infras=[]
+        header_infras=[],
+        add_groups_to_shard=[]
     )
     if parsed_args.new_group is not None:
         for (group,) in parsed_args.new_group:
@@ -106,6 +110,12 @@ def parse_args():
                 args.add_groups.append(group)
             except ValueError:
                 parser.error(f"--new-group: failed to parse {group}")
+    if parsed_args.new_group_to_shard is not None:
+        for (group,shard) in parsed_args.new_group_to_shard:
+            try:
+                args.add_groups_to_shard.append((group, shard))
+            except ValueError:
+                parser.error(f"----new-group-to-shard: failed to parse {group}/{shard}")
     if parsed_args.rm_group is not None:
         for (group,) in parsed_args.rm_group:
             args.del_groups.append(group)

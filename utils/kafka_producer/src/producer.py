@@ -175,11 +175,15 @@ class Producer:
                            bytes(str(group), encoding="utf-8"))
         self.conn.flush()
 
-    def handle_group_creation(self, create: List[int], delete: List[int]) -> None:
+    def handle_group_creation(self, create: List[int], delete: List[int], shard_id: int = None) -> None:
         with self as conn:
             for group in create:
-                conn.send(self.topic, self.message.group_create(group),
-                          bytes(str(group), encoding="utf-8"))
+                if shard_id:
+                    conn.send(self.topic, self.message.group_create_to_shard(group, shard_id),
+                              bytes(str(group), encoding="utf-8"))
+                else:
+                    conn.send(self.topic, self.message.group_create(group),
+                              bytes(str(group), encoding="utf-8"))
             for group in delete:
                 conn.send(self.topic, self.message.group_delete(group),
                           bytes(str(group), encoding="utf-8"))

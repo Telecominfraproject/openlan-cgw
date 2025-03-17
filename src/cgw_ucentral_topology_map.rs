@@ -28,6 +28,9 @@ use eui48::MacAddress;
 
 type ClientLastSeenTimestamp = i64;
 
+// CGW Topology Map Generate event timeout default value (in seconds)
+pub const CGW_TOPOMAP_GENERATE_TIMEOUT_DEFAULT: u32 = 300;
+
 // Client mac, ssid, band
 struct ClientJoinInfo {
     pub mac: MacAddress,

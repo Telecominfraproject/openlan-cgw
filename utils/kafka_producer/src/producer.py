@@ -285,3 +285,10 @@ class Producer:
                 conn.send(self.topic, self.message.infras_header(group, infra),
                           bytes(str(group), encoding="utf-8"))
             conn.flush()
+
+    def handle_topomap_generate_timeout_set(self, topomap_timeout: List[Tuple[int, int]]) -> None:
+        with self as conn:
+            for group, timeout in topomap_timeout:
+                conn.send(self.topic, self.message.topomap_generate_timeout(group, timeout),
+                          bytes(str(group), encoding="utf-8"))
+            conn.flush()

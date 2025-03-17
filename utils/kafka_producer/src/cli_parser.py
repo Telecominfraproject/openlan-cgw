@@ -64,6 +64,9 @@ def parse_args():
     parser.add_argument("-ih", "--infras-header", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
                         help="set group infras header")
+    parser.add_argument("-tg", "--topomap-generate-timeout", metavar=("GROUP-ID, TIMEOUT"),
+                        nargs=2, action="append",
+                        help="set topomap generate timeout")
 
     parsed_args = parser.parse_args()
 
@@ -98,7 +101,8 @@ def parse_args():
         group_id=parsed_args.send_to_group,
         send_to_macs=parsed_args.send_to_mac,
         header_group=[],
-        header_infras=[]
+        header_infras=[],
+        topomap_timeout=[]
     )
     if parsed_args.new_group is not None:
         for (group,) in parsed_args.new_group:
@@ -136,5 +140,11 @@ def parse_args():
         except ValueError:
             parser.error(
                 f"--infras-header: failed to parse MAC range \"{mac}\"")
+    if parsed_args.topomap_generate_timeout is not None:
+        for (group, timeout_value) in parsed_args.topomap_generate_timeout:
+            try:
+                args.topomap_timeout.append((group, timeout_value))
+            except ValueError:
+                parser.error(f"--topomap-generate-timeout: failed to parse {group}")
 
     return args

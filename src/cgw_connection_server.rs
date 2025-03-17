@@ -9,7 +9,8 @@ use crate::cgw_nb_api_listener::{
     cgw_construct_infra_group_delete_response, cgw_construct_infra_group_infras_add_response,
     cgw_construct_infra_group_infras_del_response,
     cgw_construct_infra_group_infras_set_cloud_header_response,
-    cgw_construct_infra_group_set_cloud_header_response, cgw_construct_infra_join_msg,
+    cgw_construct_infra_group_set_cloud_header_response,
+    cgw_construct_infra_group_topomap_generate_timeout_set_response, cgw_construct_infra_join_msg,
     cgw_construct_infra_leave_msg, cgw_construct_infra_request_result_msg,
     cgw_construct_rebalance_group_response, cgw_construct_unassigned_infra_join_msg,
     cgw_construct_unassigned_infra_leave_msg, cgw_get_timestamp_16_digits, CGWKafkaProducerTopic,
@@ -199,6 +200,7 @@ enum CGWNBApiParsedMsgType {
         Option<String>,
         Option<ConsumerMetadata>,
     ),
+    InfrastructureGroupTopomapGenerateTimeoutSet(u32, Option<ConsumerMetadata>),
     RebalanceGroups(Option<ConsumerMetadata>),
 }
 
@@ -317,6 +319,18 @@ impl CGWNBApiParsedMsg {
             CGWNBApiParsedMsgType::RebalanceGroups(consumer_metadata) => {
                 self.handle_rebalance_groups(server, consumer_metadata, timestamp)
                     .await
+            }
+            CGWNBApiParsedMsgType::InfrastructureGroupTopomapGenerateTimeoutSet(
+                timeout,
+                consumer_metadata,
+            ) => {
+                self.handle_infrastructure_group_topomap_generate_timeout_set(
+                    server,
+                    timeout,
+                    consumer_metadata,
+                    timestamp,
+                )
+                .await;
             }
         }
     }
@@ -1237,6 +1251,95 @@ impl CGWNBApiParsedMsg {
         }
     }
 
+    async fn handle_infrastructure_group_topomap_generate_timeout_set(
+        &self,
+        server: Arc<CGWConnectionServer>,
+        timeout: u32,
+        consumer_metadata: Option<ConsumerMetadata>,
+        timestamp: i64,
+    ) {
+        let response: Result<String>;
+        let uuid = self.uuid;
+        let gid = self.gid;
+        let old_timeout: u32 = server
+            .cgw_remote_discovery
+            .get_infra_group_topomap_generate_timeout_redis(gid)
+            .await;
+        let partition = match consumer_metadata.clone() {
+            Some(data) => data.sender_partition,
+            None => None,
+        };
+
+        // Check if group exist
+        match server.cgw_remote_discovery.get_group_from_db(gid).await {
+            Some(_group) => {
+                // Construct cloud header
+                let group_cloud_header: Option<String> = server
+                    .cgw_remote_discovery
+                    .get_group_cloud_header(gid)
+                    .await;
+
+                let cloud_header: Option<String> =
+                    cgw_construct_cloud_header(group_cloud_header, None);
+
+                // Check if Redis updated
+                if let Err(e) = server
+                    .cgw_remote_discovery
+                    .update_infra_group_topomap_generate_timeout_redis(gid, timeout)
+                    .await
+                {
+                    response = cgw_construct_infra_group_topomap_generate_timeout_set_response(
+                        gid,
+                        server.local_cgw_id,
+                        old_timeout,
+                        uuid,
+                        false,
+                        Some(e.to_string()),
+                        consumer_metadata,
+                        cloud_header,
+                        timestamp,
+                    );
+                } else {
+                    response = cgw_construct_infra_group_topomap_generate_timeout_set_response(
+                        gid,
+                        server.local_cgw_id,
+                        old_timeout,
+                        uuid,
+                        true,
+                        None,
+                        consumer_metadata,
+                        cloud_header,
+                        timestamp,
+                    );
+                }
+            }
+            None => {
+                response = cgw_construct_infra_group_topomap_generate_timeout_set_response(
+                    gid,
+                    server.local_cgw_id,
+                    old_timeout,
+                    uuid,
+                    false,
+                    Some(format!("Group id {gid} does not exist!")),
+                    consumer_metadata,
+                    None,
+                    timestamp,
+                );
+            }
+        }
+
+        if let Ok(resp) = response {
+            server.enqueue_mbox_message_from_cgw_to_nb_api(
+                gid,
+                resp,
+                CGWKafkaProducerTopic::CnCRes,
+                partition,
+            );
+        } else {
+            error!("Failed to construct infra_group_set_cloud_header_response message!");
+        }
+    }
+
     async fn handle_rebalance_groups(
         &self,
         server: Arc<CGWConnectionServer>,
@@ -1711,6 +1814,15 @@ impl CGWConnectionServer {
             consumer_metadata: Option<ConsumerMetadata>,
         }
 
+        #[derive(Debug, Serialize, Deserialize)]
+        struct InfraGroupTopomapGenerateTimeoutSet {
+            r#type: String,
+            infra_group_id: i32,
+            timeout: u32,
+            uuid: Uuid,
+            consumer_metadata: Option<ConsumerMetadata>,
+        }
+
         let map: Map<String, Value> = serde_json::from_str(payload)?;
 
         let rc = map.get("type").ok_or(Error::ConnectionServer(
@@ -1910,6 +2022,26 @@ impl CGWConnectionServer {
                     CGWNBApiParsedMsgType::InfrastructureGroupInfrasSetCloudHeader(
                         json_msg.infra_group_infras,
                         cloud_header,
+                        consumer_metadata,
+                    ),
+                ));
+            }
+            "infrastructure_group_topomap_generate_timeout_set_request" => {
+                let json_msg: InfraGroupTopomapGenerateTimeoutSet = match serde_json::from_str(
+                    payload,
+                ) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return Err(Error::ConnectionServer(format!(
+                                "Failed to parse infrastructure_group_topomap_generate_timeout_set_request message! Error: {e}"
+                            )));
+                    }
+                };
+                return Ok(CGWNBApiParsedMsg::new(
+                    json_msg.uuid,
+                    group_id,
+                    CGWNBApiParsedMsgType::InfrastructureGroupTopomapGenerateTimeoutSet(
+                        json_msg.timeout,
                         consumer_metadata,
                     ),
                 ));
@@ -2219,6 +2351,14 @@ impl CGWConnectionServer {
                     continue;
                 } else if let CGWNBApiParsedMsgType::InfrastructureGroupInfrasSetCloudHeader(..) =
                     parsed_msg.msg_type
+                {
+                    parsed_msg.clone().handle(self.clone()).await;
+                    // This type of msg is handled in place, not added to buf
+                    // for later processing.
+                    continue;
+                } else if let CGWNBApiParsedMsgType::InfrastructureGroupTopomapGenerateTimeoutSet(
+                    ..,
+                ) = parsed_msg.msg_type
                 {
                     parsed_msg.clone().handle(self.clone()).await;
                     // This type of msg is handled in place, not added to buf

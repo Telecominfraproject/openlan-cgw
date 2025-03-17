@@ -149,6 +149,8 @@ class Message:
     MSG_UUID = "uuid"
     GROUP_HEADER = "group_header"
     INFRAS_HEADER = "infras_header"
+    TOPOMAP_TIMEOUT = "topomap_generate_timeout"
+    TIMEOUT = "timeout"
 
     def __init__(self) -> None:
         with open(self.TEMPLATE_FILE) as f:
@@ -233,6 +235,14 @@ class Message:
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
+    def topomap_generate_timeout(self, id: int, timeout: int, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.TOPOMAP_TIMEOUT])
+        msg[self.GROUP_ID] = int(id)
+        msg[self.TIMEOUT] = int(timeout)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+
+
 
 class MalformedMessage:
     TEMPLATE_FILE = "./kafka_data/malformed_message_template.json"
@@ -315,3 +325,4 @@ class Args:
     send_to_macs: MacRange
     header_group: List[int]
     header_infras: List[Tuple[int, MacRange]]
+    topomap_timeout: List[Tuple[int, int]]

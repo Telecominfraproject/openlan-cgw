@@ -64,6 +64,9 @@ def parse_args():
     parser.add_argument("-ih", "--infras-header", metavar=("GROUP-ID", "MAC-RANGE"),
                         nargs=2, action="append",
                         help="set group infras header")
+    parser.add_argument("-C", "--topomap-generate", metavar=("GROUP-ID"),
+                        nargs=1, action="append",
+                        help="generate topology map")
 
     parsed_args = parser.parse_args()
 
@@ -98,7 +101,8 @@ def parse_args():
         group_id=parsed_args.send_to_group,
         send_to_macs=parsed_args.send_to_mac,
         header_group=[],
-        header_infras=[]
+        header_infras=[],
+        generate_topomap=[]
     )
     if parsed_args.new_group is not None:
         for (group,) in parsed_args.new_group:
@@ -136,5 +140,11 @@ def parse_args():
         except ValueError:
             parser.error(
                 f"--infras-header: failed to parse MAC range \"{mac}\"")
+    if parsed_args.topomap_generate is not None:
+        for (group,) in parsed_args.topomap_generate:
+            try:
+                args.generate_topomap.append(group)
+            except ValueError:
+                parser.error(f"--topomap-generate: failed to parse {group}")
 
     return args

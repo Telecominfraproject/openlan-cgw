@@ -1,6 +1,6 @@
 use crate::cgw_app_args::CGWKafkaArgs;
-use crate::cgw_device::OldNew;
-use crate::cgw_ucentral_parser::CGWDeviceChange;
+use crate::cgw_device::{CGWDeviceType, OldNew};
+use crate::cgw_ucentral_parser::{CGWDeviceChange, CGWUCentralEventStateClientsType};
 
 use crate::cgw_connection_server::{CGWConnectionNBAPIReqMsg, CGWConnectionNBAPIReqMsgOrigin};
 use crate::cgw_errors::{Error, Result};
@@ -318,6 +318,131 @@ pub struct CGWAlert {
     pub trace: String,
     pub payload: String,
     pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGraphNodeParrent {
+    pub node_serial: MacAddress,
+    pub r#type: CGWUCentralEventStateClientsType,
+    pub port: String,
+    pub band: Option<String>,
+    pub channel: Option<i32>,
+    pub rssi: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGraphNodeChild {
+    pub node_serial: MacAddress,
+    pub r#type: CGWUCentralEventStateClientsType,
+    pub port: Option<String>,
+    pub band: Option<String>,
+    pub channel: Option<i32>,
+    pub rssi: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGraphNode {
+    pub r#type: CGWDeviceType,
+    pub serial: MacAddress,
+    pub model: String,
+    pub fw_version: String,
+    pub connected_since: i64,
+    pub parrent_nodes: Vec<InfraGroupTopomapGraphNodeParrent>,
+    pub child_nodes: Vec<InfraGroupTopomapGraphNodeChild>,
+}
+
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGraph {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
+    pub sequence_number: u64,
+    pub uuid: Uuid,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
+    pub nodes: Vec<InfraGroupTopomapGraphNode>,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct InfraGroupTopomapGenerateResponse {
+    pub r#type: &'static str,
+    pub infra_group_id: i32,
+    pub reporter_shard_id: i32,
+    pub uuid: Uuid,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub consumer_metadata: Option<ConsumerMetadata>,
+    #[serde(default, rename = "cloud-header")]
+    pub cloud_header: Option<String>,
+    pub sequence_number: u64,
+    pub infrastructure_group_topomap_graph: InfraGroupTopomapGraph,
+    pub timestamp: i64,
+}
+
+pub fn cgw_construct_infra_group_topomap_graph(
+    infra_group_id: i32,
+    reporter_shard_id: i32,
+    sequence_number: u64,
+    uuid: Uuid,
+    cloud_header: Option<String>,
+    timestamp: i64,
+) -> Result<String> {
+    let nodes: Vec<InfraGroupTopomapGraphNode> = Vec::default();
+
+    let topomap_graph = InfraGroupTopomapGraph {
+        r#type: "infrastructure_group_topomap_graph",
+        infra_group_id,
+        reporter_shard_id,
+        sequence_number,
+        uuid,
+        cloud_header,
+        nodes,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&topomap_graph)?)
+}
+
+pub fn cgw_construct_infra_group_topomap_generate_response(
+    infra_group_id: i32,
+    reporter_shard_id: i32,
+    sequence_number: u64,
+    uuid: Uuid,
+    cloud_header: Option<String>,
+    success: bool,
+    error_message: Option<String>,
+    consumer_metadata: Option<ConsumerMetadata>,
+    timestamp: i64,
+) -> Result<String> {
+    let nodes: Vec<InfraGroupTopomapGraphNode> = Vec::default();
+
+    let infrastructure_group_topomap_graph = InfraGroupTopomapGraph {
+        r#type: "infrastructure_group_topomap_graph",
+        infra_group_id,
+        reporter_shard_id,
+        sequence_number,
+        uuid,
+        cloud_header: cloud_header.clone(),
+        nodes,
+        timestamp,
+    };
+
+    let topomap_generate = InfraGroupTopomapGenerateResponse {
+        r#type: "infrastructure_group_topomap_generate_response",
+        infra_group_id,
+        reporter_shard_id,
+        uuid,
+        success,
+        error_message,
+        consumer_metadata,
+        cloud_header,
+        sequence_number,
+        infrastructure_group_topomap_graph,
+        timestamp,
+    };
+
+    Ok(serde_json::to_string(&topomap_generate)?)
 }
 
 pub fn cgw_construct_cgw_alert_message(

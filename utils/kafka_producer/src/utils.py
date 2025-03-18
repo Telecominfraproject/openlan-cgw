@@ -149,6 +149,7 @@ class Message:
     MSG_UUID = "uuid"
     GROUP_HEADER = "group_header"
     INFRAS_HEADER = "infras_header"
+    TOPOMAP_GENERATE = "topomap_generate"
 
     def __init__(self) -> None:
         with open(self.TEMPLATE_FILE) as f:
@@ -230,6 +231,12 @@ class Message:
         msg = copy.copy(self.templates[self.INFRAS_HEADER])
         msg[self.GROUP_ID] = int(id)
         msg[self.DEV_LIST] = list(mac_range)
+        msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
+        return json.dumps(msg).encode('utf-8')
+    
+    def topomap_generate(self, id: int, uuid_val: int = None) -> bytes:
+        msg = copy.copy(self.templates[self.TOPOMAP_GENERATE])
+        msg[self.GROUP_ID] = int(id)
         msg[self.MSG_UUID] = Message.parse_uuid(uuid_val)
         return json.dumps(msg).encode('utf-8')
 
@@ -315,3 +322,4 @@ class Args:
     send_to_macs: MacRange
     header_group: List[int]
     header_infras: List[Tuple[int, MacRange]]
+    generate_topomap: List[int]

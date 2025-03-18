@@ -285,3 +285,10 @@ class Producer:
                 conn.send(self.topic, self.message.infras_header(group, infra),
                           bytes(str(group), encoding="utf-8"))
             conn.flush()
+
+    def handle_cloud_header(self, topomap_generate: List[int]) -> None:
+        with self as conn:
+            for group in topomap_generate:
+                conn.send(self.topic, self.message.topomap_generate(group),
+                          bytes(str(group), encoding="utf-8"))
+            conn.flush()

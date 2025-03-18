@@ -150,6 +150,8 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
                     }
                 };
 
+                let connection_time = std::time::Instant::now();
+
                 let socket = match cgw_set_tcp_keepalive_options(socket).await {
                     Ok(s) => s,
                     Err(e) => {
@@ -165,7 +167,7 @@ async fn server_loop(app_core: Arc<AppCore>) -> Result<()> {
 
                 app_core_clone.conn_ack_runtime_handle.spawn(async move {
                     proxy_server_clone
-                        .ack_connection(socket, tls_acceptor_clone, remote_addr)
+                        .ack_connection(socket, tls_acceptor_clone, remote_addr, connection_time)
                         .await;
                 });
 

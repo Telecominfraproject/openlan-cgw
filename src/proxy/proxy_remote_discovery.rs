@@ -279,58 +279,6 @@ impl ProxyRemoteDiscovery {
             remote_cgws_map: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        let assigned_groups_num: i32 = match rc.sync_gid_to_cgw_map().await {
-            Ok(assigned_groups) => assigned_groups,
-            Err(e) => {
-                error!("Can't create CGW Remote Discovery client: Can't pull records data from REDIS (wrong redis host/port?) ({:?})", e);
-                return Err(Error::RemoteDiscovery(
-                    "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
-                ));
-            }
-        };
-
-        debug!(
-            "Found {assigned_groups_num} assigned to CGW ID {}",
-            app_args.cgw_id
-        );
-
-        if let Err(e) = rc.sync_remote_cgw_map().await {
-            error!("Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}");
-            return Err(Error::RemoteDiscovery(
-                "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
-            ));
-        }
-
-        if let Err(e) = rc.sync_gid_to_cgw_map().await {
-            error!(
-                "Can't create CGW Remote Discovery client! Failed to sync GID to CGW map! Error: {e}"
-            );
-            return Err(Error::RemoteDiscovery(
-                "Failed to sync (sync_gid_to_cgw_map) gid to cgw map",
-            ));
-        }
-
-        if let Err(e) = rc.sync_remote_cgw_map().await {
-            error!(
-                "Can't create CGW Remote Discovery client! Failed to sync remote CGW map! Error: {e}"
-            );
-            return Err(Error::RemoteDiscovery(
-                "Failed to sync (sync_remote_cgw_map) remote CGW info from REDIS",
-            ));
-        }
-
-        debug!(
-            "Found {} remote CGWs",
-            rc.remote_cgws_map.read().await.len() - 1
-        );
-
-        for (_key, val) in rc.remote_cgws_map.read().await.iter() {
-            debug!(
-                "Shard #{}, Hostname/IP {}:{}",
-                val.id, val.server_host, val.server_port
-            );
-        }
-
         info!("Connection to REDIS DB has been established!");
 
         Ok(rc)
@@ -463,11 +411,10 @@ impl ProxyRemoteDiscovery {
         Ok(total_groups)
     }
 
-    async fn sync_remote_cgw_map(&self) -> Result<()> {
+    pub async fn sync_remote_cgw_map(&self) -> Result<()> {
         let mut lock = self.remote_cgws_map.write().await;
 
         // Clear hashmap
-        debug!("Clearing remote_cgws_map");
         lock.clear();
 
         let mut con = self.redis_client.clone();
@@ -490,24 +437,19 @@ impl ProxyRemoteDiscovery {
         };
 
         for key in redis_keys {
-            debug!("Processing key: {}", key);
             let res: RedisResult<Vec<String>> =
                 redis::cmd("HGETALL").arg(&key).query_async(&mut con).await;
 
             match res {
                 Ok(res) => {
-                    debug!("HGETALL result has {} elements: {:?}", res.len(), res);
                     let shard: CGWREDISDBShard = CGWREDISDBShard::from(res);
-                    debug!("Parsed shard from Redis: {:?}", shard);
 
                     if shard == CGWREDISDBShard::default() {
                         warn!("Failed to parse CGWREDISDBShard, key: {key}!");
                         continue;
                     }
 
-                    debug!("Inserting shard {} into map", shard.id);
                     lock.insert(shard.id, shard);
-                    debug!("Map size after insertion: {}", lock.len());
                 }
                 Err(e) => {
                     warn!("Found proper key '{key}' entry, but failed to fetch Shard info from it! Error: {e}");
@@ -521,6 +463,9 @@ impl ProxyRemoteDiscovery {
     }
 
     pub async fn get_infra_group_owner_id(&self, gid: i32) -> Option<i32> {
+        if gid == 0 {
+            return None; // In case gid wasn't changed
+        }
         // Try to use internal cache first
         if let Some(id) = self.gid_to_cgw_cache.read().await.get(&gid) {
             return Some(*id);
@@ -539,7 +484,7 @@ impl ProxyRemoteDiscovery {
         None
     }
 
-    pub async fn get_shard_host_and_server_port(&self, shard_id: i32) -> Result<(String, u16)> {
+    pub async fn get_shard_host_and_wss_port(&self, shard_id: i32) -> Result<(String, u16)> {
         debug!("Getting shard host and server port for shard ID: {}", shard_id);
 
         if let Err(e) = self.sync_remote_cgw_map().await {
@@ -555,9 +500,9 @@ impl ProxyRemoteDiscovery {
 
         match lock.get(&shard_id) {
             Some(instance) => {
-                debug!("Found shard {}: host={}, server_port={}",
-                       shard_id, instance.server_host, instance.server_port);
-                Ok((instance.server_host.clone(), instance.server_port))
+                debug!("Found shard {}: host={}, wss_port={}",
+                       shard_id, instance.server_host, instance.wss_port);
+                Ok((instance.server_host.clone(), instance.wss_port))
             },
             None => {
                 error!("Shard ID {} not found in map", shard_id);
@@ -569,17 +514,42 @@ impl ProxyRemoteDiscovery {
     }
 
     pub async fn check_redis_updated(&self, last_sync_timestamp: &mut i64) -> Result<bool> {
-        let remote_cgws = self.remote_cgws_map.read().await;
         let original_timestamp = *last_sync_timestamp;
         let mut newest_timestamp = original_timestamp;
         let mut changes_detected = false;
 
-        for (shard_id, _shard_info) in remote_cgws.iter() {
-            // Get the last update timestamp for shard
-            let shard_update_timestamp = match self.get_shard_device_cache_last_update_timestamp(*shard_id).await {
+        // Get all shard IDs from Redis to check for updates
+        let mut con = self.redis_client.clone();
+        let redis_keys: Vec<String> = match redis::cmd("KEYS")
+            .arg(format!("{REDIS_KEY_SHARD_ID_PREFIX}*"))
+            .query_async::<_, Vec<String>>(&mut con)
+            .await
+        {
+            Ok(keys) => keys,
+            Err(e) => {
+                return Err(Error::RemoteDiscovery("Failed to get shard keys from Redis"));
+            }
+        };
+
+        for key in redis_keys {
+            let shard_id: i32 = match key.strip_prefix(REDIS_KEY_SHARD_ID_PREFIX) {
+                Some(id_str) => match id_str.parse() {
+                    Ok(id) => id,
+                    Err(_) => {
+                        debug!("Skipping non-numeric shard ID in key: {}", key);
+                        continue;
+                    }
+                },
+                None => {
+                    debug!("Unexpected key format: {}", key);
+                    continue;
+                }
+            };
+
+            let shard_update_timestamp = match self.get_shard_device_cache_last_update_timestamp(shard_id).await {
                 Ok(timestamp) => timestamp,
                 Err(e) => {
-                    warn!("Failed to get update timestamp for shard {}: {}", shard_id, e);
+                    // warn!("Failed to get update timestamp for shard {}: {}", shard_id, e);
                     continue;
                 }
             };
@@ -587,7 +557,7 @@ impl ProxyRemoteDiscovery {
             if shard_update_timestamp > original_timestamp {
                 changes_detected = true;
                 debug!("Detected update in shard {}: timestamp {} > original sync {}",
-                      shard_id, shard_update_timestamp, original_timestamp);
+                       shard_id, shard_update_timestamp, original_timestamp);
             }
 
             if shard_update_timestamp > newest_timestamp {
@@ -595,10 +565,8 @@ impl ProxyRemoteDiscovery {
             }
         }
 
-        // Update to newest timestamp if changes were detected
         if changes_detected {
             *last_sync_timestamp = newest_timestamp;
-            debug!("Updated last_sync_timestamp to {}", newest_timestamp);
         }
 
         Ok(changes_detected)
@@ -619,7 +587,6 @@ impl ProxyRemoteDiscovery {
         {
             Ok(timestamp) => timestamp,
             Err(e) => {
-                warn!("Failed to get Redis shard {} last update timestamp! Error: {}", shard_id, e);
                 return Err(Error::RemoteDiscovery(
                     "Failed to get Redis shard device cache last update timestamp",
                 ));

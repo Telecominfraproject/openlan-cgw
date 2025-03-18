@@ -9,6 +9,7 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::Arc,
+    sync::Mutex,
 };
 use tokio::{
     net::TcpStream,
@@ -31,11 +32,18 @@ use crate::{
     proxy_remote_discovery::ProxyRemoteDiscovery,
 };
 
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref LAST_CGW_INDEX: Mutex<usize> = Mutex::new(0);
+}
+
 #[derive(Debug, Clone)]
 struct ConnectionInfo {
     mbox_tx: UnboundedSender<ProxyConnectionProcessorReqMsg>,
     connected_to_cgw_id: Option<i32>,
     connected_to_group_id: i32,
+    connection_time: std::time::Instant,
 }
 
 type ProxyConnmapType = Arc<RwLock<HashMap<MacAddress, ConnectionInfo>>>;
@@ -66,6 +74,7 @@ pub enum ProxyConnectionServerReqMsg {
         MacAddress,
         SocketAddr,
         UnboundedSender<ProxyConnectionProcessorReqMsg>,
+        std::time::Instant,
     ),
     ConnectionClosed(MacAddress),
 }
@@ -206,6 +215,7 @@ impl ProxyConnectionServer {
         socket: TcpStream,
         tls_acceptor: tokio_rustls::TlsAcceptor,
         addr: SocketAddr,
+        connection_time: std::time::Instant,
     ) {
         // Only ACK connection. We will either drop it or accept it once processor starts
         // (we'll handle it via "mailbox" notify handle in process)
@@ -229,7 +239,7 @@ impl ProxyConnectionServer {
 
             let conn_processor = ProxyConnectionProcessor::new(server_clone, addr);
             if let Err(e) = conn_processor
-                .start(tls_stream, client_cn)
+                .start(tls_stream, client_cn, connection_time)
                 .await
             {
                 error!("Failed to start connection processor! Error: {e}");
@@ -243,7 +253,7 @@ impl ProxyConnectionServer {
         let buf_capacity = 1000;
         let mut buf: Vec<ProxyConnectionServerReqMsg> = Vec::with_capacity(buf_capacity);
         let mut num_of_msg_read = 0;
-        let mut should_resync = false;
+        let should_resync: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
         let mut last_tick = tokio::time::Instant::now();
         let tick_interval = Duration::from_secs(10);
 
@@ -251,7 +261,20 @@ impl ProxyConnectionServer {
             // Handle Redis updates that might require a resync
             let mut timestamp = self.last_sync_timestamp.write().await;
             if let Ok(true) = self.proxy_remote_discovery.check_redis_updated(&mut *timestamp).await {
-                should_resync = true;
+                *should_resync.write().await = true;
+
+                if let Err(e) = self.proxy_remote_discovery.sync_remote_cgw_map().await {
+                    error!("Failed to sync remote CGW map after detecting changes: {}", e);
+                }
+
+                if let Err(e) = self
+                    .proxy_remote_discovery
+                    .sync_devices_cache_with_redis(self.devices_cache.clone())
+                    .await
+                {
+                    error!("Failed to sync Device cache! Error: {e}");
+                }
+
                 info!("Redis update detected, scheduling resync");
             }
 
@@ -259,12 +282,15 @@ impl ProxyConnectionServer {
             let now = tokio::time::Instant::now();
             if now.duration_since(last_tick) >= tick_interval {
                 last_tick = now;
-                debug!("Running periodic connection management");
+                let mut resync_needed = *should_resync.read().await;
 
-                if let Err(e) = self.manage_device_connections(&mut should_resync).await {
+                debug!("Running periodic connection management: should resync = {}", resync_needed);
+
+                if let Err(e) = self.manage_device_connections(&mut resync_needed).await {
                     error!("Error in device connection management: {}", e);
-                    // Don't reset should_resync if there was an error, so we can try again
                 }
+
+                *should_resync.write().await = resync_needed;
             }
 
             // Handle incoming messages
@@ -303,6 +329,7 @@ impl ProxyConnectionServer {
                     device_mac,
                     ip_addr,
                     conn_processor_mbox_tx,
+                    connection_time,
                 ) = msg
                 {
                     // if connection is unique: simply insert new conn
@@ -328,20 +355,13 @@ impl ProxyConnectionServer {
                     let conn_processor_mbox_tx_clone = conn_processor_mbox_tx.clone();
                     let device_mac_clone = device_mac.clone();
                     let server_clone = self.clone();
+                    let should_resync_clone = should_resync.clone();
 
                     info!(
                         "Connection map: connection with {} established, new num_of_connections: {}",
                         device_mac,
                         connmap_w_lock.len() + 1
                     );
-
-                    // Insert the new connection info with default values
-                    let con_info = ConnectionInfo {
-                        mbox_tx: conn_processor_mbox_tx,
-                        connected_to_cgw_id: None,
-                        connected_to_group_id: -1,
-                    };
-                    connmap_w_lock.insert(device_mac, con_info);
 
                     tokio::spawn(async move {
                         let msg: ProxyConnectionProcessorReqMsg =
@@ -354,11 +374,12 @@ impl ProxyConnectionServer {
                                 mbox_tx: conn_processor_mbox_tx_clone,
                                 connected_to_cgw_id: None,
                                 connected_to_group_id: 0,
+                                connection_time: connection_time,
                             };
                             server_clone.connmap_update(device_mac_clone, updated_con_info).await;
                             debug!("Device {} connected, pending group assignment", device_mac_clone);
                             // Trigger resync on next tick
-                            should_resync = true;
+                            *should_resync_clone.write().await = true;
                         }
                     });
                 } else if let ProxyConnectionServerReqMsg::ConnectionClosed(device_mac) = msg {
@@ -381,9 +402,12 @@ impl ProxyConnectionServer {
             return Ok(());
         }
 
+        *should_resync = false;
+
         info!("Managing device connections, resync required");
         let devices_cache_read = self.devices_cache.read().await;
         let mut connmap_w_lock = self.connmap.map.write().await;
+        let now = std::time::Instant::now();
 
         for (mac, conn_info) in connmap_w_lock.iter_mut() {
             // Handle unassigned connections
@@ -391,18 +415,49 @@ impl ProxyConnectionServer {
                 if let Some(device) = devices_cache_read.get_device(mac) {
                     // Device found in cache, get group ID and owner
                     let device_group_id = device.get_device_group_id();
-                    if let Some(group_owner_id) = self.proxy_remote_discovery.get_infra_group_owner_id(device_group_id).await {
-                        if let Err(e) = self.set_peer_connection(mac, conn_info, group_owner_id, device_group_id).await {
-                            error!("Failed to set peer for device {}: {}", mac, e);
-                            continue;
+                    if device_group_id != 0 {
+                        if let Some(group_owner_id) = self.proxy_remote_discovery.get_infra_group_owner_id(device_group_id).await {
+                            if let Err(e) = self.set_peer_connection(mac, conn_info, group_owner_id, device_group_id).await {
+                                error!("Failed to set peer for device {}: {}", mac, e);
+                                continue;
+                            }
+                            debug!("Assigned device {} to group {} on CGW {}", mac, device_group_id, group_owner_id);
                         }
-                        debug!("Assigned device {} to group {} on CGW {}", mac, device_group_id, group_owner_id);
                     } else {
                         warn!("No CGW assigned for group ID {} of device {}", device_group_id, mac);
+
+                        if let Err(e) = self.proxy_remote_discovery.sync_remote_cgw_map().await {
+                            error!("Failed to sync remote CGW map: {}", e);
+                            continue;
+                        }
+
+                        // Check if the connection was established very recently (less than 2 seconds ago)
+                        // If so, skip this device for now and try again later
+                        if now.duration_since(conn_info.connection_time) < std::time::Duration::from_secs(2) {
+                            debug!("Device {} connected less than 2s ago, will try assignment later", mac);
+                            // Set should_resync to true so we retry later
+                            *should_resync = true;
+                            continue;
+                        }
+
                     }
                 }
                 // If device not in cache
                 if let None = devices_cache_read.get_device(mac) {
+                    if let Err(e) = self.proxy_remote_discovery.sync_remote_cgw_map().await {
+                        error!("Failed to sync remote CGW map: {}", e);
+                        continue;
+                    }
+
+                    // Check if the connection was established very recently (less than 2 seconds ago)
+                    // If so, skip this device for now and try again later
+                    if now.duration_since(conn_info.connection_time) < std::time::Duration::from_secs(2) {
+                        debug!("Device {} connected less than 2s ago, will try assignment later", mac);
+                        // Set should_resync to true so we retry later
+                        *should_resync = true;
+                        continue;
+                    }
+
                     if let None = conn_info.connected_to_cgw_id {
                         match self.get_round_robin_cgw_id().await {
                             Ok(round_robin_cgw_id) => {
@@ -463,10 +518,6 @@ impl ProxyConnectionServer {
             }
         }
 
-        // Reset the resync flag after processing
-        *should_resync = false;
-
-        info!("Device connection management completed");
         Ok(())
     }
 
@@ -506,7 +557,7 @@ impl ProxyConnectionServer {
         };
 
         // Now get the CGW shard info (IP and port)
-        match self.proxy_remote_discovery.get_shard_host_and_server_port(cgw_id).await {
+        match self.proxy_remote_discovery.get_shard_host_and_wss_port(cgw_id).await {
             Ok((host, port)) => {
                 // Construct a SocketAddr from the shard info
                 match format!("{}:{}", host, port).parse() {
@@ -530,11 +581,13 @@ impl ProxyConnectionServer {
         cgw_id: i32,
         group_id: i32
     ) -> Result<()> {
+        debug!("set_peer_connection, cgw_id: {}, group_id: {}", cgw_id, group_id);
+
         conn_info.connected_to_cgw_id = Some(cgw_id);
         conn_info.connected_to_group_id = group_id;
 
         // Get the socket address for the CGW instance
-        let (host, port) = match self.proxy_remote_discovery.get_shard_host_and_server_port(cgw_id).await {
+        let (host, port) = match self.proxy_remote_discovery.get_shard_host_and_wss_port(cgw_id).await {
             Ok((host, port)) => (host, port),
             Err(e) => {
                 error!("Failed to get peer address for device {}: {}", mac, e);
@@ -544,18 +597,7 @@ impl ProxyConnectionServer {
             }
         };
 
-        // Create socket address
-        let peer_addr = match format!("{}:{}", host, port).parse() {
-            Ok(addr) => addr,
-            Err(e) => {
-                error!("Failed to parse peer address for device {}: {}", mac, e);
-                return Err(Error::ConnectionServer(format!(
-                    "Failed to parse peer address for device {}: {}", mac, e
-                )));
-            }
-        };
-
-        let peer_msg = ProxyConnectionProcessorReqMsg::SetPeer(peer_addr);
+        let peer_msg = ProxyConnectionProcessorReqMsg::SetPeer(format!("{}:{}", host, port));
         if let Err(e) = conn_info.mbox_tx.send(peer_msg) {
             error!("Failed to send ConnectToPeer message for device {}: {}", mac, e);
             return Err(Error::ConnectionServer(format!(
@@ -567,7 +609,6 @@ impl ProxyConnectionServer {
     }
 
     async fn get_round_robin_cgw_id(&self) -> Result<i32> {
-        // Get available CGW IDs from discovery service
         let available_cgw_ids = match self.proxy_remote_discovery.get_available_cgw_ids().await {
             Ok(ids) => ids,
             Err(e) => {
@@ -583,31 +624,15 @@ impl ProxyConnectionServer {
             ));
         }
 
-        // Get the current number of connections in each CGW
-        let mut cgw_connection_counts = HashMap::new();
-        let connmap = self.connmap.map.read().await;
+        let next_index = {
+            let mut last_index = LAST_CGW_INDEX.lock().unwrap();
+            let next = (*last_index + 1) % available_cgw_ids.len();
+            *last_index = next;
+            next
+        };
 
-        // Count how many connections are assigned to each CGW
-        for (_, conn_info) in connmap.iter() {
-            if let Some(cgw_id) = conn_info.connected_to_cgw_id {
-                *cgw_connection_counts.entry(cgw_id).or_insert(0) += 1;
-            }
-        }
+        debug!("Selected CGW ID {} for round-robin (index {})", available_cgw_ids[next_index], next_index);
 
-        // Find the CGW with the fewest connections
-        let mut min_connections = i32::MAX;
-        let mut selected_cgw_id = available_cgw_ids[0]; // Default to first CGW
-
-        for &cgw_id in &available_cgw_ids {
-            let connection_count = *cgw_connection_counts.get(&cgw_id).unwrap_or(&0);
-            if connection_count < min_connections {
-                min_connections = connection_count;
-                selected_cgw_id = cgw_id;
-            }
-        }
-
-        debug!("Selected CGW {} with {} existing connections", selected_cgw_id, min_connections);
-
-        Ok(selected_cgw_id)
+        Ok(available_cgw_ids[next_index])
     }
 }

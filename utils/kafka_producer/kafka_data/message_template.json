@@ -67,5 +67,10 @@
         "cloud-header": {
             "map": 2
         }
+    },
+    "topomap_generate": {
+        "type": "infrastructure_group_topomap_generate",
+        "infra_group_id": 0,
+        "uuid": "290d06b6-8eba-11ee-8005-aabbccddee00"
     }
 }

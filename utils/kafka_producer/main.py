@@ -16,6 +16,8 @@ def main(args: Args):
                                         args.count, args.time_to_send_s, args.interval_s)
     if args.header_group or args.header_infras:
         producer.handle_cloud_header(args.header_group, args.header_infras)
+    if args.generate_topomap:
+        producer.handle_cloud_header(args.generate_topomap)
 
 
 if __name__ == "__main__":

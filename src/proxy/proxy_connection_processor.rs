@@ -331,6 +331,7 @@ impl ProxyConnectionProcessor {
                                     debug!("CGW requested graceful close for client {}", self.serial);
                                     // Try to close client connection gracefully
                                     sink.send(Message::Close(None)).await.ok();
+                                    sleep(Duration::from_secs(2));
                                     break;
                                 },
                                 _ => {

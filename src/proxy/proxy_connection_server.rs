@@ -266,6 +266,10 @@ impl ProxyConnectionServer {
                     error!("Failed to sync remote CGW map after detecting changes: {}", e);
                 }
 
+                if let Err(e) = self.proxy_remote_discovery.sync_gid_to_cgw_map().await {
+                    error!("Failed to sync remote CGW gid to map after detecting changes: {}", e);
+                }
+
                 if let Err(e) = self
                     .proxy_remote_discovery
                     .sync_devices_cache_with_redis(self.devices_cache.clone())
@@ -405,6 +409,10 @@ impl ProxyConnectionServer {
             error!("Failed to sync remote CGW map: {}", e);
         }
 
+        if let Err(e) = self.proxy_remote_discovery.sync_gid_to_cgw_map().await {
+            error!("Failed to sync remote CGW gid to map after detecting changes: {}", e);
+        }
+
         info!("Managing device connections, resync required");
         let devices_cache_read = self.devices_cache.read().await;
         let mut connmap_w_lock = self.connmap.map.write().await;
@@ -484,7 +492,8 @@ impl ProxyConnectionServer {
             } else {
                 // Handle assigned connections (group_id != 0)
                 // Check if device exists in cache
-                if let None = devices_cache_read.get_device(mac) {
+                let device_result = devices_cache_read.get_device(mac);
+                if let None = device_result  {
                     // Device was in group but not in cache anymore
                     // Get round-robin CGW ID
                     match self.get_round_robin_cgw_id().await {
@@ -500,7 +509,7 @@ impl ProxyConnectionServer {
                             error!("Failed to get round-robin CGW ID: {}", e);
                         }
                     }
-                } else if let Some(cached_device) = devices_cache_read.get_device(mac) {
+                } else if let Some(cached_device) = device_result {
                     // Device exists in cache
                     let device_group_id = cached_device.get_device_group_id();
                     // Check if group ID changed
@@ -516,8 +525,24 @@ impl ProxyConnectionServer {
                             warn!("No CGW assigned for updated group ID {} of device {}", device_group_id, mac);
                         }
                     } else {
-                        // Group hasn't changed, skip
-                        continue;
+                        // Group hasn't changed, check if CGW ID was changed but still in with same GID
+                        if let Some(group_owner_id) = self.proxy_remote_discovery.get_infra_group_owner_id(device_group_id).await {
+                            if let Some(current_cgw_id) = conn_info.connected_to_cgw_id {
+                                if group_owner_id != current_cgw_id {
+                                    if let Err(e) = self.set_peer_connection(mac, conn_info, group_owner_id, device_group_id).await {
+                                        error!("Failed to update peer for device {} with new group owner (CGD) ID {}: {}", mac, group_owner_id, e);
+                                        continue;
+                                    }
+                                    debug!("Updated device {} CGW from {} to {} (same group {})",
+                                        mac, current_cgw_id, group_owner_id, device_group_id);
+                                }
+                            } else {
+                                // This shouldn't happen normally since we're in the else branch of "if group changed"
+                                debug!("Assigned device {} to CGW {} for group {}", mac, group_owner_id, device_group_id);
+                            }
+                        } else {
+                            warn!("No CGW assigned for current group ID {} of device {}", device_group_id, mac);
+                        }
                     }
                 }
             }

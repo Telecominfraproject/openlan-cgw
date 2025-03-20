@@ -358,6 +358,12 @@ impl CGWConnectionProcessor {
                     return Ok(CGWConnectionState::ClosedGracefully);
                 }
                 Text(payload) => {
+                    // Infra not assigned?
+                    // No need to even try and process any messages at all.
+                    if self.group_id == 0 {
+                        return Ok(CGWConnectionState::IsActive);
+                    }
+
                     if let Ok(evt) = cgw_ucentral_event_parse(
                         &self.device_type,
                         self.feature_topomap_enabled,
@@ -388,12 +394,6 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
-                                if self.group_id == 0 {
-                                    // This infra is unassigned - CGW SHOULD NOT
-                                    // send State/Infra Realtime event to NB
-                                    return Ok(CGWConnectionState::IsActive);
-                                }
-
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -412,12 +412,6 @@ impl CGWConnectionProcessor {
                                 }
                             }
                             CGWUCentralEventType::Healthcheck => {
-                                if self.group_id == 0 {
-                                    // This infra is unassigned - CGW SHOULD NOT
-                                    // send State/Infra Realtime event to NB
-                                    return Ok(CGWConnectionState::IsActive);
-                                }
-
                                 if let Ok(resp) = cgw_construct_infra_state_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -520,12 +514,6 @@ impl CGWConnectionProcessor {
                                     );
                                 }
 
-                                if self.group_id == 0 {
-                                    // This infra is unassigned - CGW SHOULD NOT
-                                    // send State/Infra Realtime event to NB
-                                    return Ok(CGWConnectionState::IsActive);
-                                }
-
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -557,12 +545,6 @@ impl CGWConnectionProcessor {
                             | CGWUCentralEventType::CfgPending
                             | CGWUCentralEventType::DeviceUpdate
                             | CGWUCentralEventType::Recovery => {
-                                if self.group_id == 0 {
-                                    // This infra is unassigned - CGW SHOULD NOT
-                                    // send State/Infra Realtime event to NB
-                                    return Ok(CGWConnectionState::IsActive);
-                                }
-
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     event_type_str,
                                     kafka_msg,
@@ -581,12 +563,6 @@ impl CGWConnectionProcessor {
                                 }
                             }
                             CGWUCentralEventType::Generic(generic_type) => {
-                                if self.group_id == 0 {
-                                    // This infra is unassigned - CGW SHOULD NOT
-                                    // send State/Infra Realtime event to NB
-                                    return Ok(CGWConnectionState::IsActive);
-                                }
-
                                 if let Ok(resp) = cgw_construct_infra_realtime_event_message(
                                     generic_type,
                                     kafka_msg,

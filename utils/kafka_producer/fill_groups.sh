@@ -8,6 +8,7 @@ total_macs_generated=0
 num_of_groups_filled=0
 out_fname="/tmp/gid_gen.sh"
 gid_offset=0
+shard_id=-1
 
 ################################################################################
 
@@ -28,7 +29,8 @@ function usage() {
 	-o  Starting mac offset (e.g. 00:00:00:00:00:01)
 	-s  KAFKA server (in a IP:PORT fashion)
 	-c  infras (mac addresses) number to create
-	-g  group ID offset to start from"
+	-g  group ID offset to start from
+	-i  shard id to assign newly created groups to"
 	echo "$usage"
 }
 
@@ -70,7 +72,7 @@ function check_args() {
 
 ################################################################################
 
-while getopts ':o:hs:c:g:' option; do
+while getopts ':o:hs:c:g:i:' option; do
 	case "$option" in
 		h) usage
 			exit
@@ -86,6 +88,9 @@ while getopts ':o:hs:c:g:' option; do
 			;;
 		g) gid_offset=$OPTARG
 			echo -e "OPT_IN: Will start creating groups starting from the following GID offset: '$gid_offset'"
+			;;
+		i) shard_id=$OPTARG
+			echo -e "OPT_IN: Will assign groups to the specified shard: '$shard_id'"
 			;;
 		:) printf "missing argument for -%s\n" "$OPTARG" >&2
 			echo "$usage" >&2
@@ -108,7 +113,11 @@ num_of_groups_filled=$gid_offset
 while true ; do
 	echo "Processing mac offset $mac_offset..."
 	random_mac_num=`seq 40 200 | sort -R | head -1` && echo "Generated mac num for gid $num_of_groups_filled - $random_mac_num"
-	echo "python3 ./main.py -s $kafka_host -c 1 --new-group $num_of_groups_filled 0 generated_group_$num_of_groups_filled""_infra_num_$random_mac_num" >> $out_fname
+	if [ $shard_id -eq -1 ]; then
+		echo "python3 ./main.py -s $kafka_host -c 1 --new-group $num_of_groups_filled" >> $out_fname
+	else
+		echo "python3 ./main.py -s $kafka_host -c 1 --new-group-to-shard $num_of_groups_filled $shard_id" >> $out_fname
+	fi
 	echo "python3 ./main.py -s $kafka_host -d $num_of_groups_filled '$mac_offset^$random_mac_num'" >> $out_fname
 	total_macs_generated=$((total_macs_generated + random_mac_num + 1))
 	num_of_groups_filled=$((num_of_groups_filled + 1))

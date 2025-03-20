@@ -6,11 +6,8 @@ use std::{
 };
 
 use url::Url;
-
-use crate::{
-    cgw_errors::{Error, Result},
-    AppCoreLogLevel,
-};
+use crate::cgw_errors::{Error, Result};
+use crate::AppCoreLogLevel;
 
 const CGW_DEFAULT_ID: i32 = 0;
 const CGW_DEFAULT_GROUPS_CAPACITY: i32 = 1000;
@@ -47,6 +44,7 @@ const CGW_DEFAULT_TOPOMAP_STATE: bool = false;
 const CGW_DEFAULT_NB_INFRA_TLS: &str = "no";
 const CGW_DEFAULT_UCENTRAL_AP_DATAMODEL_URI: &str = "https://raw.githubusercontent.com/Telecominfraproject/wlan-ucentral-schema/main/ucentral.schema.json";
 const CGW_DEFAULT_UCENTRAL_SWITCH_DATAMODEL_URI: &str = "https://raw.githubusercontent.com/Telecominfraproject/ols-ucentral-schema/main/ucentral.schema.json";
+const CGW_DEFAULT_PROXY_MODE: &str = "yes";
 
 pub struct CGWWSSArgs {
     /// Number of thread in a threadpool dedicated for handling secure websocket connections
@@ -66,7 +64,7 @@ pub struct CGWWSSArgs {
 }
 
 impl CGWWSSArgs {
-    fn parse() -> Result<CGWWSSArgs> {
+    pub fn parse() -> Result<CGWWSSArgs> {
         let wss_t_num: usize = match env::var("DEFAULT_WSS_THREAD_NUM") {
             Ok(val) => match val.parse() {
                 Ok(v) => v,
@@ -439,7 +437,7 @@ pub struct CGWValidationSchemaArgs {
 }
 
 impl CGWValidationSchemaArgs {
-    fn parse() -> Result<CGWValidationSchemaArgs> {
+    pub fn parse() -> Result<CGWValidationSchemaArgs> {
         let ap_schema_uri: CGWValidationSchemaRef = match env::var("CGW_UCENTRAL_AP_DATAMODEL_URI")
         {
             Ok(uri) => {
@@ -559,6 +557,9 @@ pub struct AppArgs {
 
     /// CGW Validation schema URI args
     pub validation_schema: CGWValidationSchemaArgs,
+
+    /// Proxy mode status (enabled/disabled)
+    pub proxy_mode: bool,
 }
 
 impl AppArgs {
@@ -640,6 +641,10 @@ impl AppArgs {
         let metrics_args = CGWMetricsArgs::parse()?;
         let validation_schema = CGWValidationSchemaArgs::parse()?;
 
+        let proxy_var: String =
+        env::var("CGW_PROXY_MODE").unwrap_or(CGW_DEFAULT_PROXY_MODE.to_string());
+        let proxy_mode = proxy_var == "yes";
+
         if nb_infra_tls {
             redis_args.redis_tls = nb_infra_tls;
             db_args.db_tls = nb_infra_tls;
@@ -660,6 +665,7 @@ impl AppArgs {
             cgw_groups_capacity,
             cgw_groups_threshold,
             cgw_group_infras_capacity,
+            proxy_mode,
         })
     }
 }

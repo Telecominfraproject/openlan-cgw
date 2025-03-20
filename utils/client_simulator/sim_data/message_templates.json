@@ -9,7 +9,7 @@
             "capabilities": {
                 "compatible": "x86_64-kvm_x86_64-r0",
                 "model": "DellEMC-S5248f-P-25G-DPB",
-                "platform": "switch",
+                "platform": "ap",
                 "label_macaddr": "MAC"
             }
         }

@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use std::str::FromStr;
+use std::{net::SocketAddr, str::FromStr};
 use std::{collections::HashMap, fmt};
 
 use eui48::MacAddress;
@@ -12,8 +12,10 @@ use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
 use url::Url;
 
-use crate::cgw_app_args::{CGWValidationSchemaArgs, CGWValidationSchemaRef};
-use crate::cgw_errors::{Error, Result};
+use crate::{
+    cgw_errors::{Error, Result},
+    cgw_app_args::{CGWValidationSchemaArgs, CGWValidationSchemaRef},
+};
 
 use crate::{
     cgw_device::CGWDeviceType, cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,
@@ -375,6 +377,72 @@ pub struct CGWUCentralCommand {
     pub cmd_type: CGWUCentralCommandType,
     pub id: u64,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum CGWProxyCommandType {
+    ProxyConnect,
+    #[default]
+    None,
+}
+
+impl FromStr for CGWProxyCommandType {
+    type Err = ();
+
+    fn from_str(command: &str) -> std::result::Result<Self, Self::Err> {
+        match command {
+            "proxy_connect" => Ok(CGWProxyCommandType::ProxyConnect),
+            "None" => Ok(CGWProxyCommandType::None),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CGWProxyEvent {
+    pub cmd_type: CGWProxyCommandType,
+    pub peer_address: SocketAddr,
+    pub cert_validated: bool,
+    pub serial: MacAddress,
+}
+
+pub fn cgw_proxy_parse_connect_event(message: Message) -> Result<CGWProxyEvent> {
+    let msg = if let Ok(s) = message.into_text() {
+        s
+    } else {
+        return Err(Error::UCentralParser("Message to string cast failed"));
+    };
+
+    #[derive(Deserialize)]
+    struct ProxyMessage {
+        #[serde(rename = "type")]
+        cmd_type: String,
+        peer_address: String,
+        cert_validated: bool,
+        serial: String,
+    }
+
+    let proxy_msg: ProxyMessage = serde_json::from_str(&msg)
+        .map_err(|_| Error::UCentralParser("Failed to parse JSON message"))?;
+
+    let peer_address = proxy_msg.peer_address.parse::<SocketAddr>()
+        .map_err(|_| Error::UCentralParser("Failed to parse peer_address as IP"))?;
+
+    let cmd_type = proxy_msg.cmd_type.parse::<CGWProxyCommandType>()
+        .map_err(|_| Error::UCentralParser("Failed to parse command type"))?;
+
+    let serial = proxy_msg.serial.parse::<MacAddress>()
+        .map_err(|_| Error::UCentralParser("Failed to parse serial address"))?;
+
+    let event = CGWProxyEvent {
+        cmd_type,
+        peer_address,
+        cert_validated: proxy_msg.cert_validated,
+        serial,
+    };
+
+    Ok(event)
+}
+
 
 pub fn cgw_ucentral_parse_connect_event(message: Message) -> Result<CGWUCentralEvent> {
     let msg = if let Ok(s) = message.into_text() {

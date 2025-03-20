@@ -27,7 +27,7 @@ services:
       test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list{% if cgw_kafka_tls == 'yes' %} --command-config /opt/bitnami/kafka/config/client.properties{% endif %}"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 15
       start_period: 5s
     networks:
       - cgw_multi_instances_network
@@ -64,6 +64,34 @@ services:
       - "6379:6379"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
+    networks:
+      - cgw_multi_instances_network
+
+  proxy_cgw:
+    image: {{ proxy_image_name }}:{{ proxy_image_tag }}
+    container_name: {{ proxy_container_name }}
+    ports:
+      - "443:443"
+    volumes:
+      - {{ default_certs_path }}:{{ container_certs_volume }}
+      - {{ default_certs_path }}:{{ container_nb_infra_certs_volume }}
+    environment:
+      - CGW_LOG_LEVEL=${CGW_LOG_LEVEL:-debug}
+      - CGW_ID=${CGW_ID:-0}
+      - CGW_GROUPS_CAPACITY=${CGW_GROUPS_CAPACITY:-1000}
+      - CGW_GROUPS_THRESHOLD=${CGW_GROUPS_THRESHOLD:-50}
+      - CGW_GROUP_INFRAS_CAPACITY=${CGW_GROUP_INFRAS_CAPACITY:-2000}
+      - CGW_WSS_IP=${CGW_WSS_IP:-0.0.0.0}
+      - CGW_WSS_PORT=443
+      - DEFAULT_WSS_THREAD_NUM=${DEFAULT_WSS_THREAD_NUM:-4}
+      - CGW_WSS_CAS=${CGW_WSS_CAS:-cas.pem}
+      - CGW_WSS_CERT=${CGW_WSS_CERT:-cert.pem}
+      - CGW_WSS_KEY=${CGW_WSS_KEY:-key.pem}
+      - CGW_REDIS_HOST={{ cgw_redis_host }}
+      - CGW_REDIS_PORT={{ cgw_redis_port }}
+      - CGW_REDIS_TLS={{ cgw_redis_tls }}
+      - CGW_REDIS_USERNAME={{ cgw_redis_username }}
+      - CGW_REDIS_PASSWORD={{ cgw_redis_password }}
     networks:
       - cgw_multi_instances_network
 

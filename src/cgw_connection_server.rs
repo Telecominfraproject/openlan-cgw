@@ -2457,8 +2457,6 @@ impl CGWConnectionServer {
                     orig_connect_message,
                 ) = msg
                 {
-                    let device_platform: String = caps.platform.clone();
-
                     // if connection is unique: simply insert new conn
                     //
                     // if duplicate exists: notify server about such incident.
@@ -2559,30 +2557,29 @@ impl CGWConnectionServer {
                                 foreign_infra_join = self.local_cgw_id != group_owner_id;
                                 group_owner_shard_id = group_owner_id;
                             }
-                        } else {
-                            let device: CGWDevice = CGWDevice::new(
-                                device_type,
-                                CGWDeviceState::CGWDeviceConnected,
-                                device_group_id,
-                                false,
-                                caps,
-                            );
-                            devices_cache.add_device(&device_mac, &device);
+                        }
+                        let device: CGWDevice = CGWDevice::new(
+                            device_type,
+                            CGWDeviceState::CGWDeviceConnected,
+                            device_group_id,
+                            false,
+                            caps,
+                        );
+                        devices_cache.add_device(&device_mac, &device);
 
-                            // Update Redis Cache
-                            match serde_json::to_string(&device) {
-                                Ok(device_json) => {
-                                    if let Err(e) = self
-                                        .cgw_remote_discovery
-                                        .add_device_to_redis_cache(&device_mac, &device_json)
-                                        .await
-                                    {
-                                        error!("{e}");
-                                    }
+                        // Update Redis Cache
+                        match serde_json::to_string(&device) {
+                            Ok(device_json) => {
+                                if let Err(e) = self
+                                    .cgw_remote_discovery
+                                    .add_device_to_redis_cache(&device_mac, &device_json)
+                                    .await
+                                {
+                                    error!("{e}");
                                 }
-                                Err(e) => {
-                                    error!("Failed to serialize device to json string! Error: {e}");
-                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to serialize device to json string! Error: {e}");
                             }
                         }
                     }
@@ -2708,7 +2705,7 @@ impl CGWConnectionServer {
                     if self.feature_topomap_enabled {
                         let topomap = CGWUCentralTopologyMap::get_ref();
                         topomap
-                            .insert_device(&device_mac, device_platform.as_str(), device_group_id)
+                            .insert_device(&device_mac, device_group_id, self.clone(), timestamp)
                             .await;
                     }
 

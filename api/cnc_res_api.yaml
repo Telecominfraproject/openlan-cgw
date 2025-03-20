@@ -156,7 +156,7 @@ infrastructure_group_infras_add_response:
     items:
       type: string
   kafka_partition_key:
-    description: CGW can return a special string value - kafka partition key,
+    description: MANDATORY field. CGW can return a special string value - kafka partition key,
       that can be used by generating consecutive cnc request,
       that will result in direct addressing of the shard that replied
       to the original request.
@@ -231,7 +231,7 @@ infrastructure_group_infras_del_response:
     items:
       type: string
   kafka_partition_key:
-    description: CGW can return a special string value - kafka partition key,
+    description: MANDATORY field. CGW can return a special string value - kafka partition key,
       that can be used by generating consecutive cnc request,
       that will result in direct addressing of the shard that replied
       to the original request.
@@ -298,7 +298,7 @@ infrastructure_group_infra_message_enqueue_response:
       Empty otherwise.
     type: string
   kafka_partition_key:
-    description: CGW can return a special string value - kafka partition key,
+    description: MANDATORY field. CGW can return a special string value - kafka partition key,
       that can be used by generating consecutive cnc request,
       that will result in direct addressing of the shard that replied
       to the original request.
@@ -359,9 +359,9 @@ infra_request_result:
     type: string
     format: uuid
   cloud-header:
-    description:
+    description: OPTIONAL field.
       The infrastructure group and infra cloud header.
-      This field is optional and might be empty JSON object or missed.
+      This field might be empty JSON object or missed.
     type: string
   success:
     type: boolean

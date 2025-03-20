@@ -2068,7 +2068,7 @@ impl CGWConnectionServer {
                 };
                 num_of_msg_read += rd_num;
 
-                if rd_num == 0 {
+                if rd_num != 0 {
                     let current_timestamp: i64 = self.get_redis_last_update_timestamp().await;
 
                     if last_update_timestamp != current_timestamp {

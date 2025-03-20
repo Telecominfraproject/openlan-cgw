@@ -31,8 +31,8 @@ async fn cgw_get_active_cgw_number(redis_args: &CGWRedisArgs) -> Result<usize> {
 
     let mut redis_connection = match redis_client
         .get_multiplexed_tokio_connection_with_response_timeouts(
-            Duration::from_secs(1),
-            Duration::from_secs(5),
+            Duration::from_secs(15),
+            Duration::from_secs(15),
         )
         .await
     {

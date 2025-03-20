@@ -58,12 +58,6 @@ impl CGWDevicesCache {
     }
 
     pub fn replace_device(&mut self, key: &MacAddress, value: &CGWDevice) {
-        if self.check_device_exists(key) {
-            debug!(
-                "Replacing existing device {}. Requested item already exist",
-                key
-            );
-        }
         self.cache.insert(*key, value.clone());
     }
 

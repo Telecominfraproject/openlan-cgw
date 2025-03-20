@@ -113,6 +113,9 @@ public_env_variables:
 #  CGW_REDIS_TLS: "yes"
 #  CGW_KAFKA_TLS: "yes"
 
+#Set podIP_as_grpc_host or define CGW_GRPC_PUBLIC_HOST environmental variable
+podIP_as_grpc_host: false
+
 #Set secret_env_variables or existingEnvSecret variable
 secret_env_variables:
 #  CGW_DB_PASSWORD: "cgw123"

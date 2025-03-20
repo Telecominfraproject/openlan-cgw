@@ -105,10 +105,11 @@ public_env_variables:
   CGW_WSS_CERT: "websocket-cert.pem"
   CGW_WSS_KEY: "websocket-key.pem"
   CGW_LOG_LEVEL: "info"  # or debug
-  CGW_KAFKA_CONSUME_TOPIC: "CnC"
-  CGW_KAFKA_PRODUCE_TOPIC: "CnC_Res"
   # set to (#cpus * 2) - 2
   DEFAULT_WSS_THREAD_NUM: "6"
+  CGW_GRPC_PUBLIC_HOST: "localhost"
+  CGW_GRPC_PUBLIC_PORT: "15051"
+
 #  CGW_DB_TLS: "yes"
 #  CGW_REDIS_TLS: "yes"
 #  CGW_KAFKA_TLS: "yes"

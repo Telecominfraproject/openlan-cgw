@@ -12,8 +12,10 @@ use serde_json::{Map, Value};
 use tokio_tungstenite::tungstenite::protocol::Message;
 use url::Url;
 
-use crate::cgw_app_args::{CGWValidationSchemaArgs, CGWValidationSchemaRef};
-use crate::cgw_errors::{Error, Result};
+use crate::{
+    cgw_errors::{Error, Result},
+    cgw_app_args::{CGWValidationSchemaArgs, CGWValidationSchemaRef},
+};
 
 use crate::{
     cgw_device::CGWDeviceType, cgw_ucentral_ap_parser::cgw_ucentral_ap_parse_message,

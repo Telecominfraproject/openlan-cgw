@@ -1,4 +1,4 @@
-use crate::cgw_errors::{Error, Result};
+use cgw_common::cgw_errors::{Error, Result};
 
 use lazy_static::lazy_static;
 

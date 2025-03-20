@@ -1,3 +1,4 @@
+workspace = { members = ["src/cgw-common"] }
 [package]
 name = "ucentral-cgw"
 version = "0.0.1"
@@ -48,6 +49,7 @@ nix = { version = "0.29.0", features = ["net"] }
 murmur2 = { version = "0.1.0" }
 strum = { version = "0.26.3" }
 strum_macros = { version = "0.26.3" }
+cgw-common = { version = "0.1.0", path = "src/cgw-common" }
 
 [build-dependencies]
 tonic-build = "0.11.0"

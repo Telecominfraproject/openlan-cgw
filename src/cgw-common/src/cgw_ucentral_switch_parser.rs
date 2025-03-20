@@ -2,13 +2,14 @@ use eui48::MacAddress;
 use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::cgw_errors::{Error, Result};
-
-use crate::cgw_ucentral_parser::{
-    CGWUCentralEvent, CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
-    CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
-    CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
-    CGWUCentralEventType, CGWUCentralJRPCMessage, CGWUCentralReplyType,
+use crate::{
+    cgw_errors::{Error, Result},
+    cgw_ucentral_parser::{
+        CGWUCentralEvent, CGWUCentralEventReply, CGWUCentralEventState, CGWUCentralEventStateClients,
+        CGWUCentralEventStateClientsData, CGWUCentralEventStateClientsType,
+        CGWUCentralEventStateLLDPData, CGWUCentralEventStateLinks, CGWUCentralEventStatePort,
+        CGWUCentralEventType, CGWUCentralJRPCMessage, CGWUCentralReplyType,
+    }
 };
 
 fn parse_lldp_data(

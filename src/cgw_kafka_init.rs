@@ -1,5 +1,9 @@
-use crate::cgw_app_args::{CGWKafkaArgs, CGWRedisArgs};
-use crate::cgw_errors::{Error, Result};
+use cgw_common::{
+    cgw_app_args::{CGWKafkaArgs, CGWRedisArgs},
+    cgw_errors::{Error, Result},
+    cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH,
+};
+
 use crate::cgw_remote_discovery::cgw_create_redis_client;
 
 use rdkafka::admin::{AdminClient, AdminOptions, NewPartitions, NewTopic, TopicReplication};
@@ -7,8 +11,6 @@ use rdkafka::client::DefaultClientContext;
 use rdkafka::config::ClientConfig;
 
 use std::time::Duration;
-
-use crate::cgw_tls::CGW_TLS_NB_INFRA_CERTS_PATH;
 
 const CGW_KAFKA_TOPICS_LIST: [&str; 6] = [
     "cnc",

@@ -1987,6 +1987,7 @@ impl CGWConnectionServer {
         {
             Ok(timestamp) => timestamp,
             Err(e) => {
+                self.cgw_remote_discovery.set_redis_last_update_timestamp().await.ok();
                 error!("{e}");
                 0i64
             }

@@ -1497,19 +1497,15 @@ impl CGWConnectionServer {
             last_update_timestamp: RwLock::new(0i64),
         });
 
-        let server_clone = server.clone();
-        // Task for processing mbox_internal_rx, task owns the RX part
-        server.mbox_internal_runtime_handle.spawn(async move {
-            server_clone.process_internal_mbox(internal_rx).await;
-        });
-
-        let server_clone = server.clone();
         CGWMetrics::get_ref().change_counter(
             CGWMetricsCounterType::GroupInfrasCapacity,
             CGWMetricsCounterOpType::Set(app_args.cgw_group_infras_capacity.into()),
         );
-        server.mbox_nb_api_runtime_handle.spawn(async move {
-            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+
+        let server_clone = server.clone();
+        // Task for processing mbox_internal_rx, task owns the RX part
+        server.mbox_internal_runtime_handle.spawn(async move {
+            server_clone.process_internal_mbox(internal_rx).await;
         });
 
         let server_clone = server.clone();
@@ -1529,6 +1525,11 @@ impl CGWConnectionServer {
         {
             error!("Failed to sync Device cache! Error: {e}");
         }
+
+        let server_clone = server.clone();
+        server.mbox_nb_api_runtime_handle.spawn(async move {
+            server_clone.process_internal_nb_api_mbox(nb_api_rx).await;
+        });
 
         tokio::spawn(async move {
             CGWMetrics::get_ref()
@@ -1986,6 +1987,7 @@ impl CGWConnectionServer {
         {
             Ok(timestamp) => timestamp,
             Err(e) => {
+                self.cgw_remote_discovery.set_redis_last_update_timestamp().await.ok();
                 error!("{e}");
                 0i64
             }
@@ -2066,7 +2068,7 @@ impl CGWConnectionServer {
                 };
                 num_of_msg_read += rd_num;
 
-                if rd_num == 0 {
+                if rd_num != 0 {
                     let current_timestamp: i64 = self.get_redis_last_update_timestamp().await;
 
                     if last_update_timestamp != current_timestamp {

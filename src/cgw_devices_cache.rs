@@ -62,13 +62,19 @@ impl CGWDevicesCache {
     }
 
     pub fn check_device_exists(&self, key: &MacAddress) -> bool {
-        self.cache.contains_key(key)
+        let ret = self.cache.contains_key(key);
+        if ! ret {
+            // try sync redis;
+        }
+
+        ret
     }
 
     pub fn get_device_mut(&mut self, key: &MacAddress) -> Option<&mut CGWDevice> {
         if let Some(value) = self.cache.get_mut(key) {
             Some(value)
         } else {
+            // try sync redis;
             None
         }
     }

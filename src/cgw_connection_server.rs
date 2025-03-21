@@ -67,6 +67,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use eui48::MacAddress;
+use std::time::Instant;
 
 type CGWConnmapType =
     Arc<RwLock<HashMap<MacAddress, UnboundedSender<CGWConnectionProcessorReqMsg>>>>;
@@ -185,6 +186,34 @@ pub struct CGWConnectionServer {
     pub last_update_timestamp: RwLock<i64>,
 }
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub enum CGWBroadcastMessageType {
+    GidAdded,
+    GidRemoved(Option<Vec<MacAddress>>),
+    InfraListAssigned(Vec<MacAddress>),
+    InfraListDeassigned(Vec<MacAddress>),
+    // GroupCloudHeaderChanged
+    // InfraCloudHeaderChanged
+    // RebalanceDone/RebalanceInProgress ???
+    // ShardUp / ShardDown ?
+    // Potentially:
+    // Arbitrary command to address specific shard? cli like interface?:
+    //   - restart shard
+    //   - issue rebalance without kafka knowledge
+    //   - manually create / delete groups / infras etc
+    //   - dump debug info?
+    //   - close connection with infra XYZ
+}
+
+// Broadcasting is needed to speedup some cache operations:
+//
+#[derive(Debug, Deserialize, Serialize)]
+struct CGWBroadcastMessage {
+    reporter_shard_id: i32,
+    gid: i32,
+    msg_type: CGWBroadcastMessageType,
+}
+
 #[derive(Debug, Clone)]
 enum CGWNBApiParsedMsgType {
     InfrastructureGroupCreate(Option<String>, Option<ConsumerMetadata>),
@@ -207,6 +236,61 @@ struct CGWNBApiParsedMsg {
     uuid: Uuid,
     gid: i32,
     msg_type: CGWNBApiParsedMsgType,
+}
+
+impl CGWBroadcastMessage {
+    fn new(gid: i32, reporter_shard_id: i32, msg_type: CGWBroadcastMessageType) -> Self {
+        Self {
+            reporter_shard_id,
+            gid,
+            msg_type,
+        }
+    }
+
+    async fn handle(self, server: Arc<CGWConnectionServer>) {
+        // TODO: Wasting mem? Optimize?
+        match self.msg_type.clone() {
+            CGWBroadcastMessageType::GidAdded => {
+                self.handle_infrastructure_group_added().await;
+            }
+            CGWBroadcastMessageType::GidRemoved(affected_ifnras_list) => {
+                self.handle_infrastructure_group_removed(affected_ifnras_list).await;
+            }
+            CGWBroadcastMessageType::InfraListAssigned(affected_ifnras_list) => {
+                self.handle_infras_list_assigned(affected_ifnras_list).await;
+            }
+            CGWBroadcastMessageType::InfraListDeassigned(affected_ifnras_list) => {
+                self.handle_infras_list_deassigned(affected_ifnras_list).await;
+            }
+        }
+    }
+
+    async fn handle_infrastructure_group_added(
+        &self,
+    ) {
+        debug!("gid_add entry {:?}", self);
+    }
+
+    async fn handle_infrastructure_group_removed(
+        &self,
+        mut affected_infras_list: Option<Vec<MacAddress>>,
+    ) {
+        debug!("gid_add entry {:?}", self);
+    }
+
+    async fn handle_infras_list_assigned(
+        &self,
+        mut affected_infras_list: Vec<MacAddress>,
+    ) {
+        debug!("gid_add entry {:?}", self);
+    }
+
+    async fn handle_infras_list_deassigned(
+        &self,
+        mut affected_infras_list: Vec<MacAddress>,
+    ) {
+        debug!("gid_add entry {:?}", self);
+    }
 }
 
 impl CGWNBApiParsedMsg {
@@ -1513,11 +1597,18 @@ impl CGWConnectionServer {
             server_clone.start_queue_timeout_manager().await;
         });
 
+
+        /*
+        let now = Instant::now();
+        let elapsed = now.elapsed();
         if let Err(e) = server.cgw_remote_discovery.sync_devices_cache().await {
             error!("Failed to sync infras with Redis devices cache! Error: {e}");
         }
+        info!("sync_devices_cache took: {:.2?}", elapsed);
+        */
 
         // Sync RAM cache with Redis.
+        /*
         if let Err(e) = server
             .cgw_remote_discovery
             .sync_devices_cache_with_redis(server.devices_cache.clone())
@@ -1525,6 +1616,7 @@ impl CGWConnectionServer {
         {
             error!("Failed to sync Device cache! Error: {e}");
         }
+        */
 
         let server_clone = server.clone();
         server.mbox_nb_api_runtime_handle.spawn(async move {
@@ -2042,6 +2134,49 @@ impl CGWConnectionServer {
         let mut local_shard_partition_key: Option<String>;
 
         loop {
+            'mbox_msg_handle_loop: loop {
+                // The 'broadcast' messages from remote CGWs have the highest priority
+                // of evaluation and handling, because:
+                //   * handling of underlying infras while is disconnected from NB API
+                //     or processing of remote messages, it is still internally
+                //     dependant over data that might change in runtime such as
+                //     cloud header, GID association etc;
+                //   * the decision this shard in particular makes while processing
+                //     NB messages has to be made based on the most actual data
+                //     available - redis cache synced, dev cache is up to date,
+                //     remote mapping is the latest.
+                if let Some(mut bcast_msg) = self.cgw_remote_discovery.receive_broadcast_message().await {
+                    let msg: CGWBroadcastMessage = match serde_json::from_str(&bcast_msg) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            warn!("Received msg {:?} but failed to parse it to concrete message type: {e}", bcast_msg);
+                            continue;
+                        }
+                    };
+
+                    // Received message which notifies us about (potential) redis changes.
+                    // Based on the underlying message, the following can happen:
+                    //   * resync (specific) device cache (if needed);
+                    //   * resync remote CGW list (if needed);
+                    //   * resync GID to CGW map (if needed);
+                    //
+                    // This enables 'atomic' handling of events - in case if a single group
+                    // gets removed, only those caches of the members of the group would be
+                    // altered (GID -> 0, unassigned / GID -> X, assigned).
+                    //
+                    // The handlers shouldn't filter out the reporter shard id,
+                    // hence it gives the following flexibility:
+                    //   * Underlying offloaded data (redis, SQL etc) is being
+                    //     manipulated (if needed) upon processing Kafka messages
+                    //     received from NB services;
+                    //   * TODO: RETHINK!!! : We can actually process locally-generated events,
+                    //     e.g. generated by local shard, addressed to local shard for
+                    //     'later-on' processing
+                    msg.handle(self.clone()).await;
+                } else {
+                    break 'mbox_msg_handle_loop;
+                }
+            }
             if num_of_msg_read < buf_capacity {
                 // Try to recv_many, but don't sleep too much
                 // in case if no messaged pending and we have
@@ -2068,54 +2203,6 @@ impl CGWConnectionServer {
                 };
                 num_of_msg_read += rd_num;
 
-                if rd_num != 0 {
-                    let current_timestamp: i64 = self.get_redis_last_update_timestamp().await;
-
-                    if last_update_timestamp != current_timestamp {
-                        if let Err(e) = self.cgw_remote_discovery.sync_gid_to_cgw_map().await {
-                            error!("process_internal_nb_api_mbox: failed to sync GID to CGW map! Error: {e}");
-                        }
-
-                        if let Err(e) = self.cgw_remote_discovery.sync_devices_cache().await {
-                            error!("process_internal_nb_api_mbox: failed to sync Devices cache! Error: {e}");
-                        }
-
-                        if let Err(e) = self
-                            .cgw_remote_discovery
-                            .sync_devices_cache_with_redis(self.devices_cache.clone())
-                            .await
-                        {
-                            error!("Failed to sync Device cache! Error: {e}");
-                        }
-
-                        {
-                            let mut ts_w_lock = self.last_update_timestamp.write().await;
-                            *ts_w_lock = current_timestamp;
-                            last_update_timestamp = current_timestamp
-                        }
-
-                        let mut infras_list: Vec<MacAddress> = Vec::new();
-                        let connmap_r_lock = self.connmap.map.read().await;
-
-                        for (infra_mac, _) in connmap_r_lock.iter() {
-                            match self.devices_cache.read().await.get_device(infra_mac) {
-                                Some(infra) => {
-                                    if infra.get_device_group_id() == 0 {
-                                        infras_list.push(*infra_mac);
-                                    }
-                                }
-                                None => {
-                                    infras_list.push(*infra_mac);
-                                }
-                            }
-                        }
-
-                        if !infras_list.is_empty() {
-                            self.clone().notify_devices_on_gid_change(infras_list, 0);
-                        }
-                    }
-                }
-
                 // We read some messages, try to continue and read more
                 // If none read - break from recv, process all buffers that've
                 // been filled-up so far (both local and remote).
@@ -2126,6 +2213,53 @@ impl CGWConnectionServer {
             }
 
             debug!("Received {num_of_msg_read} messages from NB API, processing...");
+            {
+                let current_timestamp: i64 = self.get_redis_last_update_timestamp().await;
+
+                if last_update_timestamp != current_timestamp {
+                    if let Err(e) = self.cgw_remote_discovery.sync_gid_to_cgw_map().await {
+                        error!("process_internal_nb_api_mbox: failed to sync GID to CGW map! Error: {e}");
+                    }
+
+                    let mut ts_w_lock = self.last_update_timestamp.write().await;
+                    *ts_w_lock = current_timestamp;
+                    last_update_timestamp = current_timestamp
+
+                    /*
+                    if let Err(e) = self.cgw_remote_discovery.sync_devices_cache().await {
+                        error!("process_internal_nb_api_mbox: failed to sync Devices cache! Error: {e}");
+                    }
+
+                    if let Err(e) = self
+                        .cgw_remote_discovery
+                            .sync_devices_cache_with_redis(self.devices_cache.clone())
+                            .await
+                    {
+                        error!("Failed to sync Device cache! Error: {e}");
+                    }
+
+                    let mut infras_list: Vec<MacAddress> = Vec::new();
+                    let connmap_r_lock = self.connmap.map.read().await;
+
+                    for (infra_mac, _) in connmap_r_lock.iter() {
+                        match self.devices_cache.read().await.get_device(infra_mac) {
+                            Some(infra) => {
+                                if infra.get_device_group_id() == 0 {
+                                    infras_list.push(*infra_mac);
+                                }
+                            }
+                            None => {
+                                infras_list.push(*infra_mac);
+                            }
+                        }
+                    }
+
+                    if !infras_list.is_empty() {
+                        self.clone().notify_devices_on_gid_change(infras_list, 0);
+                    }
+                */
+                }
+            }
 
             let timestamp = cgw_get_timestamp_16_digits();
 

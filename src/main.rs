@@ -355,6 +355,9 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Panics if no default provider is configured
+    tokio_rustls::rustls::crypto::ring::default_provider().install_default().expect("Failed to install rustls crypto provider");
+
     // Configure logger
     setup_logger(args.log_level);
 

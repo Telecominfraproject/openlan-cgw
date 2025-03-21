@@ -68,7 +68,6 @@ The following table lists the configurable parameters of the chart and their def
 | persistence.enabled | boolean | Defines if the Gateway requires Persistent Volume (required for permanent files storage and SQLite DB if enabled) | `True` |
 | persistence.accessModes | array | Defines PV access modes |  |
 | persistence.size | string | Defines PV size | `'10Gi'` |
-| podIP_as_grpc_host | boolean | If `true`, `CGW_GRPC_PUBLIC_HOST` environment variable will be populated with PodIP. | `false` |
 | public\_env\_variables | hash | Defines list of environment variables to be passed to the Gateway via ConfigMaps | |
 | secret\_env\_variables | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |
 | existingEnvSecret | hash | Defines list of secret environment variables to be passed to the Gateway via secrets | |

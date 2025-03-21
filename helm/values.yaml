@@ -100,22 +100,30 @@ persistence:
 
 # Application
 public_env_variables:
-  CGW_ROOT: /cgw-data
-  CGW_WSS_CAS: "cas.pem"
-  CGW_WSS_CERT: "websocket-cert.pem"
-  CGW_WSS_KEY: "websocket-key.pem"
-  CGW_LOG_LEVEL: "info"  # or debug
+  - name: CGW_ROOT
+    value: "/cgw-data"
+  - name: CGW_WSS_CAS
+    value: "cas.pem"
+  - name: CGW_WSS_CERT
+    value: "websocket-cert.pem"
+  - name: CGW_WSS_KEY
+    value: "websocket-key.pem"
+  - name: CGW_LOG_LEVEL
+    value: "info"  # or debug
   # set to (#cpus * 2) - 2
-  DEFAULT_WSS_THREAD_NUM: "6"
-  CGW_GRPC_PUBLIC_HOST: "localhost"
-  CGW_GRPC_PUBLIC_PORT: "15051"
+  - name: DEFAULT_WSS_THREAD_NUM
+    value: "6"
+  - name: CGW_GRPC_PUBLIC_HOST
+    value: "localhost"
+  - name: CGW_GRPC_PUBLIC_PORT
+    value: "15051"
+#  - name: CGW_DB_TLS
+#    value: "yes"
+#  - name: CGW_REDIS_TLS
+#    value: "yes"
+#  - name: CGW_KAFKA_TLS
+#    value: "yes"
 
-#  CGW_DB_TLS: "yes"
-#  CGW_REDIS_TLS: "yes"
-#  CGW_KAFKA_TLS: "yes"
-
-#Set podIP_as_grpc_host or define CGW_GRPC_PUBLIC_HOST environmental variable
-podIP_as_grpc_host: false
 
 #Set secret_env_variables or existingEnvSecret variable
 secret_env_variables:

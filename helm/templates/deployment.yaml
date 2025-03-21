@@ -50,15 +50,13 @@ spec:
           env:
             - name: KUBERNETES_DEPLOYED
               value: "{{ now }}"
-          {{- if .Values.podIP_as_grpc_host }}
-            - name: CGW_GRPC_PUBLIC_HOST
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-          {{- end }}
-          {{- range $key, $value := .Values.public_env_variables }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
+          {{- range .Values.public_env_variables }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom: {{ toYaml .valueFrom | nindent 16 }}
+              {{- end }}
           {{- end }}
           envFrom:
             - secretRef:

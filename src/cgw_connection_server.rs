@@ -2635,6 +2635,7 @@ impl CGWConnectionServer {
                 Vec::with_capacity(num_of_msg_read + 1);
             let mut local_cgw_msg_buf: Vec<CGWConnectionNBAPIReqMsg> =
                 Vec::with_capacity(num_of_msg_read + 1);
+            let mut msg_uuid = Uuid::default();
 
             while !buf.is_empty() {
                 let msg = buf.remove(0);
@@ -2731,7 +2732,8 @@ impl CGWConnectionServer {
                 // forwarded to.
                 // In order to get it, match to <any> parsed msg, and
                 // get only gid field.
-                let CGWNBApiParsedMsg { gid, .. } = parsed_msg;
+                let CGWNBApiParsedMsg { gid, uuid, .. } = parsed_msg;
+                msg_uuid = uuid;
 
                 match self
                     .cgw_remote_discovery
@@ -2816,9 +2818,9 @@ impl CGWConnectionServer {
                         {
                             if let Ok(resp) = cgw_construct_infra_enqueue_response(
                                 self_clone.local_cgw_id,
-                                Uuid::default(),
+                                msg_uuid, //Uuid::default(),
                                 false,
-                                Some(format!("Failed to relay MSG stream to remote CGW{cgw_id}")),
+                                Some(format!("Failed to relay MSG{msg_uuid} stream to remote CGW{cgw_id}")),
                                 local_shard_partition_key_clone,
                                 None,
                                 timestamp,

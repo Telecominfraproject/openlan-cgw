@@ -1785,15 +1785,56 @@ impl CGWConnectionServer {
                             }
                         }
                     } else {
+                            // On first device connection, details won’t exist in the cache.
+                            // Each shard’s local cache only contains its own devices details,
+                            // so we fetch the device details from the DB to determine
+                            // whether it belongs to another shard (foreign) or is unassigned.
+                            if let Some(group_id) = self.cgw_remote_discovery.get_device_group_id(&device_mac).await {
+                            debug!("Device {} belongs to group {}", device_mac, group_id);
+                            if let Some(group_owner_id) = self.cgw_remote_discovery.get_infra_group_owner_id(group_id).await {
+                                if group_owner_id != self.local_cgw_id {
+                                    if let Ok(resp) = cgw_construct_foreign_infra_connection_msg(
+                                        group_id,
+                                        device_mac,
+                                        self.local_cgw_id,
+                                        group_owner_id,
+                                    ) {
+                                        self.enqueue_mbox_message_from_cgw_to_nb_api(group_id, resp);
+                                    } else {
+                                        error!("Failed to construct foreign_infra_connection message!");
+                                    }
+
+                                }
+                            }
+                            device_group_id=group_id;
+                        }
+                        let remains_in_db = device_group_id != 0;
+                        if device_group_id == 0 {
+                            if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
+                                device_mac,
+                                self.local_cgw_id,
+                            ) {
+                                self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
+                            } else {
+                                error!("Failed to construct unassigned_infra_connection message!");
+                            }
+                        }
                         let device: CGWDevice = CGWDevice::new(
                             device_type,
                             CGWDeviceState::CGWDeviceConnected,
-                            0,
-                            false,
+                            device_group_id,
+                            remains_in_db,
                             caps,
                         );
                         devices_cache.add_device(&device_mac, &device);
 
+                        if let Err(e) = self
+                            .cgw_remote_discovery
+                            .del_device_from_all_shards_redis_cache(&device_mac)
+                            .await
+                        {
+                            error!("{e}");
+                        }
                         match serde_json::to_string(&device) {
                             Ok(device_json) => {
                                 if let Err(e) = self
@@ -1809,19 +1850,6 @@ impl CGWConnectionServer {
                             }
                         }
 
-                        if let Ok(resp) = cgw_construct_unassigned_infra_connection_msg(
-                            device_mac,
-                            self.local_cgw_id,
-                        ) {
-                            self.enqueue_mbox_message_from_cgw_to_nb_api(0, resp);
-                        } else {
-                            error!("Failed to construct unassigned_infra_connection message!");
-                        }
-
-                        debug!(
-                            "Detected unassigned infra {} connection",
-                            device_mac.to_hex_string()
-                        );
                     }
 
                     if self.feature_topomap_enabled {
